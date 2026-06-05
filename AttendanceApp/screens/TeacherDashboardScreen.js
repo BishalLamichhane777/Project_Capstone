@@ -1,61 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar,
+  SafeAreaView, ScrollView, StatusBar, RefreshControl, ActivityIndicator, Alert,
 } from 'react-native';
 import TeacherBottomNav from '../components/TeacherBottomNav';
+import { useAuth } from '../context/AuthContext';
+import { API } from '../api';
+import { Clock, Users, CheckCircle2, MoreHorizontal, MapPin, DoorOpen, Play, Bell, Camera, ChevronRight } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
-const todayClasses = [
-  {
-    id: '1',
-    subject: 'Intro to Comp Sci',
-    code: 'Class 101-A',
-    dept: 'Computer Science Dept.',
-    time: '09:00 - 10:30 AM',
-    room: 'Room 304',
-    students: 28,
-    status: 'ongoing',
-    month: 'NOV',
-    day: '14',
-    color: BLUE,
-  },
-  {
-    id: '2',
-    subject: 'Advanced Algorithms',
-    code: 'Class 302-B',
-    dept: 'Lecture Hall',
-    time: '11:00 - 12:30 PM',
-    room: 'Room 201',
-    students: 22,
-    status: 'upcoming',
-    month: 'NOV',
-    day: '14',
-    color: '#f3eeff',
-    iconColor: '#7c3aed',
-  },
-  {
-    id: '3',
-    subject: 'Database Systems',
-    code: 'Lab Session',
-    dept: 'Computer Lab 2',
-    time: '02:00 - 04:00 PM',
-    room: 'Room 405',
-    students: 18,
-    status: 'upcoming',
-    month: 'NOV',
-    day: '14',
-    color: '#fff4e6',
-    iconColor: '#e67e22',
-  },
-];
+// Fetched dynamically from backend
 
 const quickStats = [
-  { icon: '🕐', value: '4', label: 'Classes Today', color: '#eef2ff', textColor: BLUE },
-  { icon: '👥', value: '68', label: 'Total Students', color: '#edfaf3', textColor: '#27ae60' },
-  { icon: '✅', value: '91%', label: 'Avg Attendance', color: '#fff8e6', textColor: '#f39c12' },
-  
+  { icon: Clock, value: '4', label: 'Classes Today', color: '#eef2ff', textColor: BLUE },
+  { icon: Users, value: '68', label: 'Total Students', color: '#edfaf3', textColor: '#27ae60' },
+  { icon: CheckCircle2, value: '91%', label: 'Avg Attendance', color: '#fff8e6', textColor: '#f39c12' },
 ];
 
 // Fake avatar initials for student cluster
@@ -89,7 +49,7 @@ function OngoingCard({ item, navigation }) {
           <Text style={styles.ongoingBadgeText}>Now Happening</Text>
         </View>
         <TouchableOpacity>
-          <Text style={styles.moreIcon}>•••</Text>
+          <MoreHorizontal size={14} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
       </View>
 
@@ -98,11 +58,11 @@ function OngoingCard({ item, navigation }) {
 
       <View style={styles.ongoingDetails}>
         <View style={styles.ongoingDetailItem}>
-          <Text style={styles.ongoingDetailIcon}>🕐</Text>
+          <Clock size={13} color="rgba(255,255,255,0.85)" />
           <Text style={styles.ongoingDetailText}>{item.time}</Text>
         </View>
         <View style={styles.ongoingDetailItem}>
-          <Text style={styles.ongoingDetailIcon}>📍</Text>
+          <MapPin size={13} color="rgba(255,255,255,0.85)" />
           <Text style={styles.ongoingDetailText}>{item.room}</Text>
         </View>
       </View>
@@ -133,11 +93,11 @@ function UpcomingCard({ item, navigation }) {
         <Text style={styles.upcomingCode}>{item.code} • {item.dept}</Text>
         <View style={styles.upcomingDetails}>
           <View style={styles.upcomingDetailItem}>
-            <Text style={styles.upcomingDetailIcon}>🕐</Text>
+            <Clock size={11} color="#6b7280" />
             <Text style={styles.upcomingDetailText}>{item.time}</Text>
           </View>
           <View style={styles.upcomingDetailItem}>
-            <Text style={styles.upcomingDetailIcon}>🚪</Text>
+            <DoorOpen size={11} color="#6b7280" />
             <Text style={styles.upcomingDetailText}>{item.room}</Text>
           </View>
         </View>
@@ -147,44 +107,90 @@ function UpcomingCard({ item, navigation }) {
         onPress={() => navigation.navigate('StartClass', { classItem: item })}
         activeOpacity={0.85}
       >
-        <Text style={styles.startBtnText}>▶</Text>
+        <Play size={12} color={BLUE} fill={BLUE} />
       </TouchableOpacity>
     </View>
   );
 }
 
 export default function TeacherDashboardScreen({ navigation }) {
-  const ongoing = todayClasses.find(c => c.status === 'ongoing');
-  const upcoming = todayClasses.filter(c => c.status === 'upcoming');
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchSessions = async () => {
+    try {
+      const res = await fetch(API.sessionMySessions, {
+        headers: { Authorization: `Bearer ${user?.token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSessions(data);
+      } else {
+        throw new Error('Failed to fetch classes');
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Could not load your classes.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchSessions();
+  };
+
+  const ongoing = sessions.find(c => c.status === 'ongoing');
+  const upcoming = sessions.filter(c => c.status === 'upcoming');
+
+  const displayName = user?.fullname || 'Teacher';
+  const displayInitials = displayName
+    ? displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'TE';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scroll} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
 
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>BB</Text>
+              <Text style={styles.avatarText}>{displayInitials}</Text>
               <View style={styles.onlineIndicator} />
             </View>
             <View>
               <Text style={styles.roleLabel}>TEACHER</Text>
-              <Text style={styles.nameText}>Hello, Bishal Bhat</Text>
+              <Text style={styles.nameText}>Hello, {displayName}</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.bellBtn}>
-            <Text style={styles.bellIcon}>🔔</Text>
+            <Bell size={18} color="#1a1f36" />
           </TouchableOpacity>
         </View>
+
 
         {/* Quick Stats */}
         <View style={styles.statsRow}>
           {quickStats.map((s, i) => (
             <View key={i} style={[styles.statCard, { backgroundColor: s.color }]}>
-              <Text style={styles.statIcon}>{s.icon}</Text>
+              <View style={{ marginBottom: 4 }}>
+                <s.icon size={18} color={s.textColor} />
+              </View>
               <Text style={[styles.statValue, { color: s.textColor }]}>{s.value}</Text>
               <Text style={styles.statLabel}>{s.label}</Text>
             </View>
@@ -199,29 +205,43 @@ export default function TeacherDashboardScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Ongoing Class Card */}
-        {ongoing && <OngoingCard item={ongoing} navigation={navigation} />}
+        {loading ? (
+          <ActivityIndicator size="large" color={BLUE} style={{ marginVertical: 30 }} />
+        ) : (
+          <>
+            {sessions.length === 0 ? (
+              <View style={{ alignItems: 'center', marginVertical: 20 }}>
+                <Text style={{ color: '#8a94a6' }}>No classes scheduled for today.</Text>
+              </View>
+            ) : (
+              <>
+                {/* Ongoing Class Card */}
+                {ongoing && <OngoingCard item={ongoing} navigation={navigation} />}
 
-        {/* Upcoming Classes */}
-        {upcoming.map(item => (
-          <UpcomingCard key={item.id} item={item} navigation={navigation} />
-        ))}
+                {/* Upcoming Classes */}
+                {upcoming.map((item, idx) => (
+                  <UpcomingCard key={item.id || idx} item={item} navigation={navigation} />
+                ))}
 
-        {/* Start Attendance Banner */}
-        <TouchableOpacity
-          style={styles.startBanner}
-          onPress={() => navigation.navigate('StartClass', { classItem: ongoing || todayClasses[0] })}
-          activeOpacity={0.85}
-        >
-          <View style={styles.startBannerLeft}>
-            <Text style={styles.startBannerIcon}>📷</Text>
-            <View>
-              <Text style={styles.startBannerTitle}>Start Face Attendance</Text>
-              <Text style={styles.startBannerSub}>Open camera to detect students</Text>
-            </View>
-          </View>
-          <Text style={styles.startBannerArrow}>›</Text>
-        </TouchableOpacity>
+                {/* Start Attendance Banner */}
+                <TouchableOpacity
+                  style={styles.startBanner}
+                  onPress={() => navigation.navigate('StartClass', { classItem: ongoing || upcoming[0] })}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.startBannerLeft}>
+                    <Camera size={26} color="#ffffff" />
+                    <View style={{ marginLeft: 12 }}>
+                      <Text style={styles.startBannerTitle}>Start Face Attendance</Text>
+                      <Text style={styles.startBannerSub}>Open camera to detect students</Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={26} color="rgba(255,255,255,0.5)" />
+                </TouchableOpacity>
+              </>
+            )}
+          </>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>

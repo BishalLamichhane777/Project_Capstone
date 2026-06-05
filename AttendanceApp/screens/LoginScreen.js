@@ -10,7 +10,11 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { API } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 const BLUE = '#2952e3';
 const TEACHER_COLOR = '#1a8a5a';
@@ -56,15 +60,71 @@ const ROLE_CONFIG = {
 };
 
 export default function LoginScreen({ navigation }) {
+  const { loginState } = useAuth();
   const [role, setRole] = useState('Student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const config = ROLE_CONFIG[role];
 
-  const handleLogin = () => {
-    navigation.navigate(config.navigate);
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Error', 'Please enter both email and password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(API.login, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
+      setLoading(false);
+
+      if (response.ok) {
+        // Validate role matches the selected role
+        const backendRole = (data.role || '').toLowerCase();
+        const selectedRole = role.toLowerCase();
+
+        if (backendRole !== selectedRole) {
+          Alert.alert(
+            'Unauthorized Role',
+            `You are registered as ${data.role}, but you are trying to log in as ${role}. Please select the correct role option.`
+          );
+          return;
+        }
+
+        // Save token and basic user info in context
+        loginState(data.token, {
+          id: data.user_id,
+          fullname: data.fullname,
+          role: data.role,
+          email: email.trim().toLowerCase(),
+        });
+
+        // Navigate to appropriate screen
+        navigation.navigate(config.navigate);
+      } else {
+        Alert.alert('Login Failed', data.error || 'Invalid credentials');
+      }
+    } catch (error) {
+      setLoading(false);
+      Alert.alert(
+        'Connection Error',
+        'Unable to connect to the backend server. Please verify the server is running and your device is on the same network.'
+      );
+      console.error('Login error:', error);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -164,9 +224,15 @@ export default function LoginScreen({ navigation }) {
               ]}
               onPress={handleLogin}
               activeOpacity={0.85}
+              disabled={loading}
             >
-              <Text style={styles.loginButtonText}>{config.buttonLabel}</Text>
+              {loading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.loginButtonText}>{config.buttonLabel}</Text>
+              )}
             </TouchableOpacity>
+
 
             {/* Divider + Google — only for Student */}
             {config.showGoogle && (

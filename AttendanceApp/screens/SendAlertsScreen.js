@@ -4,15 +4,16 @@ import {
   SafeAreaView, ScrollView, StatusBar, Alert, TextInput,
 } from 'react-native';
 import AdminBottomNav from '../components/AdminBottomNav';
+import { AlertTriangle, XCircle, ClipboardList, Megaphone, ChevronLeft, Check, Send } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 const GOLD = '#b07d00';
 
 const alertTypes = [
-  { key: 'attendance', icon: '⚠️', label: 'Low Attendance',   sub: 'Warn students below threshold', color: '#fff8e6', activeColor: '#f39c12' },
-  { key: 'absence',    icon: '❌', label: 'Absence Reminder',  sub: 'Remind about missed classes',   color: '#fff0f0', activeColor: '#e74c3c' },
-  { key: 'waiver',     icon: '📋', label: 'Waiver Update',     sub: 'Notify waiver status change',   color: '#eef2ff', activeColor: BLUE },
-  { key: 'general',    icon: '📢', label: 'General Announcement', sub: 'Broadcast to all students',  color: '#edfaf3', activeColor: '#27ae60' },
+  { key: 'attendance', icon: AlertTriangle, label: 'Low Attendance',   sub: 'Warn students below threshold', color: '#fff8e6', activeColor: '#f39c12' },
+  { key: 'absence',    icon: XCircle, label: 'Absence Reminder',  sub: 'Remind about missed classes',   color: '#fff0f0', activeColor: '#e74c3c' },
+  { key: 'waiver',     icon: ClipboardList, label: 'Waiver Update',     sub: 'Notify waiver status change',   color: '#eef2ff', activeColor: BLUE },
+  { key: 'general',    icon: Megaphone, label: 'General Announcement', sub: 'Broadcast to all students',  color: '#edfaf3', activeColor: '#27ae60' },
 ];
 
 const recipientGroups = [
@@ -23,9 +24,9 @@ const recipientGroups = [
 ];
 
 const recentAlerts = [
-  { type: '⚠️', title: 'Low Attendance Warning',    recipients: '14 students', time: '2h ago',  color: '#fff8e6' },
-  { type: '📢', title: 'Semester Exam Schedule',     recipients: 'All students', time: '1d ago',  color: '#edfaf3' },
-  { type: '❌', title: 'Absence Reminder — CS-301',  recipients: '8 students',  time: '3d ago',  color: '#fff0f0' },
+  { type: AlertTriangle, title: 'Low Attendance Warning',    recipients: '14 students', time: '2h ago',  color: '#fff8e6' },
+  { type: Megaphone, title: 'Semester Exam Schedule',     recipients: 'All students', time: '1d ago',  color: '#edfaf3' },
+  { type: XCircle, title: 'Absence Reminder — CS-301',  recipients: '8 students',  time: '3d ago',  color: '#fff0f0' },
 ];
 
 export default function SendAlertsScreen({ navigation }) {
@@ -55,7 +56,7 @@ export default function SendAlertsScreen({ navigation }) {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <ChevronLeft size={22} color="#1a1f36" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Send Alerts</Text>
         <View style={{ width: 38 }} />
@@ -75,11 +76,13 @@ export default function SendAlertsScreen({ navigation }) {
                 onPress={() => setSelectedType(type.key)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.typeIcon}>{type.icon}</Text>
+                <View style={{ marginBottom: 6 }}>
+                  <type.icon size={22} color={isActive ? type.activeColor : '#1a1f36'} />
+                </View>
                 <Text style={[styles.typeLabel, isActive && { color: type.activeColor }]}>{type.label}</Text>
                 <Text style={styles.typeSub}>{type.sub}</Text>
                 {isActive && <View style={[styles.typeCheck, { backgroundColor: type.activeColor }]}>
-                  <Text style={styles.typeCheckText}>✓</Text>
+                  <Check size={11} color="#ffffff" />
                 </View>}
               </TouchableOpacity>
             );
@@ -140,7 +143,11 @@ export default function SendAlertsScreen({ navigation }) {
         {(subject || message) ? (
           <View style={[styles.previewCard, { borderLeftColor: activeType?.activeColor }]}>
             <Text style={styles.previewLabel}>PREVIEW</Text>
-            <Text style={styles.previewIcon}>{activeType?.icon}</Text>
+            {activeType && (
+              <View style={{ marginBottom: 6 }}>
+                <activeType.icon size={20} color={activeType.activeColor} />
+              </View>
+            )}
             <Text style={styles.previewSubject}>{subject || 'Subject...'}</Text>
             <Text style={styles.previewMessage}>{message || 'Message...'}</Text>
           </View>
@@ -148,7 +155,7 @@ export default function SendAlertsScreen({ navigation }) {
 
         {/* Send Button */}
         <TouchableOpacity style={styles.sendBtn} onPress={handleSend} activeOpacity={0.85}>
-          <Text style={styles.sendIcon}>📤</Text>
+          <Send size={18} color="#ffffff" />
           <Text style={styles.sendText}>Send Alert</Text>
         </TouchableOpacity>
 
@@ -158,7 +165,7 @@ export default function SendAlertsScreen({ navigation }) {
           {recentAlerts.map((alert, i) => (
             <View key={i} style={[styles.recentRow, i !== recentAlerts.length - 1 && styles.recentBorder]}>
               <View style={[styles.recentIcon, { backgroundColor: alert.color }]}>
-                <Text style={styles.recentIconText}>{alert.type}</Text>
+                <alert.type size={18} color="#1a1f36" />
               </View>
               <View style={styles.recentInfo}>
                 <Text style={styles.recentTitle}>{alert.title}</Text>

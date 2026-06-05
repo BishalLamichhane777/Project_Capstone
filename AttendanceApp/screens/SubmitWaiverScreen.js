@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BottomNav from '../components/BottomNav';
 import {
   View,
@@ -10,36 +10,70 @@ import {
   StatusBar,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { API } from '../api';
+import { ChevronLeft, Info, ChevronUp, ChevronDown, FileText, File, X } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
-const sessions = [
-  'Monday - Room 205 - Database',
-  'Tuesday - Room 201 - DAML',
-  'Wednesday - Room 301 - Networks',
-  'Thursday - Room 102 - OS',
-  'Friday - Room 204 - Math',
-];
-
 export default function SubmitWaiverScreen({ navigation }) {
+  const { token } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [absentSessions, setAbsentSessions] = useState([]);
+  const [pastExcuses, setPastExcuses] = useState([]);
+
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [selectedSession, setSelectedSession] = useState('');
+  const [selectedSession, setSelectedSession] = useState(null);
   const [reason, setReason] = useState('');
-  const [uploadedFile, setUploadedFile] = useState({
-    name: 'medical_certificate_oct12.pdf',
-    size: '1.2 MB',
-  });
+  const [uploadedFile, setUploadedFile] = useState(null);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const histRes = await fetch(API.attendanceHistory, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const histData = await histRes.json();
+      
+      if (histRes.ok) {
+        const absent = histData.filter(h => h.status === 'Absent');
+        setAbsentSessions(absent);
+      }
+
+      const excRes = await fetch(API.myExcuses, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const excData = await excRes.json();
+      if (excRes.ok) {
+        setPastExcuses(excData);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRemoveFile = () => {
     setUploadedFile(null);
   };
 
   const handleUpload = () => {
-    Alert.alert('Upload', 'File picker would open here.');
+    setUploadedFile({
+      name: 'medical_certificate.pdf',
+      size: '1.2 MB',
+    });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedSession) {
       Alert.alert('Error', 'Please select a session.');
       return;
@@ -48,9 +82,40 @@ export default function SubmitWaiverScreen({ navigation }) {
       Alert.alert('Error', 'Please provide a reason for absence.');
       return;
     }
-    Alert.alert('Success', 'Your waiver has been submitted successfully!', [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(API.excuseSubmit, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          session_id: selectedSession.session_id,
+          reason: reason.trim(),
+          supporting_doc_path: uploadedFile ? uploadedFile.name : '',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Alert.alert('Success', 'Your waiver has been submitted successfully!', [
+          { text: 'OK', onPress: () => {
+            setSelectedSession(null);
+            setReason('');
+            setUploadedFile(null);
+            fetchData();
+          } },
+        ]);
+      } else {
+        Alert.alert('Error', data.error || 'Submission failed');
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Network error. Try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -60,7 +125,7 @@ export default function SubmitWaiverScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backArrow}>←</Text>
+          <ChevronLeft size={22} color="#1a1f36" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Submit Waiver</Text>
         <View style={{ width: 38 }} />
@@ -70,7 +135,7 @@ export default function SubmitWaiverScreen({ navigation }) {
 
         {/* Info Banner */}
         <View style={styles.infoBanner}>
-          <Text style={styles.infoIcon}>ℹ️</Text>
+          <Info size={16} color="#3a4a7a" style={{ marginTop: 1 }} />
           <Text style={styles.infoText}>
             Submit this form to appeal an absence marked by the automated system. All requests require supporting documentation.
           </Text>
@@ -84,28 +149,36 @@ export default function SubmitWaiverScreen({ navigation }) {
           activeOpacity={0.8}
         >
           <Text style={[styles.dropdownText, selectedSession ? styles.dropdownSelected : null]}>
-            {selectedSession || 'Choose the missed session'}
+            {selectedSession ? `${selectedSession.class_name} - ${new Date(selectedSession.start_time).toLocaleDateString()}` : 'Choose the missed session'}
           </Text>
-          <Text style={styles.dropdownArrow}>{dropdownOpen ? '▲' : '▼'}</Text>
+          {dropdownOpen ? <ChevronUp size={11} color="#8a94a6" /> : <ChevronDown size={11} color="#8a94a6" />}
         </TouchableOpacity>
 
         {dropdownOpen && (
           <View style={styles.dropdownMenu}>
-            {sessions.map((session, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.dropdownItem,
-                  index !== sessions.length - 1 && styles.dropdownItemBorder,
-                ]}
-                onPress={() => {
-                  setSelectedSession(session);
-                  setDropdownOpen(false);
-                }}
-              >
-                <Text style={styles.dropdownItemText}>{session}</Text>
-              </TouchableOpacity>
-            ))}
+            {absentSessions.length === 0 ? (
+              <View style={styles.dropdownItem}>
+                <Text style={styles.dropdownItemText}>No absent sessions found.</Text>
+              </View>
+            ) : (
+              absentSessions.map((session, index) => (
+                <TouchableOpacity
+                  key={session.session_id || index}
+                  style={[
+                    styles.dropdownItem,
+                    index !== absentSessions.length - 1 && styles.dropdownItemBorder,
+                  ]}
+                  onPress={() => {
+                    setSelectedSession(session);
+                    setDropdownOpen(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>
+                    {session.class_name} - {new Date(session.start_time).toLocaleDateString()}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         )}
 
@@ -128,7 +201,7 @@ export default function SubmitWaiverScreen({ navigation }) {
         {/* Upload Box */}
         <TouchableOpacity style={styles.uploadBox} onPress={handleUpload} activeOpacity={0.8}>
           <View style={styles.uploadIconContainer}>
-            <Text style={styles.uploadIcon}>📄</Text>
+            <FileText size={24} color="#1a1f36" />
           </View>
           <Text style={styles.uploadTitle}>Tap to upload files</Text>
           <Text style={styles.uploadSubtitle}>PDF, JPG or PNG (max. 5MB)</Text>
@@ -138,16 +211,45 @@ export default function SubmitWaiverScreen({ navigation }) {
         {uploadedFile && (
           <View style={styles.fileCard}>
             <View style={styles.fileIconContainer}>
-              <Text style={styles.fileIcon}>📕</Text>
+              <File size={20} color="#e74c3c" />
             </View>
             <View style={styles.fileInfo}>
               <Text style={styles.fileName}>{uploadedFile.name}</Text>
               <Text style={styles.fileSize}>{uploadedFile.size}</Text>
             </View>
             <TouchableOpacity onPress={handleRemoveFile} style={styles.removeButton}>
-              <Text style={styles.removeIcon}>✕</Text>
+              <X size={14} color="#8a94a6" />
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* Past Excuses History */}
+        <Text style={[styles.label, { marginTop: 20 }]}>Past Excuse Requests</Text>
+        {loading ? (
+          <ActivityIndicator size="small" color={BLUE} />
+        ) : pastExcuses.length === 0 ? (
+          <View style={styles.historyCard}>
+            <Text style={styles.historyEmptyText}>No past excuse requests.</Text>
+          </View>
+        ) : (
+          pastExcuses.map((excuse) => (
+            <View key={excuse.request_id} style={styles.historyCard}>
+              <View style={styles.historyHeader}>
+                <Text style={styles.historyClassText}>{excuse.class_name}</Text>
+                <View style={[styles.statusBadge, 
+                  excuse.status === 'Approved' ? styles.statusApproved : 
+                  excuse.status === 'Rejected' ? styles.statusRejected : 
+                  styles.statusPending]}>
+                  <Text style={[styles.statusText, 
+                    excuse.status === 'Approved' ? styles.statusTextApproved : 
+                    excuse.status === 'Rejected' ? styles.statusTextRejected : 
+                    styles.statusTextPending]}>{excuse.status}</Text>
+                </View>
+              </View>
+              <Text style={styles.historyDateText}>Session Date: {new Date(excuse.session_date).toLocaleDateString()}</Text>
+              <Text style={styles.historyReasonText} numberOfLines={2}>{excuse.reason}</Text>
+            </View>
+          ))
         )}
 
         <View style={{ height: 100 }} />
@@ -155,8 +257,12 @@ export default function SubmitWaiverScreen({ navigation }) {
 
       {/* Submit Button */}
       <View style={styles.submitContainer}>
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} activeOpacity={0.85}>
-          <Text style={styles.submitText}>Submit Request</Text>
+        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
+          {submitting ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <Text style={styles.submitText}>Submit Request</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -393,6 +499,70 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
     letterSpacing: 0.3,
+  },
+
+  // History Card
+  historyCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#e6e9f0',
+    padding: 14,
+    marginBottom: 12,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  historyClassText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a1f36',
+  },
+  historyDateText: {
+    fontSize: 12,
+    color: '#8a94a6',
+    marginBottom: 6,
+  },
+  historyReasonText: {
+    fontSize: 13,
+    color: '#3a4a7a',
+    lineHeight: 18,
+  },
+  historyEmptyText: {
+    fontSize: 13,
+    color: '#8a94a6',
+    textAlign: 'center',
+    paddingVertical: 10,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  statusPending: {
+    backgroundColor: '#fff3e0',
+  },
+  statusTextPending: {
+    color: '#e65100',
+  },
+  statusApproved: {
+    backgroundColor: '#e8f5e9',
+  },
+  statusTextApproved: {
+    color: '#2e7d32',
+  },
+  statusRejected: {
+    backgroundColor: '#ffebee',
+  },
+  statusTextRejected: {
+    color: '#c62828',
   },
 
 });

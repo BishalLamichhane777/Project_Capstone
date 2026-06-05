@@ -1,0 +1,142 @@
+{% extends 'admin/master.html' %}
+
+{% block body %}
+<div class="container-fluid">
+    <div class="row" style="margin-top: 20px;">
+        <div class="col-md-12">
+            <h2>Dashboard</h2>
+            <hr>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade in" role="alert">
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Stats Cards Row 1: Users -->
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="panel panel-primary">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Total Users</h3>
+                        </div>
+                        <div class="panel-body" style="font-size: 2em; text-align: center;">
+                            {{ stats.total_users }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="panel panel-info">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Students</h3>
+                        </div>
+                        <div class="panel-body" style="font-size: 2em; text-align: center;">
+                            {{ stats.total_students }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="panel panel-success">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Teachers</h3>
+                        </div>
+                        <div class="panel-body" style="font-size: 2em; text-align: center;">
+                            {{ stats.total_teachers }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Admins</h3>
+                        </div>
+                        <div class="panel-body" style="font-size: 2em; text-align: center;">
+                            {{ stats.total_admins }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Cards Row 2: System -->
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="panel panel-info">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Total Classes</h3>
+                        </div>
+                        <div class="panel-body" style="font-size: 2em; text-align: center;">
+                            {{ stats.total_classes }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="panel panel-success">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Active Sessions</h3>
+                        </div>
+                        <div class="panel-body" style="font-size: 2em; text-align: center;">
+                            {{ stats.active_sessions }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Closed Sessions</h3>
+                        </div>
+                        <div class="panel-body" style="font-size: 2em; text-align: center;">
+                            {{ stats.closed_sessions }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="panel panel-warning">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Pending Excuses</h3>
+                        </div>
+                        <div class="panel-body" style="font-size: 2em; text-align: center;">
+                            {{ stats.pending_excuses }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Quick Actions</h3>
+                        </div>
+                        <div class="panel-body">
+                            <a href="{{ url_for('user.index_view') }}" class="btn btn-primary">
+                                Manage Users
+                            </a>
+                            <a href="{{ url_for('class.index_view') }}" class="btn btn-info">
+                                Manage Classes
+                            </a>
+                            <a href="{{ url_for('waiverrequest.index_view') }}" class="btn btn-warning">
+                                Review Excuses
+                            </a>
+                            <a href="{{ url_for('attendancerecord.index_view') }}" class="btn btn-success">
+                                View Attendance
+                            </a>
+                            <a href="{{ url_for('admin.logout') }}" class="btn btn-danger pull-right">
+                                Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

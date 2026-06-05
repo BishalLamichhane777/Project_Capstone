@@ -23,40 +23,44 @@ import TeacherClassesScreen from './screens/TeacherClassesScreen';
 import TeacherReportsScreen from './screens/TeacherReportsScreen';
 import TeacherProfileScreen from './screens/TeacherProfileScreen';
 
+import { AuthProvider } from './context/AuthContext';
+
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {/* ── Auth ── */}
-        <Stack.Screen name="Login"              component={LoginScreen} />
+    <AuthProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {/* ── Auth ── */}
+          <Stack.Screen name="Login"              component={LoginScreen} />
 
-        {/* ── Student ── */}
-        <Stack.Screen name="Home"               component={HomeScreen} />
-        <Stack.Screen name="SubmitWaiver"       component={SubmitWaiverScreen} />
-        <Stack.Screen name="AttendanceHistory"  component={AttendanceHistoryScreen} />
-        <Stack.Screen name="Classes"            component={ClassesScreen} />
-        <Stack.Screen name="WaiverStatus"       component={WaiverStatusScreen} />
-        <Stack.Screen name="Profile"            component={ProfileScreen} />
+          {/* ── Student ── */}
+          <Stack.Screen name="Home"               component={HomeScreen} />
+          <Stack.Screen name="SubmitWaiver"       component={SubmitWaiverScreen} />
+          <Stack.Screen name="AttendanceHistory"  component={AttendanceHistoryScreen} />
+          <Stack.Screen name="Classes"            component={ClassesScreen} />
+          <Stack.Screen name="WaiverStatus"       component={WaiverStatusScreen} />
+          <Stack.Screen name="Profile"            component={ProfileScreen} />
 
-        {/* ── Admin ── */}
-        <Stack.Screen name="AdminDashboard"     component={AdminDashboardScreen} />
-        <Stack.Screen name="AdminWaivers"       component={AdminWaiversScreen} />
-        <Stack.Screen name="ManageSchedules"    component={ManageSchedulesScreen} />
-        <Stack.Screen name="AddStudentFace"     component={AddStudentFaceScreen} />
-        <Stack.Screen name="StudentAnalytics"   component={StudentAnalyticsScreen} />
-        <Stack.Screen name="AdminSettings"      component={AdminSettingsScreen} />
-        <Stack.Screen name="SendAlerts"         component={SendAlertsScreen} />
-        <Stack.Screen name="ExportReports"      component={ExportReportsScreen} />
+          {/* ── Admin ── */}
+          <Stack.Screen name="AdminDashboard"     component={AdminDashboardScreen} />
+          <Stack.Screen name="AdminWaivers"       component={AdminWaiversScreen} />
+          <Stack.Screen name="ManageSchedules"    component={ManageSchedulesScreen} />
+          <Stack.Screen name="AddStudentFace"     component={AddStudentFaceScreen} />
+          <Stack.Screen name="StudentAnalytics"   component={StudentAnalyticsScreen} />
+          <Stack.Screen name="AdminSettings"      component={AdminSettingsScreen} />
+          <Stack.Screen name="SendAlerts"         component={SendAlertsScreen} />
+          <Stack.Screen name="ExportReports"      component={ExportReportsScreen} />
 
-        {/* ── Teacher ── */}
-        <Stack.Screen name="TeacherDashboard"   component={TeacherDashboardScreen} />
-        <Stack.Screen name="StartClass"         component={StartClassScreen} />
-        <Stack.Screen name="TeacherClasses"     component={TeacherClassesScreen} />
-        <Stack.Screen name="TeacherReports"     component={TeacherReportsScreen} />
-        <Stack.Screen name="TeacherProfile"     component={TeacherProfileScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+          {/* ── Teacher ── */}
+          <Stack.Screen name="TeacherDashboard"   component={TeacherDashboardScreen} />
+          <Stack.Screen name="StartClass"         component={StartClassScreen} />
+          <Stack.Screen name="TeacherClasses"     component={TeacherClassesScreen} />
+          <Stack.Screen name="TeacherReports"     component={TeacherReportsScreen} />
+          <Stack.Screen name="TeacherProfile"     component={TeacherProfileScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </AuthProvider>
   );
 }

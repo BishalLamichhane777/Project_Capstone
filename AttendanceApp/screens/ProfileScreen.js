@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Alert,
 } from 'react-native';
 import BottomNav from '../components/BottomNav';
+import { useAuth } from '../context/AuthContext';
+import { User, Bell, Lock, Phone, Check, ChevronDown, ChevronUp, ChevronRight, LogOut } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
@@ -44,16 +46,40 @@ function BarChart() {
 }
 
 const settingsItems = [
-  { icon: '👤', label: 'Edit Profile', sub: 'Update your personal information' },
-  { icon: '🔔', label: 'Notifications', sub: 'Manage alerts and reminders' },
-  { icon: '🔒', label: 'Change Password', sub: 'Update your account password' },
-  { icon: '📞', label: 'Contact Support', sub: 'Get help from our team' },
+  { icon: User, label: 'Edit Profile', sub: 'Update your personal information' },
+  { icon: Bell, label: 'Notifications', sub: 'Manage alerts and reminders' },
+  { icon: Lock, label: 'Change Password', sub: 'Update your account password' },
+  { icon: Phone, label: 'Contact Support', sub: 'Get help from our team' },
 ];
 
 export default function ProfileScreen({ navigation }) {
+  const { token, user, logoutState } = useAuth();
+  const [fullProfile, setFullProfile] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState('Last 5 Months');
   const periods = ['Last 3 Months', 'Last 5 Months', 'This Year'];
   const [periodOpen, setPeriodOpen] = useState(false);
+
+  useEffect(() => {
+    const getProfile = async () => {
+      try {
+        const response = await fetch(API.currentUser, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setFullProfile(data);
+        }
+      } catch (error) {
+        console.error('Error fetching full profile:', error);
+      }
+    };
+
+    if (token) {
+      getProfile();
+    }
+  }, [token]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -61,10 +87,30 @@ export default function ProfileScreen({ navigation }) {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => navigation.replace('Login') },
+        { 
+          text: 'Logout', 
+          style: 'destructive', 
+          onPress: () => {
+            logoutState();
+            navigation.replace('Login');
+          } 
+        },
       ]
     );
   };
+
+  const displayName = fullProfile?.fullname || user?.fullname || 'Student';
+  const displayID = fullProfile?.student_profile?.roll_number 
+    ? `Roll No: ${fullProfile.student_profile.roll_number}` 
+    : (user ? `User ID: ${user.id}` : '');
+  const program = fullProfile?.student_profile?.program || 'Computer Science';
+  const yearOfStudy = fullProfile?.student_profile?.year_of_study 
+    ? `Year ${fullProfile.student_profile.year_of_study}` 
+    : 'Student';
+
+  const displayInitials = displayName
+    ? displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'ST';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -74,7 +120,7 @@ export default function ProfileScreen({ navigation }) {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Academic Dashboard</Text>
         <TouchableOpacity style={styles.bellButton}>
-          <Text style={styles.bellIcon}>🔔</Text>
+          <Bell size={17} color="#1a1f36" />
         </TouchableOpacity>
       </View>
 
@@ -85,28 +131,29 @@ export default function ProfileScreen({ navigation }) {
           {/* Avatar */}
           <View style={styles.avatarWrapper}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>SK</Text>
+              <Text style={styles.avatarText}>{displayInitials}</Text>
             </View>
             <View style={styles.verifiedBadge}>
-              <Text style={styles.verifiedIcon}>✓</Text>
+              <Check size={11} color="#ffffff" />
             </View>
           </View>
 
-          <Text style={styles.profileName}>Sajak Singh Khadka</Text>
-          <Text style={styles.profileID}>Student ID: 2024-8836</Text>
+          <Text style={styles.profileName}>{displayName}</Text>
+          <Text style={styles.profileID}>{displayID}</Text>
 
           <View style={styles.tagRow}>
             <View style={styles.tag}>
-              <Text style={styles.tagText}>Computer Science</Text>
+              <Text style={styles.tagText}>{program}</Text>
             </View>
             <View style={[styles.tag, styles.tagSecondary]}>
-              <Text style={[styles.tagText, styles.tagTextSecondary]}>Junior Year</Text>
+              <Text style={[styles.tagText, styles.tagTextSecondary]}>{yearOfStudy}</Text>
             </View>
           </View>
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
+
               <Text style={styles.statValue}>88%</Text>
               <Text style={styles.statLabel}>ATTENDANCE</Text>
               <View style={styles.statBar}>
@@ -142,7 +189,7 @@ export default function ProfileScreen({ navigation }) {
               onPress={() => setPeriodOpen(!periodOpen)}
             >
               <Text style={styles.periodText}>{selectedPeriod}</Text>
-              <Text style={styles.periodArrow}>{periodOpen ? '▲' : '▼'}</Text>
+              {periodOpen ? <ChevronUp size={11} color="#8a94a6" /> : <ChevronDown size={11} color="#8a94a6" />}
             </TouchableOpacity>
           </View>
 
@@ -230,20 +277,20 @@ export default function ProfileScreen({ navigation }) {
               style={[styles.settingsRow, i !== settingsItems.length - 1 && styles.settingsBorder]}
             >
               <View style={styles.settingsIcon}>
-                <Text style={styles.settingsIconText}>{item.icon}</Text>
+                <item.icon size={17} color="#1a1f36" />
               </View>
               <View style={styles.settingsContent}>
                 <Text style={styles.settingsLabel}>{item.label}</Text>
                 <Text style={styles.settingsSub}>{item.sub}</Text>
               </View>
-              <Text style={styles.settingsArrow}>›</Text>
+              <ChevronRight size={22} color="#8a94a6" />
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Logout */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.85}>
-          <Text style={styles.logoutIcon}>🚪</Text>
+          <LogOut size={18} color="#e74c3c" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
 

@@ -4,6 +4,10 @@ import {
   SafeAreaView, ScrollView, StatusBar, Alert, Switch,
 } from 'react-native';
 import AdminBottomNav from '../components/AdminBottomNav';
+import {
+  User, Lock, Shield, Bell, Mail, AlertTriangle, ScanFace, Calendar,
+  BarChart3, Upload, Trash2, RefreshCw, ChevronLeft, LogOut, ChevronRight
+} from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 const GOLD = '#b07d00';
@@ -12,33 +16,33 @@ const settingSections = [
   {
     title: 'Account',
     items: [
-      { icon: '👤', label: 'Admin Profile',       sub: 'Edit name, email, photo',        type: 'nav' },
-      { icon: '🔒', label: 'Change Password',      sub: 'Update your login credentials',  type: 'nav' },
-      { icon: '🛡️', label: 'Two-Factor Auth',      sub: 'Extra layer of security',        type: 'nav' },
+      { icon: User, label: 'Admin Profile',       sub: 'Edit name, email, photo',        type: 'nav' },
+      { icon: Lock, label: 'Change Password',      sub: 'Update your login credentials',  type: 'nav' },
+      { icon: Shield, label: 'Two-Factor Auth',      sub: 'Extra layer of security',        type: 'nav' },
     ],
   },
   {
     title: 'Notifications',
     items: [
-      { icon: '🔔', label: 'Push Notifications',   sub: 'Alerts on your device',          type: 'toggle', key: 'push' },
-      { icon: '📧', label: 'Email Alerts',          sub: 'Receive reports via email',      type: 'toggle', key: 'email' },
-      { icon: '⚠️', label: 'At-Risk Alerts',        sub: 'Notify when student drops below 60%', type: 'toggle', key: 'risk' },
+      { icon: Bell, label: 'Push Notifications',   sub: 'Alerts on your device',          type: 'toggle', key: 'push' },
+      { icon: Mail, label: 'Email Alerts',          sub: 'Receive reports via email',      type: 'toggle', key: 'email' },
+      { icon: AlertTriangle, label: 'At-Risk Alerts',        sub: 'Notify when student drops below 60%', type: 'toggle', key: 'risk' },
     ],
   },
   {
     title: 'System',
     items: [
-      { icon: '🤖', label: 'Face Recognition',     sub: 'Manage AI detection settings',   type: 'nav' },
-      { icon: '📅', label: 'Academic Calendar',    sub: 'Set semester start & end dates', type: 'nav' },
-      { icon: '📊', label: 'Attendance Threshold', sub: 'Set minimum attendance %',       type: 'nav' },
+      { icon: ScanFace, label: 'Face Recognition',     sub: 'Manage AI detection settings',   type: 'nav' },
+      { icon: Calendar, label: 'Academic Calendar',    sub: 'Set semester start & end dates', type: 'nav' },
+      { icon: BarChart3, label: 'Attendance Threshold', sub: 'Set minimum attendance %',       type: 'nav' },
     ],
   },
   {
     title: 'Data',
     items: [
-      { icon: '📤', label: 'Export Data',           sub: 'Download reports and records',   type: 'nav', route: 'ExportReports' },
-      { icon: '🗑️', label: 'Clear Cache',           sub: 'Free up storage space',          type: 'danger' },
-      { icon: '🔄', label: 'Reset System',          sub: 'Restore default settings',       type: 'danger' },
+      { icon: Upload, label: 'Export Data',           sub: 'Download reports and records',   type: 'nav', route: 'ExportReports' },
+      { icon: Trash2, label: 'Clear Cache',           sub: 'Free up storage space',          type: 'danger' },
+      { icon: RefreshCw, label: 'Reset System',          sub: 'Restore default settings',       type: 'danger' },
     ],
   },
 ];
@@ -77,7 +81,7 @@ export default function AdminSettingsScreen({ navigation }) {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <ChevronLeft size={22} color="#1a1f36" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
         <View style={{ width: 38 }} />
@@ -94,8 +98,9 @@ export default function AdminSettingsScreen({ navigation }) {
             <Text style={styles.adminName}>Admin User</Text>
             <Text style={styles.adminEmail}>admin@attendance.edu</Text>
           </View>
-          <View style={styles.adminBadge}>
-            <Text style={styles.adminBadgeText}>🛡️ Admin</Text>
+          <View style={[styles.adminBadge, { flexDirection: 'row', alignItems: 'center' }]}>
+            <Shield size={11} color={GOLD} style={{ marginRight: 4 }} />
+            <Text style={styles.adminBadgeText}>Admin</Text>
           </View>
         </View>
 
@@ -116,7 +121,7 @@ export default function AdminSettingsScreen({ navigation }) {
                   activeOpacity={item.type === 'toggle' ? 1 : 0.7}
                 >
                   <View style={[styles.settingIcon, item.type === 'danger' && styles.settingIconDanger]}>
-                    <Text style={styles.settingIconText}>{item.icon}</Text>
+                    <item.icon size={18} color={item.type === 'danger' ? '#e74c3c' : '#1a1f36'} />
                   </View>
                   <View style={styles.settingContent}>
                     <Text style={[styles.settingLabel, item.type === 'danger' && styles.settingLabelDanger]}>
@@ -132,7 +137,7 @@ export default function AdminSettingsScreen({ navigation }) {
                       thumbColor={toggles[item.key] ? BLUE : '#aab0be'}
                     />
                   ) : (
-                    <Text style={[styles.settingArrow, item.type === 'danger' && styles.settingArrowDanger]}>›</Text>
+                    <ChevronRight size={20} color={item.type === 'danger' ? '#e74c3c' : '#c0c8d8'} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -142,7 +147,7 @@ export default function AdminSettingsScreen({ navigation }) {
 
         {/* Logout */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
-          <Text style={styles.logoutIcon}>🚪</Text>
+          <LogOut size={18} color="#e74c3c" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
 

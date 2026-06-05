@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BottomNav from '../components/BottomNav';
 import {
   View,
@@ -8,68 +8,75 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { API } from '../api';
+import { BookOpen, Clock, ChevronLeft, Inbox } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
-const subjectIcons = ['Σ', '♟', '📖', '⚗', 'Σ', '</>'];
-const iconBgColors = ['#eef2ff', '#f3eeff', '#fff4e6', '#e6fff4', '#eef2ff', '#e8f4ff'];
-const iconTextColors = ['#3b5bdb', '#7c3aed', '#e67e22', '#27ae60', '#3b5bdb', '#2980b9'];
-
-const attendanceData = [
-  {
-    week: 'THIS WEEK',
-    items: [
-      { subject: 'Advanced Calculus', time: 'Today, 10:00 AM', status: 'Present', duration: '55m', iconIndex: 0 },
-      { subject: 'Psychology 101', time: 'Yesterday, 02:00 PM', status: 'Absent', duration: '1h 30m', iconIndex: 1 },
-      { subject: 'Modern History', time: 'Mon, 11:30 AM', status: 'Present', duration: '45m', iconIndex: 2 },
-    ],
-  },
-  {
-    week: 'LAST WEEK',
-    items: [
-      { subject: 'Physics Lab', time: 'Fri, 09:00 AM', status: 'Present', duration: '2h 00m', iconIndex: 3 },
-      { subject: 'Advanced Calculus', time: 'Thu, 10:00 AM', status: 'Present', duration: '55m', iconIndex: 0 },
-      { subject: 'Intro to CS', time: 'Wed, 01:00 PM', status: 'Absent', duration: '1h 15m', iconIndex: 5 },
-    ],
-  },
-];
-
-const stats = [
-  { label: 'TOTAL', value: '48', color: BLUE },
-  { label: 'PRESENT', value: '42', color: '#27ae60' },
-  { label: 'ABSENT', value: '6', color: '#e74c3c' },
-  { label: 'WAIVERS', value: '2', color: '#f39c12' },
-];
-
 function StatusBadge({ status }) {
-  const isPresent = status === 'Present';
+  const lower = (status || '').toLowerCase();
+  const isPresent = lower === 'present';
+  const isPartial = lower === 'partial';
+  const badgeStyle = isPresent
+    ? styles.badgePresent
+    : isPartial
+    ? styles.badgePartial
+    : styles.badgeAbsent;
+  const textStyle = isPresent
+    ? styles.badgeTextPresent
+    : isPartial
+    ? styles.badgeTextPartial
+    : styles.badgeTextAbsent;
+
   return (
-    <View style={[styles.badge, isPresent ? styles.badgePresent : styles.badgeAbsent]}>
-      <Text style={[styles.badgeText, isPresent ? styles.badgeTextPresent : styles.badgeTextAbsent]}>
-        {status}
-      </Text>
+    <View style={[styles.badge, badgeStyle]}>
+      <Text style={[styles.badgeText, textStyle]}>{status}</Text>
     </View>
   );
+}
+
+function formatDuration(seconds) {
+  if (!seconds || seconds <= 0) return '0m';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function formatDate(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return `Today, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  if (diffDays === 1) return `Yesterday, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function AttendanceItem({ item }) {
   return (
     <View style={styles.itemCard}>
-      <View style={[styles.itemIcon, { backgroundColor: iconBgColors[item.iconIndex] }]}>
-        <Text style={[styles.itemIconText, { color: iconTextColors[item.iconIndex] }]}>
-          {subjectIcons[item.iconIndex]}
-        </Text>
+      <View style={[styles.itemIcon, { backgroundColor: '#eef2ff' }]}>
+        <BookOpen size={16} color={BLUE} />
       </View>
       <View style={styles.itemContent}>
-        <Text style={styles.itemSubject}>{item.subject}</Text>
-        <Text style={styles.itemTime}>{item.time}</Text>
+        <Text style={styles.itemSubject}>{item.class_name}</Text>
+        <Text style={styles.itemTime}>{formatDate(item.date)}</Text>
       </View>
       <View style={styles.itemRight}>
         <StatusBadge status={item.status} />
         <View style={styles.durationRow}>
-          <Text style={styles.clockIcon}>🕐</Text>
-          <Text style={styles.durationText}>{item.duration}</Text>
+          <Clock size={10} color="#8a94a6" />
+          <Text style={styles.durationText}>{formatDuration(item.total_duration_seconds)}</Text>
         </View>
       </View>
     </View>
@@ -77,6 +84,43 @@ function AttendanceItem({ item }) {
 }
 
 export default function AttendanceHistoryScreen({ navigation }) {
+  const { token } = useAuth();
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (token) fetchHistory();
+  }, [token]);
+
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch(API.attendanceHistory, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRecords(data);
+      } else {
+        Alert.alert('Error', data.error || 'Failed to load attendance history');
+      }
+    } catch (e) {
+      console.log('Error fetching history:', e);
+      Alert.alert('Error', 'Network error while fetching attendance history');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const presentCount = records.filter(r => r.status === 'Present').length;
+  const absentCount = records.filter(r => r.status === 'Absent').length;
+  const partialCount = records.filter(r => r.status === 'Partial').length;
+
+  const stats = [
+    { label: 'TOTAL', value: `${records.length}`, color: BLUE },
+    { label: 'PRESENT', value: `${presentCount}`, color: '#27ae60' },
+    { label: 'ABSENT', value: `${absentCount}`, color: '#e74c3c' },
+    { label: 'PARTIAL', value: `${partialCount}`, color: '#f39c12' },
+  ];
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -85,35 +129,45 @@ export default function AttendanceHistoryScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backArrow}>←</Text>
+          <ChevronLeft size={22} color="#1a1f36" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Attendance History</Text>
-        <TouchableOpacity style={styles.filterButton}>
-          <Text style={styles.filterIcon}>☰</Text>
-        </TouchableOpacity>
+        <View style={{ width: 38 }} />
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          {stats.map((stat, i) => (
-            <View key={i} style={styles.statCard}>
-              <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
+        {loading ? (
+          <ActivityIndicator size="large" color={BLUE} style={{ marginTop: 60 }} />
+        ) : (
+          <>
+            {/* Stats Row */}
+            <View style={styles.statsRow}>
+              {stats.map((stat, i) => (
+                <View key={i} style={styles.statCard}>
+                  <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
+                  <Text style={styles.statLabel}>{stat.label}</Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
 
-        {/* Attendance Sections */}
-        {attendanceData.map((section, si) => (
-          <View key={si}>
-            <Text style={styles.sectionLabel}>{section.week}</Text>
-            {section.items.map((item, ii) => (
-              <AttendanceItem key={ii} item={item} />
-            ))}
-          </View>
-        ))}
+            {/* Records */}
+            {records.length === 0 ? (
+              <View style={styles.emptyState}>
+                <View style={{ marginBottom: 16 }}>
+                  <Inbox size={48} color="#8a94a6" />
+                </View>
+                <Text style={styles.emptyTitle}>No Records Yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Your attendance records will appear here once sessions are completed.
+                </Text>
+              </View>
+            ) : (
+              records.map((item, i) => (
+                <AttendanceItem key={item.session_id || i} item={item} />
+              ))
+            )}
+          </>
+        )}
 
         <View style={{ height: 90 }} />
       </ScrollView>
@@ -154,16 +208,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1a1f36',
   },
-  filterButton: {
-    width: 38,
-    height: 38,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterIcon: {
-    fontSize: 18,
-    color: BLUE,
-  },
 
   scroll: {
     flex: 1,
@@ -199,16 +243,6 @@ const styles = StyleSheet.create({
     color: '#8a94a6',
     fontWeight: '600',
     letterSpacing: 0.5,
-  },
-
-  // Section Label
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#8a94a6',
-    letterSpacing: 0.8,
-    marginBottom: 12,
-    marginTop: 4,
   },
 
   // Item Card
@@ -267,6 +301,9 @@ const styles = StyleSheet.create({
   badgeAbsent: {
     backgroundColor: '#fff0f0',
   },
+  badgePartial: {
+    backgroundColor: '#fff8e6',
+  },
   badgeText: {
     fontSize: 11,
     fontWeight: '700',
@@ -276,6 +313,9 @@ const styles = StyleSheet.create({
   },
   badgeTextAbsent: {
     color: '#e74c3c',
+  },
+  badgeTextPartial: {
+    color: '#f39c12',
   },
 
   // Duration
@@ -292,46 +332,26 @@ const styles = StyleSheet.create({
     color: '#8a94a6',
   },
 
-  // Bottom Nav
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eef1f5',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  tabItem: {
-    flex: 1,
+  // Empty State
+  emptyState: {
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 60,
+    paddingHorizontal: 30,
   },
-  tabIcon: {
-    fontSize: 20,
-    marginBottom: 3,
-    opacity: 0.4,
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
   },
-  tabIconActive: {
-    opacity: 1,
-  },
-  tabLabel: {
-    fontSize: 10,
-    color: '#aab0be',
-    fontWeight: '500',
-  },
-  tabLabelActive: {
-    color: BLUE,
+  emptyTitle: {
+    fontSize: 18,
     fontWeight: '700',
+    color: '#1a1f36',
+    marginBottom: 8,
   },
-  tabDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#e74c3c',
-    marginTop: 2,
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#8a94a6',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

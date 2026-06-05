@@ -10,6 +10,9 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { Bell, CheckCircle2, ClipboardList, FileText, ChevronRight } from 'lucide-react-native';
+
 
 // Simple circular progress using border trick
 function CircularProgress({ percentage }) {
@@ -46,6 +49,11 @@ function WeeklyTrendChart() {
 }
 
 export default function HomeScreen({ navigation }) {
+  const { user } = useAuth();
+  const displayName = user?.fullname || 'Student';
+  const displayInitials = user?.fullname
+    ? user.fullname.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'ST';
   
   const recentStatus = [
     { subject: 'Monday(Room 205-Database)', date: 'Oct 21', status: 'Absent' },
@@ -62,23 +70,24 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>SK</Text>
+              <Text style={styles.avatarText}>{displayInitials}</Text>
             </View>
             <View>
               <Text style={styles.welcomeText}>Welcome back,</Text>
-              <Text style={styles.nameText}>Sajak Khadka</Text>
+              <Text style={styles.nameText}>{displayName}</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.bellButton}>
-            <Text style={styles.bellIcon}>🔔</Text>
+            <Bell size={17} color="#1a1f36" />
           </TouchableOpacity>
         </View>
+
 
         {/* Attendance Card */}
         <View style={styles.card}>
           <CircularProgress percentage={82} />
           <View style={styles.standingBadge}>
-            <Text style={styles.standingIcon}>✅</Text>
+            <CheckCircle2 size={14} color="#27ae60" />
             <Text style={styles.standingText}>Good Standing</Text>
           </View>
         </View>
@@ -90,13 +99,13 @@ export default function HomeScreen({ navigation }) {
             activeOpacity={0.85}
             >
           <View style={styles.actionButtonIcon}>
-            <Text style={styles.actionIconText}>📋</Text>
+            <ClipboardList size={18} color="#ffffff" />
           </View>
           <View style={styles.actionButtonContent}>
             <Text style={styles.actionButtonTitle}>Submit Absence Waiver</Text>
             <Text style={styles.actionButtonSubtitle}>Upload medical certificate or note</Text>
           </View>
-          <Text style={styles.actionArrow}>›</Text>
+          <ChevronRight size={22} color="#ffffff" />
         </TouchableOpacity>
 
         {/* View Absence Waiver */}
@@ -106,12 +115,12 @@ export default function HomeScreen({ navigation }) {
           onPress={() => navigation.navigate('WaiverStatus')}
 >
           <View style={styles.actionButtonIcon}>
-            <Text style={styles.actionIconText}>📄</Text>
+            <FileText size={18} color="#ffffff" />
           </View>
           <View style={styles.actionButtonContent}>
             <Text style={styles.actionButtonTitle}>View Absence Waiver</Text>
           </View>
-          <Text style={styles.actionArrow}>›</Text>
+          <ChevronRight size={22} color="#ffffff" />
         </TouchableOpacity>
 
         {/* Weekly Trend */}

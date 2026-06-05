@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,44 +7,66 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import BottomNav from '../components/BottomNav';
+import { API } from '../api';
+import { BookOpen, MapPin, User } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
-const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+function ClassCard({ item, token }) {
+  const isOngoing = !!item.active_session_id;
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState('not_joined');
 
-const schedule = {
-  Mon: [
-    { subject: 'Database Systems', code: 'CS-301', time: '10:00 AM', duration: '1h 30m', room: 'Room 205', teacher: 'Prof. Sharma', color: '#eef2ff', iconColor: '#3b5bdb', icon: '🗄️', status: 'ongoing' },
-    { subject: 'Mathematics III', code: 'MA-201', time: '12:30 PM', duration: '1h 00m', room: 'Room 101', teacher: 'Prof. Thapa', color: '#fff4e6', iconColor: '#e67e22', icon: 'Σ', status: 'upcoming' },
-    { subject: 'Networks', code: 'CS-401', time: '02:00 PM', duration: '1h 30m', room: 'Room 301', teacher: 'Prof. Rai', color: '#e8f4ff', iconColor: '#2980b9', icon: '🌐', status: 'upcoming' },
-  ],
-  Tue: [
-    { subject: 'DAML', code: 'CS-302', time: '09:00 AM', duration: '1h 30m', room: 'Room 201', teacher: 'Prof. Karki', color: '#f3eeff', iconColor: '#7c3aed', icon: '📊', status: 'upcoming' },
-    { subject: 'Operating Systems', code: 'CS-303', time: '11:00 AM', duration: '1h 00m', room: 'Room 102', teacher: 'Prof. Bista', color: '#edfaf3', iconColor: '#27ae60', icon: '💻', status: 'upcoming' },
-  ],
-  Wed: [
-    { subject: 'Networks', code: 'CS-401', time: '10:00 AM', duration: '1h 30m', room: 'Room 301', teacher: 'Prof. Rai', color: '#e8f4ff', iconColor: '#2980b9', icon: '🌐', status: 'upcoming' },
-    { subject: 'Database Systems', code: 'CS-301', time: '01:00 PM', duration: '1h 30m', room: 'Room 205', teacher: 'Prof. Sharma', color: '#eef2ff', iconColor: '#3b5bdb', icon: '🗄️', status: 'upcoming' },
-  ],
-  Thu: [
-    { subject: 'Operating Systems', code: 'CS-303', time: '09:00 AM', duration: '1h 00m', room: 'Room 102', teacher: 'Prof. Bista', color: '#edfaf3', iconColor: '#27ae60', icon: '💻', status: 'upcoming' },
-    { subject: 'DAML', code: 'CS-302', time: '11:30 AM', duration: '1h 30m', room: 'Room 201', teacher: 'Prof. Karki', color: '#f3eeff', iconColor: '#7c3aed', icon: '📊', status: 'upcoming' },
-    { subject: 'Mathematics III', code: 'MA-201', time: '02:30 PM', duration: '1h 00m', room: 'Room 101', teacher: 'Prof. Thapa', color: '#fff4e6', iconColor: '#e67e22', icon: 'Σ', status: 'upcoming' },
-  ],
-  Fri: [
-    { subject: 'Database Systems', code: 'CS-301', time: '10:00 AM', duration: '1h 30m', room: 'Room 205', teacher: 'Prof. Sharma', color: '#eef2ff', iconColor: '#3b5bdb', icon: '🗄️', status: 'upcoming' },
-    { subject: 'Networks', code: 'CS-401', time: '12:00 PM', duration: '1h 30m', room: 'Room 301', teacher: 'Prof. Rai', color: '#e8f4ff', iconColor: '#2980b9', icon: '🌐', status: 'upcoming' },
-  ],
-};
+  useEffect(() => {
+    if (isOngoing && token) {
+      fetchStatus();
+    }
+  }, [isOngoing, token]);
 
-// Today = Monday, Tomorrow = Tuesday for demo
-const todayKey = 'Mon';
-const tomorrowKey = 'Tue';
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch(`${API.attendanceStatus}?session_id=${item.active_session_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStatus(data.status);
+      }
+    } catch (e) {
+      console.log('Error fetching status:', e);
+    }
+  };
 
-function ClassCard({ item, showStatus }) {
-  const isOngoing = item.status === 'ongoing';
+  const handleAction = async (eventType) => {
+    setLoading(true);
+    try {
+      const res = await fetch(API.attendanceLog, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          session_id: item.active_session_id,
+          event_type: eventType
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to log attendance');
+      
+      setStatus(eventType === 'ENTRY' ? 'joined' : 'left');
+      Alert.alert('Success', `Successfully logged ${eventType}`);
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <View style={[styles.classCard, isOngoing && styles.classCardOngoing]}>
       {isOngoing && (
@@ -55,55 +77,94 @@ function ClassCard({ item, showStatus }) {
       )}
       <View style={styles.cardRow}>
         {/* Icon */}
-        <View style={[styles.classIcon, { backgroundColor: item.color }]}>
-          <Text style={[styles.classIconText, { color: item.iconColor }]}>{item.icon}</Text>
+        <View style={[styles.classIcon, { backgroundColor: '#eef2ff' }]}>
+          <BookOpen size={18} color={BLUE} />
         </View>
 
         {/* Info */}
         <View style={styles.classInfo}>
           <Text style={styles.className}>{item.subject}</Text>
-          <Text style={styles.classCode}>{item.code}</Text>
+          <Text style={styles.classCode}>{item.class_name}</Text>
           <View style={styles.detailsRow}>
-            <Text style={styles.detailItem}>📍 {item.room}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <MapPin size={11} color="#6b7280" style={{ marginRight: 2 }} />
+              <Text style={styles.detailItem}>{item.room || 'TBD'}</Text>
+            </View>
             <Text style={styles.detailDot}>·</Text>
-            <Text style={styles.detailItem}>👤 {item.teacher}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <User size={11} color="#6b7280" style={{ marginRight: 2 }} />
+              <Text style={styles.detailItem}>{item.teacher_name || 'TBA'}</Text>
+            </View>
           </View>
         </View>
 
         {/* Time */}
         <View style={styles.timeBlock}>
-          <Text style={[styles.timeText, isOngoing && styles.timeTextActive]}>{item.time}</Text>
+          <Text style={[styles.timeText, isOngoing && styles.timeTextActive]}>
+            {item.schedule_time ? new Date(item.schedule_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBA'}
+          </Text>
           <View style={styles.durationPill}>
-            <Text style={styles.durationText}>{item.duration}</Text>
+            <Text style={styles.durationText}>{item.duration_minutes || 0}m</Text>
           </View>
         </View>
       </View>
+      
+      {/* Action Buttons for Ongoing Session */}
+      {isOngoing && (
+        <View style={styles.actionContainer}>
+          {loading ? (
+            <ActivityIndicator size="small" color={BLUE} style={{ padding: 10 }} />
+          ) : (
+            <>
+              {status === 'not_joined' || status === 'left' ? (
+                <TouchableOpacity style={styles.joinBtn} onPress={() => handleAction('ENTRY')}>
+                  <Text style={styles.joinBtnText}>Join Session</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.leaveBtn} onPress={() => handleAction('EXIT')}>
+                  <Text style={styles.leaveBtnText}>Leave Session</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
-function WeekDayTab({ day, active, onPress, count }) {
-  return (
-    <TouchableOpacity style={styles.weekDayTab} onPress={onPress}>
-      <Text style={[styles.weekDayText, active && styles.weekDayTextActive]}>{day}</Text>
-      {count > 0 && (
-        <View style={[styles.weekDayCount, active && styles.weekDayCountActive]}>
-          <Text style={[styles.weekDayCountText, active && styles.weekDayCountTextActive]}>
-            {count}
-          </Text>
-        </View>
-      )}
-      {active && <View style={styles.weekDayUnderline} />}
-    </TouchableOpacity>
-  );
-}
-
 export default function ClassesScreen({ navigation }) {
-  const [showFullWeek, setShowFullWeek] = useState(false);
-  const [selectedDay, setSelectedDay] = useState('Mon');
+  const { token } = useAuth();
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const todayClasses = schedule[todayKey];
-  const tomorrowClasses = schedule[tomorrowKey];
+  useEffect(() => {
+    if (token) {
+      fetchClasses();
+    }
+  }, [token]);
+
+  const fetchClasses = async () => {
+    try {
+      const res = await fetch(API.studentClasses, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setClasses(data);
+      } else {
+        Alert.alert('Error', data.error || 'Failed to fetch classes');
+      }
+    } catch (e) {
+      console.log('Error fetching classes:', e);
+      Alert.alert('Error', 'Network error while fetching classes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const ongoingClasses = classes.filter(c => c.active_session_id);
+  const upcomingClasses = classes.filter(c => !c.active_session_id);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -113,79 +174,49 @@ export default function ClassesScreen({ navigation }) {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>My Classes</Text>
-          <Text style={styles.headerSub}>Monday, Oct 21</Text>
+          <Text style={styles.headerSub}>All enrolled classes</Text>
         </View>
         <View style={styles.totalBadge}>
-          <Text style={styles.totalText}>{todayClasses.length} today</Text>
+          <Text style={styles.totalText}>{classes.length} total</Text>
         </View>
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-
-        {/* TODAY */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionDot} />
-          <Text style={styles.sectionTitle}>Today</Text>
-          <Text style={styles.sectionCount}>{todayClasses.length} classes</Text>
-        </View>
-
-        {todayClasses.map((item, i) => (
-          <ClassCard key={i} item={item} />
-        ))}
-
-        {/* TOMORROW */}
-        <View style={styles.sectionHeader}>
-          <View style={[styles.sectionDot, { backgroundColor: '#8a94a6' }]} />
-          <Text style={styles.sectionTitle}>Tomorrow</Text>
-          <Text style={styles.sectionCount}>{tomorrowClasses.length} classes</Text>
-        </View>
-
-        {tomorrowClasses.map((item, i) => (
-          <ClassCard key={i} item={item} />
-        ))}
-
-        {/* FULL WEEK SCHEDULE */}
-        <TouchableOpacity
-          style={styles.moreButton}
-          onPress={() => setShowFullWeek(!showFullWeek)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.moreButtonText}>
-            {showFullWeek ? '▲  Hide Weekly Schedule' : '▼  View Full Week Schedule'}
-          </Text>
-        </TouchableOpacity>
-
-        {showFullWeek && (
-          <View style={styles.weekContainer}>
-            {/* Day Tabs */}
-            <View style={styles.weekTabRow}>
-              {weekDays.map((day) => (
-                <WeekDayTab
-                  key={day}
-                  day={day}
-                  active={selectedDay === day}
-                  onPress={() => setSelectedDay(day)}
-                  count={schedule[day]?.length || 0}
-                />
-              ))}
-            </View>
-
-            {/* Classes for selected day */}
-            <View style={styles.weekClasses}>
-              {schedule[selectedDay].length === 0 ? (
-                <View style={styles.noClassBox}>
-                  <Text style={styles.noClassIcon}>🎉</Text>
-                  <Text style={styles.noClassText}>No classes this day!</Text>
+        {loading ? (
+          <ActivityIndicator size="large" color={BLUE} style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            {/* ONGOING NOW */}
+            {ongoingClasses.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionDot} />
+                  <Text style={styles.sectionTitle}>Ongoing Now</Text>
+                  <Text style={styles.sectionCount}>{ongoingClasses.length} active</Text>
                 </View>
-              ) : (
-                schedule[selectedDay].map((item, i) => (
-                  <ClassCard key={i} item={{ ...item, status: 'upcoming' }} />
-                ))
-              )}
-            </View>
-          </View>
-        )}
+                {ongoingClasses.map(item => (
+                  <ClassCard key={item.class_id} item={item} token={token} />
+                ))}
+              </>
+            )}
 
+            {/* ALL OTHER CLASSES */}
+            <View style={[styles.sectionHeader, ongoingClasses.length > 0 && { marginTop: 20 }]}>
+              <View style={[styles.sectionDot, { backgroundColor: '#8a94a6' }]} />
+              <Text style={styles.sectionTitle}>My Classes</Text>
+            </View>
+
+            {upcomingClasses.length === 0 && ongoingClasses.length === 0 ? (
+              <View style={styles.noClassBox}>
+                <Text style={styles.noClassText}>No classes found.</Text>
+              </View>
+            ) : (
+              upcomingClasses.map(item => (
+                <ClassCard key={item.class_id} item={item} token={token} />
+              ))
+            )}
+          </>
+        )}
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -366,99 +397,44 @@ const styles = StyleSheet.create({
     color: '#8a94a6',
     fontWeight: '600',
   },
-
-  // More Button
-  moreButton: {
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 16,
-    borderWidth: 1.5,
-    borderColor: '#e6e9f0',
-    borderStyle: 'dashed',
+  
+  // Action Container
+  actionContainer: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#eef1f5',
+    alignItems: 'stretch',
   },
-  moreButtonText: {
-    fontSize: 13,
-    color: BLUE,
-    fontWeight: '700',
-  },
-
-  // Week Container
-  weekContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  weekTabRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eef1f5',
-    marginBottom: 16,
-  },
-  weekDayTab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    position: 'relative',
-  },
-  weekDayText: {
-    fontSize: 13,
-    color: '#8a94a6',
-    fontWeight: '600',
-  },
-  weekDayTextActive: {
-    color: BLUE,
-    fontWeight: '800',
-  },
-  weekDayCount: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#eef1f5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 3,
-  },
-  weekDayCountActive: {
-    backgroundColor: '#eef2ff',
-  },
-  weekDayCountText: {
-    fontSize: 9,
-    color: '#8a94a6',
-    fontWeight: '700',
-  },
-  weekDayCountTextActive: {
-    color: BLUE,
-  },
-  weekDayUnderline: {
-    position: 'absolute',
-    bottom: 0,
-    left: 6,
-    right: 6,
-    height: 2,
+  joinBtn: {
     backgroundColor: BLUE,
-    borderRadius: 2,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
   },
-  weekClasses: {
-    gap: 0,
+  joinBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  leaveBtn: {
+    backgroundColor: '#fff0f0',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fad4d4',
+  },
+  leaveBtnText: {
+    color: '#e74c3c',
+    fontWeight: '700',
+    fontSize: 14,
   },
 
   // No Class
   noClassBox: {
     alignItems: 'center',
     paddingVertical: 24,
-  },
-  noClassIcon: {
-    fontSize: 28,
-    marginBottom: 8,
   },
   noClassText: {
     fontSize: 14,

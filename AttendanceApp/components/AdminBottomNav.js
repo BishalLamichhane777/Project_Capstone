@@ -1,13 +1,15 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
+import { LayoutDashboard, ClipboardList, BarChart3, Settings } from 'lucide-react-native';
+
 const GOLD = '#b07d00';
 
 const tabs = [
-  { name: 'Home',     icon: '⊞',  route: 'AdminDashboard' },
-  { name: 'Waivers',  icon: '📋',  route: 'AdminWaivers' },
-  { name: 'Reports',  icon: '📊',  route: 'StudentAnalytics' },
-  { name: 'Settings', icon: '⚙️',  route: 'AdminSettings' },
+  { name: 'Home',     icon: LayoutDashboard,  route: 'AdminDashboard' },
+  { name: 'Waivers',  icon: ClipboardList,  route: 'AdminWaivers' },
+  { name: 'Reports',  icon: BarChart3,  route: 'StudentAnalytics' },
+  { name: 'Settings', icon: Settings,  route: 'AdminSettings' },
 ];
 
 export default function AdminBottomNav({ navigation, active }) {
@@ -19,9 +21,9 @@ export default function AdminBottomNav({ navigation, active }) {
           style={styles.tabItem}
           onPress={() => navigation.navigate(tab.route)}
         >
-          <Text style={[styles.tabIcon, active === tab.name && styles.tabIconActive]}>
-            {tab.icon}
-          </Text>
+          <View style={[styles.tabIcon, active === tab.name && styles.tabIconActive]}>
+            <tab.icon size={20} color={active === tab.name ? GOLD : '#aab0be'} />
+          </View>
           <Text style={[styles.tabLabel, active === tab.name && styles.tabLabelActive]}>
             {tab.name}
           </Text>

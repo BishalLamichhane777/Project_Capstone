@@ -4,6 +4,7 @@ import {
   SafeAreaView, ScrollView, StatusBar, Dimensions,
 } from 'react-native';
 import TeacherBottomNav from '../components/TeacherBottomNav';
+import { CheckCircle2, AlertTriangle, ClipboardList, Trophy, Upload, ChevronRight } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -35,10 +36,10 @@ const CLASS_SUMMARIES = [
 ];
 
 const SUMMARY_STATS = [
-  { icon: '✅', label: 'Overall Attendance', value: '87%',  color: '#edfaf3', textColor: '#27ae60' },
-  { icon: '⚠️', label: 'At-Risk Students',   value: '6',    color: '#fff4e6', textColor: '#e67e22' },
-  { icon: '📋', label: 'Waivers Pending',    value: '3',    color: '#fff0f0', textColor: '#e74c3c' },
-  { icon: '🏆', label: 'Top Attendance',     value: '100%', color: '#eef2ff', textColor: BLUE      },
+  { icon: CheckCircle2, label: 'Overall Attendance', value: '87%',  color: '#edfaf3', textColor: '#27ae60' },
+  { icon: AlertTriangle, label: 'At-Risk Students',   value: '6',    color: '#fff4e6', textColor: '#e67e22' },
+  { icon: ClipboardList, label: 'Waivers Pending',    value: '3',    color: '#fff0f0', textColor: '#e74c3c' },
+  { icon: Trophy, label: 'Top Attendance',     value: '100%', color: '#eef2ff', textColor: BLUE      },
 ];
 
 // ─── Simple Line Chart (pure RN, no library) ─────────────────────────────────
@@ -193,7 +194,7 @@ export default function TeacherReportsScreen({ navigation }) {
             <Text style={styles.headerSub}>Attendance & Performance</Text>
           </View>
           <TouchableOpacity style={styles.exportBtn}>
-            <Text style={styles.exportIcon}>⬆</Text>
+            <Upload size={12} color="#fff" />
             <Text style={styles.exportText}>Export</Text>
           </TouchableOpacity>
         </View>
@@ -215,7 +216,9 @@ export default function TeacherReportsScreen({ navigation }) {
         <View style={styles.statsGrid}>
           {SUMMARY_STATS.map((s, i) => (
             <View key={i} style={[styles.statCard, { backgroundColor: s.color }]}>
-              <Text style={styles.statIcon}>{s.icon}</Text>
+              <View style={{ marginBottom: 6 }}>
+                <s.icon size={22} color={s.textColor} />
+              </View>
               <Text style={[styles.statValue, { color: s.textColor }]}>{s.value}</Text>
               <Text style={styles.statLabel}>{s.label}</Text>
             </View>
@@ -287,7 +290,10 @@ export default function TeacherReportsScreen({ navigation }) {
 
         {/* ── At-Risk Students ── */}
         <View style={styles.card}>
-          <Text style={[styles.cardTitle, { marginBottom: 4 }]}>⚠️  At-Risk Students</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+            <AlertTriangle size={16} color="#1a1f36" style={{ marginRight: 6 }} />
+            <Text style={styles.cardTitle}>At-Risk Students</Text>
+          </View>
           <Text style={styles.cardSub}>Below 75% attendance threshold</Text>
           {[
             { name: 'Rajan Thapa',   class: 'CS101-A', pct: 68 },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,37 +7,15 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import BottomNav from '../components/BottomNav';
+import { useAuth } from '../context/AuthContext';
+import { API } from '../api';
+import { Calendar, ChevronLeft, FolderOpen } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
-
-const waivers = [
-  {
-    id: '#W-8821',
-    subject: 'Computer Science 101',
-    absenceDate: 'Oct 12, 2023',
-    status: 'Approved',
-    feedback: 'Medical certificate verified. Stay safe!',
-    feedbackType: 'admin',
-  },
-  {
-    id: '#W-8845',
-    subject: 'Advanced Mathematics II',
-    absenceDate: 'Oct 20, 2023',
-    status: 'Pending Review',
-    feedback: 'Your request is currently being processed by the faculty office.',
-    feedbackType: 'info',
-  },
-  {
-    id: '#W-8799',
-    subject: 'Introduction to Sociology',
-    absenceDate: 'Oct 05, 2023',
-    status: 'Rejected',
-    feedback: 'The submitted document is not a valid medical excuse. Please resubmit with proper documentation.',
-    feedbackType: 'admin',
-  },
-];
 
 const statusConfig = {
   'Approved': {
@@ -45,23 +23,26 @@ const statusConfig = {
     text: '#27ae60',
     borderColor: '#27ae60',
     feedbackBorder: '#27ae60',
+    feedbackText: 'Medical certificate verified. Stay safe!',
   },
-  'Pending Review': {
+  'Pending': {
     bg: '#fff8e6',
     text: '#f39c12',
     borderColor: '#f39c12',
     feedbackBorder: '#f39c12',
+    feedbackText: 'Your request is currently being processed by the faculty office.',
   },
   'Rejected': {
     bg: '#fff0f0',
     text: '#e74c3c',
     borderColor: '#e74c3c',
     feedbackBorder: '#e74c3c',
+    feedbackText: 'The submitted document is not a valid medical excuse or insufficient reason provided.',
   },
 };
 
 function StatusBadge({ status }) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || statusConfig['Pending'];
   return (
     <View style={[styles.badge, { backgroundColor: config.bg }]}>
       <Text style={[styles.badgeText, { color: config.text }]}>{status}</Text>
@@ -70,24 +51,35 @@ function StatusBadge({ status }) {
 }
 
 function WaiverCard({ waiver }) {
-  const config = statusConfig[waiver.status];
-  const isPending = waiver.status === 'Pending Review';
+  const config = statusConfig[waiver.status] || statusConfig['Pending'];
+  const isPending = waiver.status === 'Pending';
+  
+  // Format Date
+  const dateStr = waiver.session_date 
+    ? new Date(waiver.session_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    : 'Unknown Date';
 
   return (
     <View style={styles.card}>
       {/* Top Row */}
       <View style={styles.cardTopRow}>
         <StatusBadge status={waiver.status} />
-        <Text style={styles.waiverID}>ID: {waiver.id}</Text>
+        <Text style={styles.waiverID}>ID: #W-{waiver.request_id}</Text>
       </View>
 
       {/* Subject */}
-      <Text style={styles.subjectText}>{waiver.subject}</Text>
+      <Text style={styles.subjectText}>{waiver.class_name}</Text>
 
       {/* Absence Date */}
       <View style={styles.dateRow}>
-        <Text style={styles.calendarIcon}>📅</Text>
-        <Text style={styles.dateText}>Absence Date: {waiver.absenceDate}</Text>
+        <Calendar size={13} color="#8a94a6" />
+        <Text style={styles.dateText}>Absence Date: {dateStr}</Text>
+      </View>
+      
+      {/* Reason Box */}
+      <View style={styles.reasonBox}>
+        <Text style={styles.reasonLabel}>YOUR REASON</Text>
+        <Text style={styles.reasonText}>"{waiver.reason}"</Text>
       </View>
 
       {/* Feedback Box */}
@@ -103,26 +95,52 @@ function WaiverCard({ waiver }) {
           styles.feedbackText,
           isPending && { color: config.text },
         ]}>
-          {isPending ? waiver.feedback : `"${waiver.feedback}"`}
+          {isPending ? config.feedbackText : `"${config.feedbackText}"`}
         </Text>
-        {isPending && (
-          <View style={styles.pendingIconRow}>
-            {/* clock icon placeholder */}
-          </View>
-        )}
       </View>
 
-      {/* View Details */}
-      <TouchableOpacity style={styles.viewDetailsButton}>
-        <Text style={styles.viewDetailsText}>View Details  ›</Text>
-      </TouchableOpacity>
     </View>
   );
 }
 
 export default function WaiverStatusScreen({ navigation }) {
+  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('My Requests');
   const tabs = ['Active', 'My Requests', 'Archived'];
+  const [waivers, setWaivers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (token) {
+      fetchExcuses();
+    }
+  }, [token]);
+
+  const fetchExcuses = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(API.myExcuses, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWaivers(data);
+      } else {
+        Alert.alert('Error', data.error || 'Failed to load waiver history');
+      }
+    } catch (e) {
+      console.log('Fetch error:', e);
+      Alert.alert('Error', 'Network error while loading waiver history');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredWaivers = activeTab === 'My Requests' 
+    ? waivers 
+    : activeTab === 'Active' 
+      ? waivers.filter(w => w.status === 'Pending')
+      : waivers.filter(w => w.status !== 'Pending');
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -131,7 +149,7 @@ export default function WaiverStatusScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backArrow}>←</Text>
+          <ChevronLeft size={22} color="#1a1f36" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Waiver Status</Text>
         <View style={{ width: 38 }} />
@@ -154,9 +172,21 @@ export default function WaiverStatusScreen({ navigation }) {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {waivers.map((waiver, index) => (
-          <WaiverCard key={index} waiver={waiver} />
-        ))}
+        {loading ? (
+          <ActivityIndicator size="large" color={BLUE} style={{ marginTop: 60 }} />
+        ) : filteredWaivers.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <View style={{ marginBottom: 16 }}>
+              <FolderOpen size={48} color="#8a94a6" />
+            </View>
+            <Text style={styles.emptyTitle}>No Requests</Text>
+            <Text style={styles.emptySubtitle}>You have no waivers in this category.</Text>
+          </View>
+        ) : (
+          filteredWaivers.map((waiver, index) => (
+            <WaiverCard key={waiver.request_id || index} waiver={waiver} />
+          ))
+        )}
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -293,6 +323,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#8a94a6',
   },
+  
+  // Reason Box
+  reasonBox: {
+    marginBottom: 12,
+  },
+  reasonLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#8a94a6',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  reasonText: {
+    fontSize: 13,
+    color: '#1a1f36',
+    fontStyle: 'italic',
+  },
 
   // Feedback Box
   feedbackBox: {
@@ -300,7 +347,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     borderLeftWidth: 3,
-    marginBottom: 14,
+    marginBottom: 4,
   },
   feedbackBoxPending: {
     backgroundColor: '#fff8e6',
@@ -322,17 +369,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // View Details
-  viewDetailsButton: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#eef2ff',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
+  // Empty Box
+  emptyBox: {
+    alignItems: 'center',
+    paddingVertical: 50,
   },
-  viewDetailsText: {
-    fontSize: 13,
-    color: BLUE,
-    fontWeight: '600',
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a1f36',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#8a94a6',
+    textAlign: 'center',
   },
 });

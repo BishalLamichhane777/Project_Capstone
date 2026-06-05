@@ -1,0 +1,1358 @@
+{
+  "info": {
+    "_postman_id": "a3597b99-f362-49b7-a25e-e728c6e999c9",
+    "name": "AttendaceSystem",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "51377562",
+    "_collection_link": "https://go.postman.co/collection/51377562-a3597b99-f362-49b7-a25e-e728c6e999c9?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Register Admin",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"fullname\": \"Anita Thapa\",\r\n  \"email\": \"anita@mytimes.com\",\r\n  \"password\": \"student123\",\r\n  \"role\": \"student\",\r\n  \"phone\": \"+977-9812345678\",\r\n  \"roll_number\": \"BCA-2024-001\",\r\n  \"program\": \"BCA\",\r\n  \"year_of_study\": 2\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "localhost:5000//api/auth/register",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "",
+            "api",
+            "auth",
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Login Admin",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"email\": \"admin@mytimes.com\",\r\n  \"password\": \"admin123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "localhost:5000//api/auth/login",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "",
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Login",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"email\": \"admin@mytimes.com\",\r\n  \"password\": \"admin123\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "localhost:5000//api/auth/login",
+              "host": [
+                "localhost"
+              ],
+              "port": "5000",
+              "path": [
+                "",
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 10:29:02 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "245"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"fullname\": \"System Admin\",\n    \"role\": \"admin\",\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJyb2xlIjoiYWRtaW4iLCJlbWFpbCI6ImFkbWluQG15dGltZXMuY29tIiwiZXhwIjoxNzc5NzA0OTQyfQ.SHWIquTp4fySgdEx3hvn7hwNonjI_HnJTl47g-O4Ewo\",\n    \"user_id\": 1\n}"
+        }
+      ]
+    },
+    {
+      "name": "Register Teacher",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "localhost:5000/api/auth/register",
+          "host": [
+            "localhost"
+          ],
+          "port": "5000",
+          "path": [
+            "api",
+            "auth",
+            "register"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Register Teacher",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"fullname\": \"Dr. Ramesh Sharma\",\r\n  \"email\": \"ramesh@mytimes.com\",\r\n  \"password\": \"teacher123\",\r\n  \"role\": \"teacher\",\r\n  \"phone\": \"+977-9801234567\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/auth/register",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "status": "CREATED",
+          "code": 201,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 15:13:16 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "42"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"message\": \"User registered\",\n    \"user_id\": 3\n}"
+        }
+      ]
+    },
+    {
+      "name": "Register Student",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "Register Student",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"fullname\": \"Ram Thapa\",\r\n  \"email\": \"ram@mytimes.com\",\r\n  \"password\": \"student123\",\r\n  \"role\": \"student\",\r\n  \"phone\": \"+977-9812345622\",\r\n  \"roll_number\": \"BCA-2024-003\",\r\n  \"program\": \"BCA\",\r\n  \"year_of_study\": 2\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/auth/register",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "status": "CREATED",
+          "code": 201,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 15:28:38 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "42"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"message\": \"User registered\",\n    \"user_id\": 6\n}"
+        }
+      ]
+    },
+    {
+      "name": "Current User(Admin)",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "Current User (Admin)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/api/auth/me",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 15:35:34 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "153"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"created_at\": \"2026-05-24T10:27:57.545520\",\n    \"device_token\": null,\n    \"email\": \"admin@mytimes.com\",\n    \"fullname\": \"System Admin\",\n    \"id\": 1,\n    \"phone\": null,\n    \"role\": \"admin\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Current Teacher (Teacher)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token_teacher}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "Current User (Teacher)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/auth/me",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 15:53:22 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "174"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"created_at\": \"2026-05-24T15:13:16.626667\",\n    \"device_token\": null,\n    \"email\": \"ramesh@mytimes.com\",\n    \"fullname\": \"Dr. Ramesh Sharma\",\n    \"id\": 3,\n    \"phone\": \"+977-9801234567\",\n    \"role\": \"teacher\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Current User (Student)",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "Current User (Student)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/auth/me",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 16:10:17 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "265"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"created_at\": \"2026-05-24T10:29:50.690306\",\n    \"device_token\": null,\n    \"email\": \"anita@mytimes.com\",\n    \"fullname\": \"Anita Thapa\",\n    \"id\": 2,\n    \"phone\": \"+977-9812345678\",\n    \"role\": \"student\",\n    \"student_profile\": {\n        \"program\": \"BCA\",\n        \"roll_number\": \"BCA-2024-001\",\n        \"student_id\": 1,\n        \"year_of_study\": 2\n    }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Teacher Start Session",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token_teacher}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"class_id\": 1,\r\n  \"mode\": \"Strict\",\r\n  \"start_time\": \"2026-05-24T10:00:00+05:45\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{local}}/api/session/start",
+          "host": [
+            "{{local}}"
+          ],
+          "path": [
+            "api",
+            "session",
+            "start"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Student Id",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "Get Student Id",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/api/student/list",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "student",
+                "list"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 16:38:06 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "509"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "[\n    {\n        \"email\": \"anita@mytimes.com\",\n        \"fullname\": \"Anita Thapa\",\n        \"phone\": \"+977-9812345678\",\n        \"program\": \"BCA\",\n        \"roll_number\": \"BCA-2024-001\",\n        \"student_id\": 1,\n        \"user_id\": 2,\n        \"year_of_study\": 2\n    },\n    {\n        \"email\": \"kumar@gmail.com\",\n        \"fullname\": \"Kumar Thapa\",\n        \"phone\": \"+977-9812345699\",\n        \"program\": \"BCA\",\n        \"roll_number\": \"BCA-2024-002\",\n        \"student_id\": 2,\n        \"user_id\": 4,\n        \"year_of_study\": 2\n    },\n    {\n        \"email\": \"ram@mytimes.com\",\n        \"fullname\": \"Ram Thapa\",\n        \"phone\": \"+977-9812345622\",\n        \"program\": \"BCA\",\n        \"roll_number\": \"BCA-2024-003\",\n        \"student_id\": 3,\n        \"user_id\": 6,\n        \"year_of_study\": 2\n    }\n]"
+        }
+      ]
+    },
+    {
+      "name": "Create a class",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"class_name\": \"Data Structures\",\r\n  \"subject\": \"Computer Science\",\r\n  \"room\": \"Lab-301\",\r\n  \"teacher_id\": 3,\r\n  \"schedule_time\": \"2026-06-01T10:00:00+05:45\",\r\n  \"duration_minutes\": 60\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{local}}/api/admin/class/create",
+          "host": [
+            "{{local}}"
+          ],
+          "path": [
+            "api",
+            "admin",
+            "class",
+            "create"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Create a class",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"class_name\": \"Data Structures\",\r\n  \"subject\": \"Computer Science\",\r\n  \"room\": \"Lab-301\",\r\n  \"teacher_id\": 3,\r\n  \"schedule_time\": \"2026-06-01T10:00:00+05:45\",\r\n  \"duration_minutes\": 60\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/admin/class/create",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "class",
+                "create"
+              ]
+            }
+          },
+          "status": "CREATED",
+          "code": 201,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 16:46:09 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "41"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"class_id\": 1,\n    \"message\": \"Class created\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Enrol Student in Class",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "Enrol Student in Class",
+          "originalRequest": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"class_id\": 1\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/student/enrol/1",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "student",
+                "enrol",
+                "1"
+              ]
+            }
+          },
+          "status": "CREATED",
+          "code": 201,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 16:49:57 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "31"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"message\": \"Student enrolled\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Start Session",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token_teacher}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"class_id\": 1,\r\n  \"mode\": \"Strict\",\r\n  \"start_time\": \"2026-05-24T10:00:00+05:45\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{local}}/api/session/start",
+          "host": [
+            "{{local}}"
+          ],
+          "path": [
+            "api",
+            "session",
+            "start"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Start Session",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"class_id\": 1,\r\n  \"mode\": \"Strict\",\r\n  \"start_time\": \"2026-05-24T10:00:00+05:45\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/session/start",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "session",
+                "start"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 17:56:42 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "97"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"enrolled_count\": 1,\n    \"session_id\": \"81b4e88b-2656-4e58-97f6-c232e5a98a2a\",\n    \"threshold_percent\": 0.8\n}"
+        }
+      ]
+    },
+    {
+      "name": "Check Session Start",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token_teacher}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{local}}/api/session/status/63828a68-4107-450c-bbbe-61284acbf486",
+          "host": [
+            "{{local}}"
+          ],
+          "path": [
+            "api",
+            "session",
+            "status",
+            "63828a68-4107-450c-bbbe-61284acbf486"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Check Session Start",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/api/session/status/81b4e88b-2656-4e58-97f6-c232e5a98a2a",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "session",
+                "status",
+                "81b4e88b-2656-4e58-97f6-c232e5a98a2a"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 17:56:59 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "242"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"absent_count\": 1,\n    \"class_id\": 1,\n    \"class_name\": \"Data Structures\",\n    \"end_time\": null,\n    \"liveCount\": 0,\n    \"mode\": \"Strict\",\n    \"present_count\": 0,\n    \"session_id\": \"81b4e88b-2656-4e58-97f6-c232e5a98a2a\",\n    \"start_time\": \"2026-05-24T10:00:00\",\n    \"status\": \"ACTIVE\",\n    \"total\": 1\n}"
+        }
+      ]
+    },
+    {
+      "name": "End Session",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token_teacher}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"session_id\": \"e78dfeb7-a89f-4ae2-8095-3382acc054e7\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{local}} /api/session/end",
+          "host": [
+            "{{local}} "
+          ],
+          "path": [
+            "api",
+            "session",
+            "end"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "End Session",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"session_id\": \"81b4e88b-2656-4e58-97f6-c232e5a98a2a\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/session/end",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "session",
+                "end"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Sun, 24 May 2026 17:57:14 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "99"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"session_id\": \"81b4e88b-2656-4e58-97f6-c232e5a98a2a\",\n    \"summary\": {\n        \"absent\": 1,\n        \"present\": 0,\n        \"total\": 1\n    }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Login Teacher",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "View Attendance History",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "View Attendance History",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}api/attendance/history/1",
+              "host": [
+                "{{local}}api"
+              ],
+              "path": [
+                "attendance",
+                "history",
+                "1"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 25 May 2026 01:48:51 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "1370"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "[\n    {\n        \"class_name\": \"Data Structures\",\n        \"date\": \"2026-05-24T10:00:00\",\n        \"logs\": [],\n        \"session_id\": \"81b4e88b-2656-4e58-97f6-c232e5a98a2a\",\n        \"status\": \"Absent\",\n        \"total_duration_seconds\": 0\n    },\n    {\n        \"class_name\": \"Data Structures\",\n        \"date\": \"2026-05-24T10:00:00\",\n        \"logs\": [],\n        \"session_id\": \"400a7434-30c5-4dee-8ccc-20cf147d578c\",\n        \"status\": \"Absent\",\n        \"total_duration_seconds\": 0\n    },\n    {\n        \"class_name\": \"Data Structures\",\n        \"date\": \"2026-05-24T10:00:00\",\n        \"logs\": [],\n        \"session_id\": \"63828a68-4107-450c-bbbe-61284acbf486\",\n        \"status\": \"Absent\",\n        \"total_duration_seconds\": 0\n    },\n    {\n        \"class_name\": \"Data Structures\",\n        \"date\": \"2026-05-24T10:00:00\",\n        \"logs\": [],\n        \"session_id\": \"46e5d374-853f-4745-8fa4-07d7946529bf\",\n        \"status\": \"Absent\",\n        \"total_duration_seconds\": 0\n    },\n    {\n        \"class_name\": \"Data Structures\",\n        \"date\": \"2026-05-24T10:00:00\",\n        \"logs\": [],\n        \"session_id\": \"d426fc4e-be7f-49b8-8960-7ac8e020392e\",\n        \"status\": \"Absent\",\n        \"total_duration_seconds\": 0\n    },\n    {\n        \"class_name\": \"Data Structures\",\n        \"date\": \"2026-05-24T10:00:00\",\n        \"logs\": [],\n        \"session_id\": \"ae555460-612e-45b7-b5e5-6cd3214c9365\",\n        \"status\": \"Absent\",\n        \"total_duration_seconds\": 0\n    },\n    {\n        \"class_name\": \"Data Structures\",\n        \"date\": \"2026-05-24T10:00:00\",\n        \"logs\": [],\n        \"session_id\": \"70d06343-5e82-4a6b-888b-01635746e0ca\",\n        \"status\": \"Absent\",\n        \"total_duration_seconds\": 0\n    },\n    {\n        \"class_name\": \"Data Structures\",\n        \"date\": \"2026-05-24T10:00:00\",\n        \"logs\": [],\n        \"session_id\": \"e78dfeb7-a89f-4ae2-8095-3382acc054e7\",\n        \"status\": \"Absent\",\n        \"total_duration_seconds\": 0\n    }\n]"
+        }
+      ]
+    },
+    {
+      "name": "Submit Excuse Request",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "Submit Request",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"session_id\": \"81b4e88b-2656-4e58-97f6-c232e5a98a2a\",\r\n  \"reason\": \"I had a medical emergency and was admitted to the hospital.\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/excuse/submit",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "excuse",
+                "submit"
+              ]
+            }
+          },
+          "status": "CREATED",
+          "code": 201,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 25 May 2026 02:28:09 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "46"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"message\": \"Excuse submitted\",\n    \"request_id\": 1\n}"
+        }
+      ]
+    },
+    {
+      "name": "Login as Student",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "View Pending Excuse Request",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "View Pending Excuse Request",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{local}}/api/excuse/pending",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "excuse",
+                "pending"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 25 May 2026 02:35:40 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "327"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "[\n    {\n        \"class_name\": \"Data Structures\",\n        \"reason\": \"I had a medical emergency and was admitted to the hospital.\",\n        \"request_id\": 1,\n        \"roll_number\": \"BCA-2024-001\",\n        \"session_date\": \"2026-05-24T10:00:00\",\n        \"session_id\": \"81b4e88b-2656-4e58-97f6-c232e5a98a2a\",\n        \"student_id\": 1,\n        \"student_name\": \"Anita Thapa\",\n        \"submitted_at\": \"2026-05-25T02:28:09.802871\"\n    }\n]"
+        }
+      ]
+    },
+    {
+      "name": "Approve the Request",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": [
+        {
+          "name": "Approve the Request",
+          "originalRequest": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"decision\": \"Approved\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{local}}/api/excuse/decide/1",
+              "host": [
+                "{{local}}"
+              ],
+              "path": [
+                "api",
+                "excuse",
+                "decide",
+                "1"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": null,
+          "header": [
+            {
+              "key": "Server",
+              "value": "Werkzeug/3.1.8 Python/3.14.5"
+            },
+            {
+              "key": "Date",
+              "value": "Mon, 25 May 2026 02:37:37 GMT"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Content-Length",
+              "value": "54"
+            },
+            {
+              "key": "Access-Control-Allow-Origin",
+              "value": "http://localhost:3000"
+            },
+            {
+              "key": "Vary",
+              "value": "Origin"
+            },
+            {
+              "key": "Connection",
+              "value": "close"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n    \"decision\": \"Approved\",\n    \"message\": \"Decision recorded\"\n}"
+        }
+      ]
+    }
+  ]
+}

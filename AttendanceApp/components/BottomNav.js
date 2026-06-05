@@ -1,13 +1,15 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
+import { LayoutDashboard, History, GraduationCap, User } from 'lucide-react-native';
+
 const BLUE = '#2952e3';
 
 const tabs = [
-  { name: 'Home',    icon: '⊞',  route: 'Home' },
-  { name: 'History', icon: '🕐',  route: 'AttendanceHistory' },
-  { name: 'Classes', icon: '🎓',  route: 'Classes' },
-  { name: 'Profile', icon: '👤',  route: 'Profile' },
+  { name: 'Home',    icon: LayoutDashboard,  route: 'Home' },
+  { name: 'History', icon: History,  route: 'AttendanceHistory' },
+  { name: 'Classes', icon: GraduationCap,  route: 'Classes' },
+  { name: 'Profile', icon: User,  route: 'Profile' },
 ];
 
 export default function BottomNav({ navigation, active }) {
@@ -19,9 +21,9 @@ export default function BottomNav({ navigation, active }) {
           style={styles.tabItem}
           onPress={() => navigation.navigate(tab.route)}
         >
-          <Text style={[styles.tabIcon, active === tab.name && styles.tabIconActive]}>
-            {tab.icon}
-          </Text>
+          <View style={[styles.tabIcon, active === tab.name && styles.tabIconActive]}>
+            <tab.icon size={20} color={active === tab.name ? BLUE : '#aab0be'} />
+          </View>
           <Text style={[styles.tabLabel, active === tab.name && styles.tabLabelActive]}>
             {tab.name}
           </Text>

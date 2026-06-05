@@ -1,14 +1,16 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
+import { LayoutDashboard, GraduationCap, Users, BarChart3, User } from 'lucide-react-native';
+
 const BLUE = '#2952e3';
 
 const tabs = [
-  { name: 'Home',     icon: '⊞',  route: 'TeacherDashboard' },
-  { name: 'Classes',  icon: '🎓',  route: 'TeacherClasses' },
-  { name: 'Students', icon: '👥',  route: 'TeacherStudents' },
-  { name: 'Reports',  icon: '📊',  route: 'TeacherReports' },
-  { name: 'Profile',  icon: '👤',  route: 'TeacherProfile' },
+  { name: 'Home',     icon: LayoutDashboard,  route: 'TeacherDashboard' },
+  { name: 'Classes',  icon: GraduationCap,  route: 'TeacherClasses' },
+  { name: 'Students', icon: Users,  route: 'TeacherStudents' },
+  { name: 'Reports',  icon: BarChart3,  route: 'TeacherReports' },
+  { name: 'Profile',  icon: User,  route: 'TeacherProfile' },
 ];
 
 export default function TeacherBottomNav({ navigation, active }) {
@@ -20,9 +22,9 @@ export default function TeacherBottomNav({ navigation, active }) {
           style={styles.tabItem}
           onPress={() => navigation.navigate(tab.route)}
         >
-          <Text style={[styles.tabIcon, active === tab.name && styles.tabIconActive]}>
-            {tab.icon}
-          </Text>
+          <View style={[styles.tabIcon, active === tab.name && styles.tabIconActive]}>
+            <tab.icon size={19} color={active === tab.name ? BLUE : '#aab0be'} />
+          </View>
           <Text style={[styles.tabLabel, active === tab.name && styles.tabLabelActive]}>
             {tab.name}
           </Text>

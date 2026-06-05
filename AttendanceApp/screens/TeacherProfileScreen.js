@@ -4,6 +4,7 @@ import {
   SafeAreaView, ScrollView, StatusBar, Switch,
 } from 'react-native';
 import TeacherBottomNav from '../components/TeacherBottomNav';
+import { Edit2, Key, Image as ImageIcon, Globe, Palette, Bell, Mail, Smartphone, Lock, Camera, Save, HelpCircle, Bug, FileText, Clipboard, Settings, ChevronRight, LogOut, Phone, Building, Calendar } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
@@ -26,50 +27,52 @@ const MENU_SECTIONS = [
   {
     title: 'Account',
     items: [
-      { icon: '✏️',  label: 'Edit Profile',          route: null },
-      { icon: '🔑',  label: 'Change Password',        route: null },
-      { icon: '🖼️',  label: 'Update Profile Photo',   route: null },
+      { icon: Edit2,  label: 'Edit Profile',          route: null },
+      { icon: Key,  label: 'Change Password',        route: null },
+      { icon: ImageIcon,  label: 'Update Profile Photo',   route: null },
     ],
   },
   {
     title: 'Preferences',
     items: [
-      { icon: '🌐',  label: 'Language',               value: 'English',  route: null },
-      { icon: '🎨',  label: 'Theme',                   value: 'Light',    route: null },
+      { icon: Globe,  label: 'Language',               value: 'English',  route: null },
+      { icon: Palette,  label: 'Theme',                   value: 'Light',    route: null },
     ],
   },
   {
     title: 'Notifications',
     items: [
-      { icon: '🔔',  label: 'Push Notifications',     toggle: 'push'     },
-      { icon: '📧',  label: 'Email Alerts',            toggle: 'email'    },
-      { icon: '📱',  label: 'SMS Alerts',              toggle: 'sms'      },
+      { icon: Bell,  label: 'Push Notifications',     toggle: 'push'     },
+      { icon: Mail,  label: 'Email Alerts',            toggle: 'email'    },
+      { icon: Smartphone,  label: 'SMS Alerts',              toggle: 'sms'      },
     ],
   },
   {
     title: 'App Settings',
     items: [
-      { icon: '🔒',  label: 'Biometric Login',         toggle: 'biometric' },
-      { icon: '📷',  label: 'Auto-Open Camera',         toggle: 'autoCamera' },
-      { icon: '💾',  label: 'Auto-Save Attendance',     toggle: 'autoSave'  },
+      { icon: Lock,  label: 'Biometric Login',         toggle: 'biometric' },
+      { icon: Camera,  label: 'Auto-Open Camera',         toggle: 'autoCamera' },
+      { icon: Save,  label: 'Auto-Save Attendance',     toggle: 'autoSave'  },
     ],
   },
   {
     title: 'Support',
     items: [
-      { icon: '❓',  label: 'Help & FAQ',              route: null },
-      { icon: '🐛',  label: 'Report a Bug',            route: null },
-      { icon: '📄',  label: 'Privacy Policy',          route: null },
-      { icon: '📋',  label: 'Terms of Service',        route: null },
+      { icon: HelpCircle,  label: 'Help & FAQ',              route: null },
+      { icon: Bug,  label: 'Report a Bug',            route: null },
+      { icon: FileText,  label: 'Privacy Policy',          route: null },
+      { icon: Clipboard,  label: 'Terms of Service',        route: null },
     ],
   },
 ];
 
 // ─── Info Row ─────────────────────────────────────────────────────────────────
-function InfoRow({ icon, label, value }) {
+function InfoRow({ icon: Icon, label, value }) {
   return (
     <View style={styles.infoRow}>
-      <Text style={styles.infoIcon}>{icon}</Text>
+      <View style={styles.infoIcon}>
+        <Icon size={18} color="#8a94a6" />
+      </View>
       <View style={styles.infoBody}>
         <Text style={styles.infoLabel}>{label}</Text>
         <Text style={styles.infoValue}>{value}</Text>
@@ -87,7 +90,7 @@ function MenuItem({ item, toggles, onToggle }) {
     >
       <View style={styles.menuItemLeft}>
         <View style={styles.menuIconWrap}>
-          <Text style={styles.menuIcon}>{item.icon}</Text>
+          <item.icon size={16} color="#1a1f36" />
         </View>
         <Text style={styles.menuLabel}>{item.label}</Text>
       </View>
@@ -103,10 +106,10 @@ function MenuItem({ item, toggles, onToggle }) {
       ) : item.value ? (
         <View style={styles.menuValueRow}>
           <Text style={styles.menuValue}>{item.value}</Text>
-          <Text style={styles.menuChevron}>›</Text>
+          <ChevronRight size={20} color="#aab0be" />
         </View>
       ) : (
-        <Text style={styles.menuChevron}>›</Text>
+        <ChevronRight size={20} color="#aab0be" />
       )}
     </TouchableOpacity>
   );
@@ -140,7 +143,7 @@ export default function TeacherProfileScreen({ navigation }) {
               <Text style={styles.avatarText}>{TEACHER.initials}</Text>
             </View>
             <TouchableOpacity style={styles.avatarEdit}>
-              <Text style={{ fontSize: 11 }}>✏️</Text>
+              <Edit2 size={11} color="#1a1f36" />
             </TouchableOpacity>
             <View style={styles.onlineIndicator} />
           </View>
@@ -171,10 +174,10 @@ export default function TeacherProfileScreen({ navigation }) {
         {/* ── Contact Info ── */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Contact Information</Text>
-          <InfoRow icon="✉️"  label="Email"      value={TEACHER.email}   />
-          <InfoRow icon="📱"  label="Phone"      value={TEACHER.phone}   />
-          <InfoRow icon="🏛️"  label="Department" value={TEACHER.department} />
-          <InfoRow icon="📅"  label="Joined"     value={TEACHER.joinDate} />
+          <InfoRow icon={Mail}  label="Email"      value={TEACHER.email}   />
+          <InfoRow icon={Phone}  label="Phone"      value={TEACHER.phone}   />
+          <InfoRow icon={Building}  label="Department" value={TEACHER.department} />
+          <InfoRow icon={Calendar}  label="Joined"     value={TEACHER.joinDate} />
         </View>
 
         {/* ── Settings Toggle ── */}
@@ -185,14 +188,16 @@ export default function TeacherProfileScreen({ navigation }) {
         >
           <View style={styles.settingsToggleLeft}>
             <View style={styles.settingsToggleIcon}>
-              <Text style={{ fontSize: 18 }}>⚙️</Text>
+              <Settings size={18} color="#ffffff" />
             </View>
             <View>
               <Text style={styles.settingsToggleTitle}>App Settings</Text>
               <Text style={styles.settingsToggleSub}>Notifications, preferences, security</Text>
             </View>
           </View>
-          <Text style={[styles.menuChevron, { transform: [{ rotate: showSettings ? '90deg' : '0deg' }] }]}>›</Text>
+          <View style={{ transform: [{ rotate: showSettings ? '90deg' : '0deg' }] }}>
+            <ChevronRight size={20} color="#aab0be" />
+          </View>
         </TouchableOpacity>
 
         {/* ── Settings Sections (collapsible) ── */}
@@ -216,7 +221,7 @@ export default function TeacherProfileScreen({ navigation }) {
           onPress={() => navigation.navigate('Login')}
           activeOpacity={0.85}
         >
-          <Text style={styles.logoutIcon}>🚪</Text>
+          <LogOut size={18} color="#e74c3c" />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 

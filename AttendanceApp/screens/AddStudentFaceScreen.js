@@ -4,6 +4,7 @@ import {
   SafeAreaView, ScrollView, StatusBar, Alert, TextInput,
 } from 'react-native';
 import AdminBottomNav from '../components/AdminBottomNav';
+import { Camera, CheckCircle, ChevronLeft, ScanFace } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 const GOLD = '#b07d00';
@@ -52,7 +53,7 @@ export default function AddStudentFaceScreen({ navigation }) {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <ChevronLeft size={22} color="#1a1f36" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Add Student Face</Text>
         <View style={{ width: 38 }} />
@@ -62,7 +63,7 @@ export default function AddStudentFaceScreen({ navigation }) {
 
         {/* Info Banner */}
         <View style={styles.infoBanner}>
-          <Text style={styles.infoIcon}>🤳</Text>
+          <ScanFace size={18} color="#3b5bdb" />
           <Text style={styles.infoText}>
             Upload a clear face photo of the student. This will be used by the automated face recognition system to mark attendance.
           </Text>
@@ -73,14 +74,14 @@ export default function AddStudentFaceScreen({ navigation }) {
         <TouchableOpacity style={styles.photoBox} onPress={handlePhotoUpload} activeOpacity={0.8}>
           {photoAdded ? (
             <View style={styles.photoAdded}>
-              <Text style={styles.photoAddedIcon}>✅</Text>
+              <CheckCircle size={32} color="#27ae60" />
               <Text style={styles.photoAddedText}>Photo uploaded successfully</Text>
               <Text style={styles.photoChangeText}>Tap to change</Text>
             </View>
           ) : (
             <View style={styles.photoEmpty}>
               <View style={styles.photoIconCircle}>
-                <Text style={styles.photoIcon}>📷</Text>
+                <Camera size={28} color={BLUE} />
               </View>
               <Text style={styles.photoTitle}>Upload Face Photo</Text>
               <Text style={styles.photoSub}>JPG or PNG · Clear front-facing photo</Text>
@@ -185,7 +186,7 @@ export default function AddStudentFaceScreen({ navigation }) {
 
         {/* Submit */}
         <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} activeOpacity={0.85}>
-          <Text style={styles.submitIcon}>🤳</Text>
+          <ScanFace size={18} color="#ffffff" />
           <Text style={styles.submitText}>Register Student Face</Text>
         </TouchableOpacity>
 

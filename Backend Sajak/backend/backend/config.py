@@ -1,0 +1,36 @@
+"""Application configuration loaded from environment variables."""
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class Config:
+    """Central configuration for the Flask application."""
+
+    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
+
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "SQLALCHEMY_DATABASE_URI", "sqlite:///attendance.db"
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", "24"))
+
+    FIREBASE_CREDENTIALS_PATH = os.getenv(
+        "FIREBASE_CREDENTIALS_PATH", "firebase-credentials.json"
+    )
+
+    STRICT_MODE_THRESHOLD = float(os.getenv("STRICT_MODE_THRESHOLD", "0.80"))
+    ACTIVITY_MODE_THRESHOLD = float(os.getenv("ACTIVITY_MODE_THRESHOLD", "0.55"))
+
+    CORS_ORIGINS = os.getenv(
+        "CORS_ORIGINS", "http://localhost:3000,http://localhost:8081"
+    ).split(",")
+
+    # ── Flask-Admin ────────────────────────────────────────────────────
+    FLASK_ADMIN_SWATCH = os.getenv("FLASK_ADMIN_SWATCH", "cosmo")
+
+    # ── CSRF Protection (Flask-WTF) ───────────────────────────────────
+    WTF_CSRF_ENABLED = True

@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar,
+  SafeAreaView, ScrollView, StatusBar, ActivityIndicator,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import TeacherBottomNav from '../components/TeacherBottomNav';
+import { useAuth } from '../context/AuthContext';
+import { API } from '../api';
+import { BookOpen, Clock, MapPin, Users, Play, LayoutDashboard, AlertCircle, Umbrella } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
@@ -31,144 +35,36 @@ function buildWeekDays() {
 
 const WEEK_DAYS = buildWeekDays();
 
-// ─── Class data keyed by day index (0=Sun … 6=Sat) + "Today" ─────────────────
-const CLASS_DATA = {
-  Today: [
-    {
-      id: 't1',
-      subject: 'Intro to Comp Sci',
-      code: 'CS101-A',
-      room: 'Room 304',
-      time: '09:00 – 10:30 AM',
-      students: 28,
-      status: 'ongoing',
-      accent: BLUE,
-      light: '#eef2ff',
-    },
-    {
-      id: 't2',
-      subject: 'Advanced Algorithms',
-      code: 'CS302-B',
-      room: 'Room 201',
-      time: '11:00 – 12:30 PM',
-      students: 22,
-      status: 'upcoming',
-      accent: '#7c3aed',
-      light: '#f3eeff',
-    },
-    {
-      id: 't3',
-      subject: 'Database Systems',
-      code: 'CS210-Lab',
-      room: 'Lab 2',
-      time: '02:00 – 04:00 PM',
-      students: 18,
-      status: 'upcoming',
-      accent: '#e67e22',
-      light: '#fff4e6',
-    },
-  ],
-  Mon: [
-    {
-      id: 'm1',
-      subject: 'Data Structures',
-      code: 'CS201-A',
-      room: 'Room 101',
-      time: '08:00 – 09:30 AM',
-      students: 30,
-      status: 'upcoming',
-      accent: '#27ae60',
-      light: '#edfaf3',
-    },
-    {
-      id: 'm2',
-      subject: 'Operating Systems',
-      code: 'CS305-C',
-      room: 'Room 406',
-      time: '01:00 – 02:30 PM',
-      students: 25,
-      status: 'upcoming',
-      accent: '#e74c3c',
-      light: '#fff0f0',
-    },
-  ],
-  Tue: [
-    {
-      id: 'tu1',
-      subject: 'Computer Networks',
-      code: 'CS311-A',
-      room: 'Room 205',
-      time: '10:00 – 11:30 AM',
-      students: 24,
-      status: 'upcoming',
-      accent: '#2980b9',
-      light: '#ebf5fb',
-    },
-  ],
-  Wed: [
-    {
-      id: 'w1',
-      subject: 'Intro to Comp Sci',
-      code: 'CS101-A',
-      room: 'Room 304',
-      time: '09:00 – 10:30 AM',
-      students: 28,
-      status: 'upcoming',
-      accent: BLUE,
-      light: '#eef2ff',
-    },
-    {
-      id: 'w2',
-      subject: 'Software Engineering',
-      code: 'CS401-B',
-      room: 'Room 302',
-      time: '03:00 – 04:30 PM',
-      students: 20,
-      status: 'upcoming',
-      accent: '#8e44ad',
-      light: '#f5eef8',
-    },
-  ],
-  Thu: [
-    {
-      id: 'th1',
-      subject: 'Advanced Algorithms',
-      code: 'CS302-B',
-      room: 'Room 201',
-      time: '11:00 – 12:30 PM',
-      students: 22,
-      status: 'upcoming',
-      accent: '#7c3aed',
-      light: '#f3eeff',
-    },
-    {
-      id: 'th2',
-      subject: 'Database Systems',
-      code: 'CS210-Lab',
-      room: 'Lab 2',
-      time: '02:00 – 04:00 PM',
-      students: 18,
-      status: 'upcoming',
-      accent: '#e67e22',
-      light: '#fff4e6',
-    },
-  ],
-  Fri: [
-    {
-      id: 'f1',
-      subject: 'Computer Networks',
-      code: 'CS311-A',
-      room: 'Room 205',
-      time: '10:00 – 11:30 AM',
-      students: 24,
-      status: 'upcoming',
-      accent: '#2980b9',
-      light: '#ebf5fb',
-    },
-  ],
-  Sat: [],
-  Sun: [],
-};
+const CLASS_COLORS = [
+  { accent: '#2952e3', light: '#eef2ff' }, // Blue
+  { accent: '#7c3aed', light: '#f3eeff' }, // Purple
+  { accent: '#e67e22', light: '#fff4e6' }, // Orange
+  { accent: '#27ae60', light: '#edfaf3' }, // Green
+  { accent: '#e74c3c', light: '#fff0f0' }, // Red
+  { accent: '#8e44ad', light: '#f5eef8' }, // Dark Purple
+  { accent: '#2980b9', light: '#ebf5fb' }, // Dark Blue
+];
+
+function formatClassTime(scheduleTimeStr, durationMinutes) {
+  if (!scheduleTimeStr) return 'TBD';
+  try {
+    const startTime = new Date(scheduleTimeStr);
+    const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+    
+    const formatTimeStr = (date) => {
+      let hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${hours}:${minutes} ${ampm}`;
+    };
+    
+    return `${formatTimeStr(startTime)} – ${formatTimeStr(endTime)}`;
+  } catch (err) {
+    return 'TBD';
+  }
+}
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -194,7 +90,7 @@ function ClassCard({ item, navigation }) {
       <View style={styles.cardTop}>
         {/* Left accent dot */}
         <View style={[styles.cardDot, { backgroundColor: item.light }]}>
-          <Text style={{ fontSize: 16 }}>📚</Text>
+          <BookOpen size={16} color={item.accent} />
         </View>
 
         <View style={styles.cardInfo}>
@@ -207,15 +103,15 @@ function ClassCard({ item, navigation }) {
 
       <View style={styles.cardMeta}>
         <View style={styles.metaItem}>
-          <Text style={styles.metaIcon}>🕐</Text>
+          <Clock size={12} color="#6b7280" />
           <Text style={styles.metaText}>{item.time}</Text>
         </View>
         <View style={styles.metaItem}>
-          <Text style={styles.metaIcon}>📍</Text>
+          <MapPin size={12} color="#6b7280" />
           <Text style={styles.metaText}>{item.room}</Text>
         </View>
         <View style={styles.metaItem}>
-          <Text style={styles.metaIcon}>👥</Text>
+          <Users size={12} color="#6b7280" />
           <Text style={styles.metaText}>{item.students} students</Text>
         </View>
       </View>
@@ -226,9 +122,12 @@ function ClassCard({ item, navigation }) {
           onPress={() => navigation.navigate('StartClass', { classItem: item })}
           activeOpacity={0.8}
         >
-          <Text style={[styles.actionBtnText, { color: item.accent }]}>
-            {isOngoing ? '▶  Take Attendance' : '▶  Start Class'}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Play size={11} fill={item.accent} color={item.accent} style={{marginRight: 6}} />
+            <Text style={[styles.actionBtnText, { color: item.accent }]}>
+              {isOngoing ? 'Take Attendance' : 'Start Class'}
+            </Text>
+          </View>
         </TouchableOpacity>
       </View>
     </View>
@@ -237,9 +136,94 @@ function ClassCard({ item, navigation }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function TeacherClassesScreen({ navigation }) {
+  const { token } = useAuth();
+  const isFocused = useIsFocused();
   const [selectedDay, setSelectedDay] = useState('Today');
+  const [classesData, setClassesData] = useState({
+    Today: [],
+    Sun: [],
+    Mon: [],
+    Tue: [],
+    Wed: [],
+    Thu: [],
+    Fri: [],
+    Sat: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const classes = CLASS_DATA[selectedDay] ?? [];
+  const fetchClasses = async () => {
+    try {
+      const response = await fetch(API.sessionClasses, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch classes');
+      }
+
+      const newClassData = {
+        Today: [],
+        Sun: [],
+        Mon: [],
+        Tue: [],
+        Wed: [],
+        Thu: [],
+        Fri: [],
+        Sat: [],
+      };
+
+      data.forEach((cls) => {
+        const color = CLASS_COLORS[cls.class_id % CLASS_COLORS.length];
+        const formatted = {
+          id: cls.class_id,
+          class_id: cls.class_id,
+          subject: cls.subject,
+          code: cls.class_name,
+          room: cls.room || 'TBD',
+          time: formatClassTime(cls.schedule_time, cls.duration_minutes),
+          students: cls.students_count || 0,
+          status: cls.active_session_id ? 'ongoing' : 'upcoming',
+          active_session_id: cls.active_session_id,
+          accent: color.accent,
+          light: color.light,
+        };
+
+        if (cls.schedule_time) {
+          const clsDate = new Date(cls.schedule_time);
+          const clsDayIndex = clsDate.getDay();
+
+          WEEK_DAYS.forEach((day) => {
+            if (day.dayIndex === clsDayIndex) {
+              newClassData[day.key].push(formatted);
+            }
+          });
+        } else {
+          newClassData['Today'].push(formatted);
+        }
+      });
+
+      setClassesData(newClassData);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Unable to connect to the backend server.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token && isFocused) {
+      fetchClasses();
+    }
+  }, [token, isFocused]);
+
+  const classes = classesData[selectedDay] ?? [];
   const totalStudents = classes.reduce((s, c) => s + c.students, 0);
 
   return (
@@ -253,7 +237,7 @@ export default function TeacherClassesScreen({ navigation }) {
           <Text style={styles.headerSub}>Weekly Schedule</Text>
         </View>
         <TouchableOpacity style={styles.filterBtn}>
-          <Text style={styles.filterIcon}>⊞</Text>
+          <LayoutDashboard size={18} color="#1a1f36" />
         </TouchableOpacity>
       </View>
 
@@ -266,7 +250,7 @@ export default function TeacherClassesScreen({ navigation }) {
       >
         {WEEK_DAYS.map((day) => {
           const isActive = selectedDay === day.key;
-          const hasCls = (CLASS_DATA[day.key] ?? []).length > 0;
+          const hasCls = (classesData[day.key] ?? []).length > 0;
           return (
             <TouchableOpacity
               key={day.key}
@@ -303,9 +287,23 @@ export default function TeacherClassesScreen({ navigation }) {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       >
-        {classes.length === 0 ? (
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={BLUE} />
+            <Text style={styles.loadingText}>Loading schedule...</Text>
+          </View>
+        ) : error ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🏖️</Text>
+            <AlertCircle size={48} color="#e74c3c" style={{ marginBottom: 14 }} />
+            <Text style={styles.emptyTitle}>Error Loading Classes</Text>
+            <Text style={styles.emptySub}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={fetchClasses}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : classes.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Umbrella size={48} color="#8a94a6" style={{ marginBottom: 14 }} />
             <Text style={styles.emptyTitle}>No Classes</Text>
             <Text style={styles.emptySub}>Enjoy your day off!</Text>
           </View>
@@ -424,4 +422,29 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: 14 },
   emptyTitle: { fontSize: 20, fontWeight: '800', color: '#1a1f36', marginBottom: 6 },
   emptySub: { fontSize: 14, color: '#8a94a6' },
+
+  // Center loader/retry
+  centerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#8a94a6',
+    fontWeight: '500',
+  },
+  retryBtn: {
+    marginTop: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: BLUE,
+    borderRadius: 10,
+  },
+  retryBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });

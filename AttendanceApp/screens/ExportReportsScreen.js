@@ -4,31 +4,35 @@ import {
   SafeAreaView, ScrollView, StatusBar, Alert,
 } from 'react-native';
 import AdminBottomNav from '../components/AdminBottomNav';
+import {
+  BarChart3, AlertTriangle, GraduationCap, ClipboardList, Calendar, CalendarDays,
+  FileText, FileSpreadsheet, FileJson, ChevronLeft, Upload, Hourglass, Download, Check
+} from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 const GOLD = '#b07d00';
 
 const reportTypes = [
-  { key: 'full',     icon: '📊', label: 'Full Attendance Report', sub: 'All students, all classes',    color: '#eef2ff', iconColor: BLUE },
-  { key: 'atrisk',  icon: '⚠️', label: 'At-Risk Students',       sub: 'Students below 60%',           color: '#fff8e6', iconColor: '#f39c12' },
-  { key: 'class',   icon: '🎓', label: 'Per Class Report',        sub: 'Breakdown by subject',         color: '#edfaf3', iconColor: '#27ae60' },
-  { key: 'waiver',  icon: '📋', label: 'Waiver Summary',          sub: 'All submitted waivers',        color: '#fff0f0', iconColor: '#e74c3c' },
-  { key: 'weekly',  icon: '📅', label: 'Weekly Summary',          sub: 'This week attendance stats',   color: '#f3eeff', iconColor: '#7c3aed' },
-  { key: 'monthly', icon: '🗓️', label: 'Monthly Report',          sub: 'Monthly attendance overview',  color: '#e8f4ff', iconColor: '#2980b9' },
+  { key: 'full',     icon: BarChart3, label: 'Full Attendance Report', sub: 'All students, all classes',    color: '#eef2ff', iconColor: BLUE },
+  { key: 'atrisk',  icon: AlertTriangle, label: 'At-Risk Students',       sub: 'Students below 60%',           color: '#fff8e6', iconColor: '#f39c12' },
+  { key: 'class',   icon: GraduationCap, label: 'Per Class Report',        sub: 'Breakdown by subject',         color: '#edfaf3', iconColor: '#27ae60' },
+  { key: 'waiver',  icon: ClipboardList, label: 'Waiver Summary',          sub: 'All submitted waivers',        color: '#fff0f0', iconColor: '#e74c3c' },
+  { key: 'weekly',  icon: Calendar, label: 'Weekly Summary',          sub: 'This week attendance stats',   color: '#f3eeff', iconColor: '#7c3aed' },
+  { key: 'monthly', icon: CalendarDays, label: 'Monthly Report',          sub: 'Monthly attendance overview',  color: '#e8f4ff', iconColor: '#2980b9' },
 ];
 
 const formats = [
-  { key: 'pdf',   icon: '📄', label: 'PDF',   sub: 'Best for sharing' },
-  { key: 'excel', icon: '📊', label: 'Excel', sub: 'Best for data' },
-  { key: 'csv',   icon: '📝', label: 'CSV',   sub: 'Raw data export' },
+  { key: 'pdf',   icon: FileText, label: 'PDF',   sub: 'Best for sharing' },
+  { key: 'excel', icon: FileSpreadsheet, label: 'Excel', sub: 'Best for data' },
+  { key: 'csv',   icon: FileJson, label: 'CSV',   sub: 'Raw data export' },
 ];
 
 const periods = ['This Week', 'This Month', 'Last Month', 'This Semester', 'Custom Range'];
 
 const recentExports = [
-  { icon: '📄', name: 'Full_Report_Oct2024.pdf',    size: '2.4 MB', date: 'Oct 20', color: '#fff0f0', textColor: '#e74c3c' },
-  { icon: '📊', name: 'AtRisk_Students_Oct.xlsx',   size: '890 KB', date: 'Oct 18', color: '#edfaf3', textColor: '#27ae60' },
-  { icon: '📝', name: 'Weekly_Summary_W42.csv',     size: '340 KB', date: 'Oct 15', color: '#eef2ff', textColor: BLUE },
+  { icon: FileText, name: 'Full_Report_Oct2024.pdf',    size: '2.4 MB', date: 'Oct 20', color: '#fff0f0', textColor: '#e74c3c' },
+  { icon: BarChart3, name: 'AtRisk_Students_Oct.xlsx',   size: '890 KB', date: 'Oct 18', color: '#edfaf3', textColor: '#27ae60' },
+  { icon: FileJson, name: 'Weekly_Summary_W42.csv',     size: '340 KB', date: 'Oct 15', color: '#eef2ff', textColor: BLUE },
 ];
 
 export default function ExportReportsScreen({ navigation }) {
@@ -56,7 +60,7 @@ export default function ExportReportsScreen({ navigation }) {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <ChevronLeft size={22} color="#1a1f36" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Export Reports</Text>
         <View style={{ width: 38 }} />
@@ -76,12 +80,14 @@ export default function ExportReportsScreen({ navigation }) {
                 onPress={() => setSelectedReport(r.key)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.reportIcon}>{r.icon}</Text>
+                <View style={{ marginBottom: 6 }}>
+                  <r.icon size={22} color={r.iconColor} />
+                </View>
                 <Text style={[styles.reportLabel, isActive && { color: r.iconColor }]}>{r.label}</Text>
                 <Text style={styles.reportSub}>{r.sub}</Text>
                 {isActive && (
                   <View style={[styles.checkDot, { backgroundColor: r.iconColor }]}>
-                    <Text style={styles.checkDotText}>✓</Text>
+                    <Check size={10} color="#ffffff" />
                   </View>
                 )}
               </TouchableOpacity>
@@ -115,7 +121,9 @@ export default function ExportReportsScreen({ navigation }) {
                 onPress={() => setSelectedFormat(f.key)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.formatIcon}>{f.icon}</Text>
+                <View style={{ marginBottom: 6 }}>
+                  <f.icon size={22} color={isActive ? BLUE : '#8a94a6'} />
+                </View>
                 <Text style={[styles.formatLabel, isActive && styles.formatLabelActive]}>{f.label}</Text>
                 <Text style={styles.formatSub}>{f.sub}</Text>
               </TouchableOpacity>
@@ -147,7 +155,7 @@ export default function ExportReportsScreen({ navigation }) {
           activeOpacity={0.85}
           disabled={exporting}
         >
-          <Text style={styles.exportIcon}>{exporting ? '⏳' : '📤'}</Text>
+          {exporting ? <Hourglass size={18} color="#ffffff" /> : <Upload size={18} color="#ffffff" />}
           <Text style={styles.exportText}>{exporting ? 'Exporting...' : 'Export Report'}</Text>
         </TouchableOpacity>
 
@@ -161,14 +169,14 @@ export default function ExportReportsScreen({ navigation }) {
               onPress={() => Alert.alert('Download', `Downloading ${ex.name}...`)}
             >
               <View style={[styles.fileIcon, { backgroundColor: ex.color }]}>
-                <Text style={styles.fileIconText}>{ex.icon}</Text>
+                <ex.icon size={18} color={ex.textColor} />
               </View>
               <View style={styles.fileInfo}>
                 <Text style={styles.fileName}>{ex.name}</Text>
                 <Text style={styles.fileMeta}>{ex.size} · {ex.date}</Text>
               </View>
               <View style={styles.downloadBtn}>
-                <Text style={styles.downloadIcon}>⬇️</Text>
+                <Download size={14} color={BLUE} />
               </View>
             </TouchableOpacity>
           ))}

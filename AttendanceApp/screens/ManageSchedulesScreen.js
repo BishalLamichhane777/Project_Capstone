@@ -1,47 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, ScrollView, StatusBar, Alert, TextInput, Modal,
+  ActivityIndicator,
 } from 'react-native';
 import AdminBottomNav from '../components/AdminBottomNav';
+import { useAuth } from '../context/AuthContext';
+import { API } from '../api';
+import { BookOpen, Clock, MapPin, User, Timer, Trash2, X, ChevronLeft, Calendar } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
-const initialClasses = [
-  { id: '1', subject: 'Database Systems',  code: 'CS-301', day: 'Monday',    time: '10:00 AM', room: 'Room 205', teacher: 'Prof. Sharma', duration: '1h 30m', color: '#eef2ff', iconColor: BLUE,      icon: '🗄️' },
-  { id: '2', subject: 'DAML',              code: 'CS-302', day: 'Tuesday',   time: '09:00 AM', room: 'Room 201', teacher: 'Prof. Karki',  duration: '1h 30m', color: '#f3eeff', iconColor: '#7c3aed', icon: '📊' },
-  { id: '3', subject: 'Networks',          code: 'CS-401', day: 'Wednesday', time: '10:00 AM', room: 'Room 301', teacher: 'Prof. Rai',    duration: '1h 30m', color: '#e8f4ff', iconColor: '#2980b9', icon: '🌐' },
-  { id: '4', subject: 'Operating Systems', code: 'CS-303', day: 'Thursday',  time: '09:00 AM', room: 'Room 102', teacher: 'Prof. Bista',  duration: '1h 00m', color: '#edfaf3', iconColor: '#27ae60', icon: '💻' },
-  { id: '5', subject: 'Mathematics III',   code: 'MA-201', day: 'Friday',    time: '12:30 PM', room: 'Room 101', teacher: 'Prof. Thapa',  duration: '1h 00m', color: '#fff4e6', iconColor: '#e67e22', icon: 'Σ'  },
-];
-
-const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-const shortDay = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri' };
-const emptyForm = { subject: '', code: '', day: 'Monday', time: '', room: '', teacher: '', duration: '' };
-
-function ClassCard({ item, onEdit, onDelete }) {
+function ClassCard({ item, onDelete }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardRow}>
-        <View style={[styles.iconBox, { backgroundColor: item.color }]}>
-          <Text style={[styles.iconText, { color: item.iconColor }]}>{item.icon}</Text>
+        <View style={[styles.iconBox, { backgroundColor: '#eef2ff' }]}>
+          <BookOpen size={18} color={BLUE} />
         </View>
         <View style={styles.cardInfo}>
           <Text style={styles.subjectText}>{item.subject}</Text>
-          <Text style={styles.codeText}>{item.code} · {shortDay[item.day] || item.day}</Text>
+          <Text style={styles.codeText}>{item.class_name}</Text>
           <View style={styles.detailRow}>
-            <Text style={styles.detailText}>🕐 {item.time}</Text>
+            <Clock size={11} color="#6b7280" />
+            <Text style={styles.detailText}>{item.schedule_time ? new Date(item.schedule_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBA'}</Text>
             <Text style={styles.dot}>·</Text>
-            <Text style={styles.detailText}>📍 {item.room}</Text>
+            <MapPin size={11} color="#6b7280" />
+            <Text style={styles.detailText}>{item.room || 'TBD'}</Text>
           </View>
-          <Text style={styles.teacherText}>👤 {item.teacher}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <User size={11} color="#6b7280" />
+            <Text style={[styles.teacherText, { marginLeft: 4 }]}>{item.teacher_name || 'Unassigned'}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <Timer size={11} color="#6b7280" />
+            <Text style={[styles.detailText, { marginLeft: 4 }]}>{item.duration_minutes}min · {item.enrolled_count || 0} students</Text>
+          </View>
         </View>
         <View style={styles.cardActions}>
-          <TouchableOpacity style={styles.editBtn} onPress={() => onEdit(item)}>
-            <Text style={styles.actionIcon}>✏️</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.deleteBtn} onPress={() => onDelete(item)}>
-            <Text style={styles.actionIcon}>🗑️</Text>
+            <Trash2 size={13} color="#e74c3c" />
           </TouchableOpacity>
         </View>
       </View>
@@ -49,20 +47,47 @@ function ClassCard({ item, onEdit, onDelete }) {
   );
 }
 
-function FormModal({ visible, onClose, onSave, initial }) {
-  const [form, setForm] = useState(initial || emptyForm);
-  const [dayOpen, setDayOpen] = useState(false);
+function FormModal({ visible, onClose, onSave, teachers, saving }) {
+  const [className, setClassName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [room, setRoom] = useState('');
+  const [duration, setDuration] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [teacherId, setTeacherId] = useState(null);
+  const [teacherOpen, setTeacherOpen] = useState(false);
 
-  React.useEffect(() => { setForm(initial || emptyForm); }, [initial, visible]);
+  useEffect(() => {
+    if (visible) {
+      setClassName('');
+      setSubject('');
+      setRoom('');
+      setDuration('');
+      setScheduleTime('');
+      setTeacherId(null);
+      setTeacherOpen(false);
+    }
+  }, [visible]);
 
-  const update = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
+  const selectedTeacher = teachers.find(t => t.id === teacherId);
 
   const handleSave = () => {
-    if (!form.subject.trim() || !form.code.trim() || !form.time.trim() || !form.room.trim() || !form.teacher.trim()) {
-      Alert.alert('Missing Fields', 'Please fill in all fields.');
+    if (!className.trim() || !subject.trim() || !duration.trim()) {
+      Alert.alert('Missing Fields', 'Class name, subject, and duration are required.');
       return;
     }
-    onSave(form);
+    const dur = parseInt(duration, 10);
+    if (isNaN(dur) || dur <= 0) {
+      Alert.alert('Invalid Duration', 'Duration must be a positive number (minutes).');
+      return;
+    }
+    onSave({
+      class_name: className.trim(),
+      subject: subject.trim(),
+      room: room.trim() || null,
+      duration_minutes: dur,
+      teacher_id: teacherId,
+      schedule_time: scheduleTime.trim() || null,
+    });
   };
 
   return (
@@ -70,58 +95,74 @@ function FormModal({ visible, onClose, onSave, initial }) {
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{initial?.id ? 'Edit Class' : 'Add New Class'}</Text>
+            <Text style={styles.modalTitle}>Add New Class</Text>
             <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
-              <Text style={styles.modalClose}>✕</Text>
+              <X size={13} color="#8a94a6" />
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {[
-              { key: 'subject',  label: 'Subject Name', placeholder: 'e.g. Database Systems' },
-              { key: 'code',     label: 'Course Code',  placeholder: 'e.g. CS-301' },
-              { key: 'time',     label: 'Time',         placeholder: 'e.g. 10:00 AM' },
-              { key: 'room',     label: 'Room',         placeholder: 'e.g. Room 205' },
-              { key: 'teacher',  label: 'Teacher',      placeholder: 'e.g. Prof. Sharma' },
-              { key: 'duration', label: 'Duration',     placeholder: 'e.g. 1h 30m' },
-            ].map(field => (
-              <View key={field.key} style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>{field.label}</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  placeholder={field.placeholder}
-                  placeholderTextColor="#aab0be"
-                  value={form[field.key]}
-                  onChangeText={val => update(field.key, val)}
-                />
-              </View>
-            ))}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Day</Text>
+              <Text style={styles.fieldLabel}>CLASS NAME</Text>
+              <TextInput style={styles.fieldInput} placeholder="e.g. CS-301 Morning Batch" placeholderTextColor="#aab0be" value={className} onChangeText={setClassName} />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>SUBJECT</Text>
+              <TextInput style={styles.fieldInput} placeholder="e.g. Database Systems" placeholderTextColor="#aab0be" value={subject} onChangeText={setSubject} />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>ROOM</Text>
+              <TextInput style={styles.fieldInput} placeholder="e.g. Room 205" placeholderTextColor="#aab0be" value={room} onChangeText={setRoom} />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>DURATION (MINUTES)</Text>
+              <TextInput style={styles.fieldInput} placeholder="e.g. 90" placeholderTextColor="#aab0be" value={duration} onChangeText={setDuration} keyboardType="numeric" />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>SCHEDULE TIME (ISO 8601, optional)</Text>
+              <TextInput style={styles.fieldInput} placeholder="e.g. 2026-06-02T10:00:00" placeholderTextColor="#aab0be" value={scheduleTime} onChangeText={setScheduleTime} />
+            </View>
+
+            {/* Teacher Picker */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>TEACHER</Text>
               <TouchableOpacity
                 style={[styles.fieldInput, styles.dropdownTrigger]}
-                onPress={() => setDayOpen(!dayOpen)}
+                onPress={() => setTeacherOpen(!teacherOpen)}
               >
-                <Text style={styles.dropdownValue}>{form.day}</Text>
-                <Text style={styles.dropdownArrow}>{dayOpen ? '▲' : '▼'}</Text>
+                <Text style={[styles.dropdownValue, !selectedTeacher && { color: '#aab0be' }]}>
+                  {selectedTeacher ? selectedTeacher.fullname : 'Select a teacher'}
+                </Text>
+                <Text style={styles.dropdownArrow}>{teacherOpen ? '▲' : '▼'}</Text>
               </TouchableOpacity>
-              {dayOpen && (
+              {teacherOpen && (
                 <View style={styles.dropdownMenu}>
-                  {days.map(d => (
-                    <TouchableOpacity
-                      key={d}
-                      style={styles.dropdownItem}
-                      onPress={() => { update('day', d); setDayOpen(false); }}
-                    >
-                      <Text style={[styles.dropdownItemText, form.day === d && styles.dropdownItemActive]}>
-                        {d}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {teachers.length === 0 ? (
+                    <View style={styles.dropdownItem}>
+                      <Text style={styles.dropdownItemText}>No teachers found</Text>
+                    </View>
+                  ) : (
+                    teachers.map(t => (
+                      <TouchableOpacity
+                        key={t.id}
+                        style={styles.dropdownItem}
+                        onPress={() => { setTeacherId(t.id); setTeacherOpen(false); }}
+                      >
+                        <Text style={[styles.dropdownItemText, teacherId === t.id && styles.dropdownItemActive]}>
+                          {t.fullname} ({t.email})
+                        </Text>
+                      </TouchableOpacity>
+                    ))
+                  )}
                 </View>
               )}
             </View>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-              <Text style={styles.saveBtnText}>{initial?.id ? 'Save Changes' : 'Add Class'}</Text>
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={saving}>
+              {saving ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.saveBtnText}>Add Class</Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -131,30 +172,89 @@ function FormModal({ visible, onClose, onSave, initial }) {
 }
 
 export default function ManageSchedulesScreen({ navigation }) {
-  const [classes, setClasses]         = useState(initialClasses);
+  const { token } = useAuth();
+  const [classes, setClasses] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editTarget, setEditTarget]   = useState(null);
-  const [activeDay, setActiveDay]     = useState('All');
+  const [saving, setSaving] = useState(false);
 
-  const filtered = activeDay === 'All' ? classes : classes.filter(c => c.day === activeDay);
+  useEffect(() => {
+    if (token) {
+      fetchData();
+    }
+  }, [token]);
 
-  const handleEdit   = (item) => { setEditTarget(item); setModalVisible(true); };
-  const handleAdd    = ()     => { setEditTarget(null); setModalVisible(true); };
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [classRes, teacherRes] = await Promise.all([
+        fetch(API.adminClassList, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API.adminUsers}?role=teacher`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const classData = await classRes.json();
+      const teacherData = await teacherRes.json();
+      if (classRes.ok) setClasses(classData);
+      else Alert.alert('Error', classData.error || 'Failed to load classes');
+      if (teacherRes.ok) setTeachers(teacherData);
+      else console.log('Could not load teachers:', teacherData.error);
+    } catch (e) {
+      console.log('Fetch error:', e);
+      Alert.alert('Error', 'Network error while loading data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDelete = (item) => {
-    Alert.alert('Delete Class', `Remove ${item.subject}?`, [
+    Alert.alert('Delete Class', `Remove "${item.subject}"?\n\nThis will also delete all sessions, attendance records, and enrollments for this class.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => setClasses(prev => prev.filter(c => c.id !== item.id)) },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            const res = await fetch(`${API.adminClassDelete}/${item.class_id}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await res.json();
+            if (res.ok) {
+              setClasses(prev => prev.filter(c => c.class_id !== item.class_id));
+              Alert.alert('Deleted', 'Class removed successfully.');
+            } else {
+              Alert.alert('Error', data.error || 'Failed to delete class');
+            }
+          } catch (e) {
+            Alert.alert('Error', 'Network error while deleting class');
+          }
+        }
+      },
     ]);
   };
 
-  const handleSave = (form) => {
-    if (editTarget?.id) {
-      setClasses(prev => prev.map(c => c.id === editTarget.id ? { ...c, ...form } : c));
-    } else {
-      setClasses(prev => [...prev, { ...form, id: Date.now().toString(), color: '#eef2ff', iconColor: BLUE, icon: '📚' }]);
+  const handleCreate = async (form) => {
+    setSaving(true);
+    try {
+      const res = await fetch(API.adminClassCreate, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setModalVisible(false);
+        Alert.alert('Success', 'Class created successfully.');
+        fetchData();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to create class');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Network error while creating class');
+    } finally {
+      setSaving(false);
     }
-    setModalVisible(false);
   };
 
   return (
@@ -164,70 +264,47 @@ export default function ManageSchedulesScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <ChevronLeft size={22} color="#1a1f36" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Manage Schedules</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
           <Text style={styles.addBtnText}>+ Add</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Compact Day Filter */}
-      <View style={styles.filterWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterContent}
-        >
-          {['All', ...days].map(d => {
-            const label = d === 'All' ? 'All' : shortDay[d];
-            const isActive = activeDay === d;
-            const count = d === 'All' ? classes.length : classes.filter(c => c.day === d).length;
-            return (
-              <TouchableOpacity
-                key={d}
-                style={[styles.dayPill, isActive && styles.dayPillActive]}
-                onPress={() => setActiveDay(d)}
-              >
-                <Text style={[styles.dayPillText, isActive && styles.dayPillTextActive]}>
-                  {label}
-                </Text>
-                <View style={[styles.dayPillCount, isActive && styles.dayPillCountActive]}>
-                  <Text style={[styles.dayPillCountText, isActive && styles.dayPillCountTextActive]}>
-                    {count}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.countText}>
-          {filtered.length} class{filtered.length !== 1 ? 'es' : ''}
-          {activeDay !== 'All' ? ` on ${shortDay[activeDay]}` : ' total'}
-        </Text>
+        {loading ? (
+          <ActivityIndicator size="large" color={BLUE} style={{ marginTop: 60 }} />
+        ) : (
+          <>
+            <Text style={styles.countText}>
+              {classes.length} class{classes.length !== 1 ? 'es' : ''} total
+            </Text>
 
-        {filtered.map(item => (
-          <ClassCard key={item.id} item={item} onEdit={handleEdit} onDelete={handleDelete} />
-        ))}
+            {classes.map(item => (
+              <ClassCard key={item.class_id} item={item} onDelete={handleDelete} />
+            ))}
 
-        {filtered.length === 0 && (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>📅</Text>
-            <Text style={styles.emptyText}>No classes for {activeDay}</Text>
-          </View>
+            {classes.length === 0 && (
+              <View style={styles.emptyBox}>
+                <View style={{ marginBottom: 10 }}>
+                  <Calendar size={36} color="#8a94a6" />
+                </View>
+                <Text style={styles.emptyTitle}>No Classes Yet</Text>
+                <Text style={styles.emptySubtitle}>Tap "+ Add" to create your first class.</Text>
+              </View>
+            )}
+          </>
         )}
-
         <View style={{ height: 100 }} />
       </ScrollView>
 
       <FormModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        onSave={handleSave}
-        initial={editTarget}
+        onSave={handleCreate}
+        teachers={teachers}
+        saving={saving}
       />
 
       <AdminBottomNav navigation={navigation} active="Home" />
@@ -249,35 +326,6 @@ const styles = StyleSheet.create({
   addBtn: { backgroundColor: BLUE, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
   addBtnText: { fontSize: 13, color: '#ffffff', fontWeight: '700' },
 
-  // Compact filter
-  filterWrapper: {
-    backgroundColor: '#ffffff',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eef1f5',
-  },
-  filterContent: { paddingHorizontal: 16, gap: 6 },
-  dayPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 11, paddingVertical: 5,
-    borderRadius: 20, backgroundColor: '#f0f2f8',
-    borderWidth: 1, borderColor: 'transparent',
-  },
-  dayPillActive: {
-    backgroundColor: '#eef2ff',
-    borderColor: BLUE,
-  },
-  dayPillText: { fontSize: 12, color: '#8a94a6', fontWeight: '600' },
-  dayPillTextActive: { color: BLUE, fontWeight: '700' },
-  dayPillCount: {
-    width: 16, height: 16, borderRadius: 8,
-    backgroundColor: '#e0e4f0',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  dayPillCountActive: { backgroundColor: BLUE },
-  dayPillCountText: { fontSize: 9, color: '#8a94a6', fontWeight: '700' },
-  dayPillCountTextActive: { color: '#ffffff' },
-
   scroll: { flex: 1, paddingHorizontal: 16, paddingTop: 14 },
   countText: { fontSize: 12, color: '#8a94a6', fontWeight: '600', marginBottom: 12 },
 
@@ -297,13 +345,13 @@ const styles = StyleSheet.create({
   dot: { fontSize: 11, color: '#8a94a6' },
   teacherText: { fontSize: 11, color: '#6b7280' },
   cardActions: { gap: 6 },
-  editBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center' },
   deleteBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#fff0f0', justifyContent: 'center', alignItems: 'center' },
   actionIcon: { fontSize: 13 },
 
   emptyBox: { alignItems: 'center', paddingVertical: 50 },
   emptyIcon: { fontSize: 36, marginBottom: 10 },
-  emptyText: { fontSize: 14, color: '#8a94a6', fontWeight: '600' },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1a1f36', marginBottom: 6 },
+  emptySubtitle: { fontSize: 14, color: '#8a94a6' },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
@@ -325,7 +373,7 @@ const styles = StyleSheet.create({
   dropdownTrigger: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dropdownValue: { fontSize: 14, color: '#1a1f36' },
   dropdownArrow: { fontSize: 10, color: '#8a94a6' },
-  dropdownMenu: { backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1.5, borderColor: '#e6e9f0', marginTop: 4, overflow: 'hidden' },
+  dropdownMenu: { backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1.5, borderColor: '#e6e9f0', marginTop: 4, overflow: 'hidden', maxHeight: 200 },
   dropdownItem: { paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#f0f2f5' },
   dropdownItemText: { fontSize: 13, color: '#8a94a6' },
   dropdownItemActive: { color: BLUE, fontWeight: '700' },

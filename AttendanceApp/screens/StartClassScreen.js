@@ -1,8 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar, Alert, Animated,
+  SafeAreaView, ScrollView, StatusBar, Alert, Animated, ActivityIndicator,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { API } from '../api';
+import { Check, ChevronLeft, Camera, Play, Square, CheckCircle2, Hourglass } from 'lucide-react-native';
+
+const getInitials = (name) => {
+  if (!name) return '??';
+  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+};
 
 const BLUE = '#2952e3';
 
@@ -57,7 +65,8 @@ function DetectedStudentRow({ student, index }) {
       </View>
       <View style={styles.detectedRight}>
         <View style={styles.detectedBadge}>
-          <Text style={styles.detectedBadgeText}>✓ Present</Text>
+          <Check size={10} color="#4ade80" style={{ marginRight: 2 }} />
+          <Text style={styles.detectedBadgeText}>Present</Text>
         </View>
         <Text style={styles.detectedConfidence}>{student.confidence}% match</Text>
       </View>
@@ -66,14 +75,18 @@ function DetectedStudentRow({ student, index }) {
 }
 
 export default function StartClassScreen({ navigation, route }) {
+  const { token } = useAuth();
   const classItem = route?.params?.classItem || {
     subject: 'Intro to Comp Sci', code: 'Class 101-A', room: 'Room 304', time: '09:00 - 10:30 AM',
   };
 
-  const [isRunning, setIsRunning]     = useState(false);
+  const [isRunning, setIsRunning]     = useState(!!classItem.active_session_id);
+  const [sessionId, setSessionId]     = useState(classItem.active_session_id || null);
+  const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [detected, setDetected]       = useState([]);
   const [elapsed, setElapsed]         = useState(0);
   const [scanStatus, setScanStatus]   = useState('Ready to scan');
+  const [loading, setLoading]         = useState(false);
   const timerRef  = useRef(null);
   const statusRef = useRef(null);
 
@@ -83,25 +96,64 @@ export default function StartClassScreen({ navigation, route }) {
   ];
   const [statusIdx, setStatusIdx] = useState(0);
 
+  const fetchSessionStatus = async (activeSessionId) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API.sessionStatus}/${activeSessionId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to retrieve session status');
+      }
+
+      if (data.start_time) {
+        const start = new Date(data.start_time);
+        const now = new Date();
+        const diffSeconds = Math.max(Math.floor((now - start) / 1000), 0);
+        setElapsed(diffSeconds);
+      }
+
+      const students = data.enrolled_students || [];
+      const mappedStudents = students.map(s => ({
+        id: String(s.student_id),
+        student_id: s.student_id,
+        name: s.fullname,
+        initials: getInitials(s.fullname),
+        confidence: 90 + Math.floor(Math.random() * 10),
+        attendance_status: s.attendance_status,
+      }));
+
+      setEnrolledStudents(mappedStudents);
+
+      const alreadyDetected = mappedStudents.filter(s => s.attendance_status === 'Present');
+      setDetected(alreadyDetected);
+      setIsRunning(true);
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', err.message || 'Could not restore active session.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (classItem.active_session_id && token) {
+      fetchSessionStatus(classItem.active_session_id);
+    }
+  }, [classItem.active_session_id, token]);
+
   useEffect(() => {
     if (isRunning) {
-      // Elapsed timer
       timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
 
-      // Rotating scan status
       statusRef.current = setInterval(() => {
         setStatusIdx(i => (i + 1) % scanMessages.length);
       }, 2000);
-
-      // Simulate students being detected
-      allStudents.forEach(student => {
-        setTimeout(() => {
-          setDetected(prev => {
-            if (prev.find(s => s.id === student.id)) return prev;
-            return [...prev, student];
-          });
-        }, student.time);
-      });
     } else {
       clearInterval(timerRef.current);
       clearInterval(statusRef.current);
@@ -112,7 +164,70 @@ export default function StartClassScreen({ navigation, route }) {
     };
   }, [isRunning]);
 
+  useEffect(() => {
+    let timeouts = [];
+    if (isRunning && enrolledStudents.length > 0) {
+      const pending = enrolledStudents.filter(s => !detected.some(d => d.id === s.id));
+      
+      pending.forEach((student, index) => {
+        const delay = (index + 1) * 3000 + Math.random() * 2000;
+        const t = setTimeout(() => {
+          setDetected(prev => {
+            if (prev.some(d => d.id === student.id)) return prev;
+            return [...prev, student];
+          });
+        }, delay);
+        timeouts.push(t);
+      });
+    }
+    return () => {
+      timeouts.forEach(clearTimeout);
+    };
+  }, [isRunning, enrolledStudents]);
+
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+  const handleStart = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(API.sessionStart, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          class_id: classItem.class_id,
+          mode: 'Strict'
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start class session');
+      }
+
+      setSessionId(data.session_id);
+      setIsRunning(true);
+      setElapsed(0);
+      
+      const students = data.enrolled_students || [];
+      const mappedStudents = students.map(s => ({
+        id: String(s.student_id),
+        student_id: s.student_id,
+        name: s.fullname,
+        initials: getInitials(s.fullname),
+        confidence: 90 + Math.floor(Math.random() * 10),
+      }));
+      
+      setEnrolledStudents(mappedStudents);
+      setDetected([]);
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', err.message || 'Could not start session.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleEnd = () => {
     Alert.alert(
@@ -122,11 +237,38 @@ export default function StartClassScreen({ navigation, route }) {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Save & End',
-          onPress: () => {
-            setIsRunning(false);
-            Alert.alert('✅ Attendance Saved', `${detected.length} students marked present for ${classItem.subject}.`,
-              [{ text: 'OK', onPress: () => navigation.goBack() }]
-            );
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const response = await fetch(API.sessionEnd, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  session_id: sessionId
+                })
+              });
+              const data = await response.json();
+              if (!response.ok) {
+                throw new Error(data.error || 'Failed to end session');
+              }
+
+              setIsRunning(false);
+              const summary = data.summary || { present: 0, absent: 0, total: 0 };
+              
+              Alert.alert(
+                '✅ Session Ended',
+                `Attendance record saved!\n\nPresent: ${summary.present}\nAbsent: ${summary.absent}\nTotal: ${summary.total}`,
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
+              );
+            } catch (err) {
+              console.error(err);
+              Alert.alert('Error', err.message || 'Could not end session.');
+            } finally {
+              setLoading(false);
+            }
           },
         },
       ]
@@ -140,7 +282,7 @@ export default function StartClassScreen({ navigation, route }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <ChevronLeft size={22} color="#ffffff" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{classItem.subject}</Text>
@@ -172,7 +314,7 @@ export default function StartClassScreen({ navigation, route }) {
             </View>
           ) : (
             <View style={styles.cameraIdle}>
-              <Text style={styles.cameraIdleIcon}>📷</Text>
+              <Camera size={44} color="rgba(255,255,255,0.4)" style={{ marginBottom: 4 }} />
               <Text style={styles.cameraIdleText}>Camera Ready</Text>
               <Text style={styles.cameraIdleHint}>Press Start to begin face detection</Text>
             </View>
@@ -195,18 +337,20 @@ export default function StartClassScreen({ navigation, route }) {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
-            <Text style={[styles.statNum, { color: '#e74c3c' }]}>{allStudents.length - detected.length}</Text>
+            <Text style={[styles.statNum, { color: '#e74c3c' }]}>
+              {Math.max(enrolledStudents.length - detected.length, 0)}
+            </Text>
             <Text style={styles.statLbl}>Not Yet</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
-            <Text style={[styles.statNum, { color: BLUE }]}>{allStudents.length}</Text>
+            <Text style={[styles.statNum, { color: BLUE }]}>{enrolledStudents.length}</Text>
             <Text style={styles.statLbl}>Total</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
             <Text style={[styles.statNum, { color: '#f39c12' }]}>
-              {detected.length > 0 ? Math.round((detected.length / allStudents.length) * 100) : 0}%
+              {enrolledStudents.length > 0 ? Math.round((detected.length / enrolledStudents.length) * 100) : 0}%
             </Text>
             <Text style={styles.statLbl}>Attendance</Text>
           </View>
@@ -214,14 +358,26 @@ export default function StartClassScreen({ navigation, route }) {
 
         {/* Start / End Button */}
         {!isRunning ? (
-          <TouchableOpacity style={styles.startBtn} onPress={() => setIsRunning(true)} activeOpacity={0.85}>
-            <Text style={styles.startBtnIcon}>▶</Text>
-            <Text style={styles.startBtnText}>Start Face Detection</Text>
+          <TouchableOpacity style={styles.startBtn} onPress={handleStart} activeOpacity={0.85} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <>
+                <Play size={16} fill="#ffffff" color="#ffffff" />
+                <Text style={styles.startBtnText}>Start Face Detection</Text>
+              </>
+            )}
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.endBtn} onPress={handleEnd} activeOpacity={0.85}>
-            <Text style={styles.endBtnIcon}>⏹</Text>
-            <Text style={styles.endBtnText}>End Class & Save Attendance</Text>
+          <TouchableOpacity style={styles.endBtn} onPress={handleEnd} activeOpacity={0.85} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <>
+                <Square size={16} fill="#ffffff" color="#ffffff" />
+                <Text style={styles.endBtnText}>End Class & Save Attendance</Text>
+              </>
+            )}
           </TouchableOpacity>
         )}
 
@@ -229,7 +385,10 @@ export default function StartClassScreen({ navigation, route }) {
         {detected.length > 0 && (
           <View style={styles.detectedCard}>
             <View style={styles.detectedHeader}>
-              <Text style={styles.detectedTitle}>✅ Detected Students</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <CheckCircle2 size={14} color="#ffffff" style={{ marginRight: 6 }} />
+                <Text style={styles.detectedTitle}>Detected Students</Text>
+              </View>
               <View style={styles.detectedCountBadge}>
                 <Text style={styles.detectedCountText}>{detected.length}</Text>
               </View>
@@ -241,10 +400,13 @@ export default function StartClassScreen({ navigation, route }) {
         )}
 
         {/* Not Yet Detected */}
-        {isRunning && detected.length < allStudents.length && (
+        {isRunning && detected.length < enrolledStudents.length && (
           <View style={styles.pendingCard}>
-            <Text style={styles.pendingTitle}>⏳ Not Yet Detected</Text>
-            {allStudents.filter(s => !detected.find(d => d.id === s.id)).map((s, i) => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <Hourglass size={14} color="rgba(255,255,255,0.6)" style={{ marginRight: 6 }} />
+              <Text style={styles.pendingTitle}>Not Yet Detected</Text>
+            </View>
+            {enrolledStudents.filter(s => !detected.find(d => d.id === s.id)).map((s, i) => (
               <View key={s.id} style={[styles.pendingRow, i !== 0 && styles.pendingBorder]}>
                 <View style={[styles.pendingAvatar, { backgroundColor: '#f0f2f8' }]}>
                   <Text style={styles.pendingAvatarText}>{s.initials}</Text>
