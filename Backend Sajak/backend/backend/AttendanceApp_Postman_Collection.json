@@ -1,0 +1,303 @@
+{
+  "info": {
+    "name": "AttendanceApp API",
+    "description": "API collection for the Attendance Application Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://10.200.27.133:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "YOUR_JWT_TOKEN_HERE",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@college.edu\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullname\": \"Sajak Khadka\",\n  \"email\": \"sajak@college.edu\",\n  \"password\": \"password123\",\n  \"role\": \"Student\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Session",
+      "item": [
+        {
+          "name": "Start Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"class_id\": 1,\n  \"mode\": \"Strict\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/session/start",
+              "host": ["{{base_url}}"],
+              "path": ["session", "start"]
+            }
+          }
+        },
+        {
+          "name": "End Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/session/end",
+              "host": ["{{base_url}}"],
+              "path": ["session", "end"]
+            }
+          }
+        },
+        {
+          "name": "Get Session Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/session/status",
+              "host": ["{{base_url}}"],
+              "path": ["session", "status"]
+            }
+          }
+        },
+        {
+          "name": "Get Teacher Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/session/my-sessions",
+              "host": ["{{base_url}}"],
+              "path": ["session", "my-sessions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Attendance",
+      "item": [
+        {
+          "name": "Attendance History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/attendance/history",
+              "host": ["{{base_url}}"],
+              "path": ["attendance", "history"]
+            }
+          }
+        },
+        {
+          "name": "Attendance Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/attendance/analytics",
+              "host": ["{{base_url}}"],
+              "path": ["attendance", "analytics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Excuses / Waivers",
+      "item": [
+        {
+          "name": "Submit Excuse",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": 1,\n  \"reason\": \"Medical emergency\",\n  \"supporting_doc_path\": \"medical_certificate.pdf\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/excuse/submit",
+              "host": ["{{base_url}}"],
+              "path": ["excuse", "submit"]
+            }
+          }
+        },
+        {
+          "name": "My Excuses",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/excuse/my-excuses",
+              "host": ["{{base_url}}"],
+              "path": ["excuse", "my-excuses"]
+            }
+          }
+        },
+        {
+          "name": "Get Pending Excuses (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/excuse/pending",
+              "host": ["{{base_url}}"],
+              "path": ["excuse", "pending"]
+            }
+          }
+        },
+        {
+          "name": "Decide Excuse (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"request_id\": 1,\n  \"status\": \"Approved\",\n  \"admin_notes\": \"Valid medical certificate\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/excuse/decide",
+              "host": ["{{base_url}}"],
+              "path": ["excuse", "decide"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Admin Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/stats",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Admin Recent Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/recent-sessions",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "recent-sessions"]
+            }
+          }
+        },
+        {
+          "name": "Create Class",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"class_name\": \"CS101\",\n  \"subject\": \"Intro to CS\",\n  \"teacher_id\": 2,\n  \"room\": \"Room 101\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/class/create",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "class", "create"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
