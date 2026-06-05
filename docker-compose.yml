@@ -1,0 +1,34 @@
+# Quick-start commands:
+#   docker compose up --build      # first run
+#   docker compose up -d           # subsequent runs
+#   docker compose down            # stop
+#   docker compose logs -f backend # view backend logs
+
+services:
+  backend:
+    build:
+      context: "./Backend Sajak/backend/backend"
+    container_name: attendance_backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - "./Backend Sajak/backend/backend/database:/app/database"
+      - models_data:/app/models_storage
+      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - DATABASE_URL=sqlite:////app/database/attendance.db
+    # Healthcheck is defined natively within the backend Dockerfile
+    networks:
+      - attendance_network
+
+
+volumes:
+  models_data:
+
+networks:
+  attendance_network:
+    driver: bridge

@@ -1,0 +1,57 @@
+# Git
+.git
+.gitignore
+
+# Env files
+.env
+*.env
+!.env.example
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+
+# Node artifacts
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files themselves
+Dockerfile*
+*.dockerignore
+docker-compose*.yml
+
+# Logs
+*.log
+logs/
+
+# Database files
+database/
+*.db
+
+instance/
+
+
+# ML model storage
+models_storage/
+
+# Credentials
+firebase_credentials.json
+*.json.key
+
+# IDE folders
+.vscode/
+.idea/
+.cursor/
