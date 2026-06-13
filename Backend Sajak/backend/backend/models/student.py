@@ -15,6 +15,7 @@ class Student(db.Model):
     roll_number = db.Column(db.String(50), unique=True, nullable=False)
     program = db.Column(db.String(100), nullable=False)
     year_of_study = db.Column(db.Integer, nullable=True)
+    face_label = db.Column(db.String(50), unique=True, nullable=True)
 
     # Relationships
     user = db.relationship("User", back_populates="student_profile")
@@ -40,6 +41,7 @@ class Student(db.Model):
             "roll_number": self.roll_number,
             "program": self.program,
             "year_of_study": self.year_of_study,
+            "face_label": self.face_label,
             "fullname": user_data.get("fullname"),
             "email": user_data.get("email"),
             "phone": user_data.get("phone"),

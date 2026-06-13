@@ -32,5 +32,10 @@ class Config:
     # ── Flask-Admin ────────────────────────────────────────────────────
     FLASK_ADMIN_SWATCH = os.getenv("FLASK_ADMIN_SWATCH", "cosmo")
 
+    # ── Face Recognition ──────────────────────────────────────────────
+    # Minimum seconds between accepted scans for the same student in the
+    # same session. Prevents rapid duplicate logs from a single pass.
+    SCAN_COOLDOWN_SECONDS = int(os.getenv("SCAN_COOLDOWN_SECONDS", "15"))
+
     # ── CSRF Protection (Flask-WTF) ───────────────────────────────────
     WTF_CSRF_ENABLED = True

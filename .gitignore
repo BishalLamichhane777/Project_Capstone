@@ -70,3 +70,6 @@ yarn-error.*
 *.tmp
 *.swp
 *.zip
+
+_archive/Dataset/
+*.txt

@@ -17,10 +17,11 @@ import bcrypt
 from app import create_app
 from database import db
 from models.user import User
+from models.student import Student
 
 
 def seed_admin():
-    """Insert the first admin user into the database."""
+    """Insert the first admin user and test students into the database."""
     app = create_app()
 
     with app.app_context():
@@ -30,36 +31,86 @@ def seed_admin():
 
         # Check if admin already exists
         existing = User.query.filter_by(email=email).first()
-        if existing:
-            print(f"[!] Admin user '{email}' already exists (id={existing.id}). Skipping.")
-            sys.exit(0)
+        if not existing:
+            # Hash the password
+            salt = bcrypt.gensalt()
+            password_hash = bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
-        # Hash the password
-        salt = bcrypt.gensalt()
-        password_hash = bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+            admin = User(
+                fullname=fullname,
+                email=email,
+                password_hash=password_hash,
+                role="admin",
+                phone=None,
+            )
+            db.session.add(admin)
+            print(f"Created admin user: {email}")
+        else:
+            print(f"[!] Admin user '{email}' already exists (id={existing.id}). Skipping admin creation.")
 
-        admin = User(
-            fullname=fullname,
-            email=email,
-            password_hash=password_hash,
-            role="admin",
-            phone=None,
-        )
-        db.session.add(admin)
+        # Seed three test students for face recognition matching our embeddings
+        test_students = [
+            {
+                "fullname": "Student One",
+                "email": "student1@capstone.com",
+                "roll_number": "CS-001",
+                "program": "Computer Science",
+                "year_of_study": 3,
+                "face_label": "Student_1",
+            },
+            {
+                "fullname": "Student Two",
+                "email": "student2@capstone.com",
+                "roll_number": "CS-002",
+                "program": "Computer Science",
+                "year_of_study": 3,
+                "face_label": "Student_2",
+            },
+            {
+                "fullname": "Student Three",
+                "email": "student3@capstone.com",
+                "roll_number": "CS-003",
+                "program": "Computer Science",
+                "year_of_study": 3,
+                "face_label": "Student_3",
+            },
+        ]
+
+        for s_data in test_students:
+            existing_stud = User.query.filter_by(email=s_data["email"]).first()
+            if existing_stud:
+                print(f"[!] Student '{s_data['email']}' already exists. Skipping.")
+                continue
+
+            # Create User account
+            s_salt = bcrypt.gensalt()
+            s_pass_hash = bcrypt.hashpw("student123".encode("utf-8"), s_salt).decode("utf-8")
+            s_user = User(
+                fullname=s_data["fullname"],
+                email=s_data["email"],
+                password_hash=s_pass_hash,
+                role="student",
+                phone=None,
+            )
+            db.session.add(s_user)
+            db.session.flush()
+
+            # Create Student profile
+            student = Student(
+                user_id=s_user.id,
+                roll_number=s_data["roll_number"],
+                program=s_data["program"],
+                year_of_study=s_data["year_of_study"],
+                face_label=s_data["face_label"],
+            )
+            db.session.add(student)
+            print(f"Created student user and profile for {s_data['email']} with face_label={s_data['face_label']}")
+
         db.session.commit()
 
         print("=" * 50)
-        print("  ADMIN USER CREATED SUCCESSFULLY")
+        print("  SEEDING COMPLETED SUCCESSFULLY")
         print("=" * 50)
-        print(f"  User ID  : {admin.id}")
-        print(f"  Email    : {email}")
-        print(f"  Password : {password}")
-        print(f"  Role     : admin")
-        print("=" * 50)
-        print()
-        print("  Next step: POST /api/auth/login with these credentials")
-        print("  to get your JWT token, then use it to register other users.")
-        print()
 
 
 if __name__ == "__main__":

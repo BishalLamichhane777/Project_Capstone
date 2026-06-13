@@ -477,10 +477,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Submit Button
+  // Submit Button — paddingBottom lifts the button above the absolute-positioned
+  // BottomNav bar (~70px tall). Without this the nav bar covers the button entirely.
   submitContainer: {
     paddingHorizontal: 18,
-    paddingBottom: 10,
+    paddingBottom: 82,
     backgroundColor: '#f5f7fa',
   },
   submitButton: {

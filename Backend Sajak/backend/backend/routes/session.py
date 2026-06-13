@@ -180,8 +180,12 @@ def end_session():
             400,
         )
 
-    # Set end time
-    session.end_time = datetime.now(timezone(timedelta(hours=5, minutes=45)))
+    # Set end time in UTC so it is consistent with session.start_time (also UTC)
+    # and with AttendanceLog.timestamp (written as UTC by the scan route).
+    # Using a local/NPT timezone here would store a different wall-clock value
+    # which, after SQLite strips the tzinfo, produces a naive datetime that
+    # cannot be safely compared with the UTC-naive log timestamps.
+    session.end_time = datetime.now(timezone.utc)
 
     # Calculate attendance for all students
     summary = attendance_engine.calculate_all(session_id)

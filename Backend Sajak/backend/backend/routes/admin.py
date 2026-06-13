@@ -10,6 +10,7 @@ from models.attendance import AttendanceLog, AttendanceRecord
 from models.class_model import Class, Enrollment
 from models.notification import Notification
 from models.session import Session
+from models.student import Student
 from models.user import User
 from models.excuse import WaiverRequest
 from middleware.auth_middleware import require_role
@@ -351,3 +352,125 @@ def get_recent_sessions():
             "absent_count": absent
         })
     return jsonify(results), 200
+
+
+# ── Face Enrollment ───────────────────────────────────────────────────────
+
+
+@admin_bp.route("/enroll-face", methods=["POST"])
+@require_role("admin")
+def enroll_face():
+    """Enroll a student for face recognition from uploaded photos.
+
+    Accepts multipart/form-data:
+      - student_id  (int, form field, required)
+      - photos      (one or more image files, required)
+
+    The student's roll_number is used as the face_label / embedding key
+    because it is already enforced UNIQUE on the students table, making it
+    a safe and human-readable identifier in the embeddings folder.
+
+    On success the student's face_label column is updated and the in-process
+    embeddings cache is refreshed so subsequent scans immediately recognise
+    the newly enrolled student.
+    """
+    from services.face_recognition.enroll import enroll_student_from_images
+    from services.face_recognition import reload_embeddings
+
+    # ── 1. Validate inputs ────────────────────────────────────────────
+    student_id_raw = request.form.get("student_id", "").strip()
+    if not student_id_raw:
+        return jsonify({"error": "student_id is required", "status": 400}), 400
+
+    try:
+        student_id = int(student_id_raw)
+    except ValueError:
+        return jsonify({"error": "student_id must be an integer", "status": 422}), 422
+
+    photo_files = request.files.getlist("photos")
+    if not photo_files or all(f.filename == "" for f in photo_files):
+        return jsonify({"error": "At least one photo file is required", "status": 400}), 400
+
+    # ── 2. Resolve student ────────────────────────────────────────────
+    student = Student.query.get(student_id)
+    if not student:
+        return jsonify({"error": "Student not found", "status": 404}), 404
+
+    # roll_number is UNIQUE on the students table — safe as embedding key
+    face_label = student.roll_number
+
+    logger.info(
+        "Face enrollment started for student_id=%s face_label=%s (%d photo(s))",
+        student_id, face_label, len(photo_files),
+    )
+
+    # ── 3. Generate embeddings and save mean .npy ─────────────────────
+    try:
+        success, message, skip_reasons = enroll_student_from_images(
+            face_label, photo_files
+        )
+    except Exception as exc:
+        logger.exception(
+            "Unexpected error during face enrollment for student_id=%s: %s",
+            student_id, exc,
+        )
+        return (
+            jsonify({"error": "Face enrollment failed unexpectedly", "status": 500}),
+            500,
+        )
+
+    if not success:
+        logger.warning(
+            "Face enrollment produced no valid embeddings for student_id=%s: %s",
+            student_id, message,
+        )
+        return (
+            jsonify({
+                "error"       : message,
+                "skip_reasons": skip_reasons,
+                "status"      : 422,
+            }),
+            422,
+        )
+
+    photos_used    = len(photo_files) - len(skip_reasons)
+    photos_skipped = len(skip_reasons)
+
+    # ── 4. Persist face_label on the student row ──────────────────────
+    try:
+        student.face_label = face_label
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception(
+            "DB error updating face_label for student_id=%s: %s",
+            student_id, exc,
+        )
+        return (
+            jsonify({"error": "Failed to update student record", "status": 500}),
+            500,
+        )
+
+    # ── 5. Refresh in-process embeddings cache ────────────────────────
+    # Affects only the gunicorn worker handling this request. With
+    # --preload + multiple workers other workers keep their old cache
+    # until they are next restarted. Acceptable for low-traffic setups.
+    reload_embeddings()
+
+    logger.info(
+        "Face enrollment complete for student_id=%s face_label=%s "
+        "(used=%d skipped=%d)",
+        student_id, face_label, photos_used, photos_skipped,
+    )
+
+    return (
+        jsonify({
+            "message"       : "Student enrolled for face recognition",
+            "student_id"    : student_id,
+            "face_label"    : face_label,
+            "photos_used"   : photos_used,
+            "photos_skipped": photos_skipped,
+            "skip_reasons"  : skip_reasons,
+        }),
+        201,
+    )

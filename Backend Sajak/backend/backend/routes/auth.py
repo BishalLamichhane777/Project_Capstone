@@ -127,6 +127,7 @@ def register():
         roll_number = data.get("roll_number", "").strip()
         program = data.get("program", "").strip()
         year_of_study = data.get("year_of_study")
+        face_label = data.get("face_label", "").strip() if data.get("face_label") else None
 
         if not roll_number or not program:
             db.session.rollback()
@@ -152,6 +153,7 @@ def register():
             roll_number=roll_number,
             program=program,
             year_of_study=int(year_of_study) if year_of_study else None,
+            face_label=face_label,
         )
         db.session.add(student)
 

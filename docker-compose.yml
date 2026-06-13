@@ -14,7 +14,6 @@ services:
       - "5000:5000"
     volumes:
       - "./Backend Sajak/backend/backend/database:/app/database"
-      - models_data:/app/models_storage
       - ./firebase_credentials.json:/app/firebase_credentials.json:ro
     env_file:
       - .env
@@ -25,9 +24,6 @@ services:
     networks:
       - attendance_network
 
-
-volumes:
-  models_data:
 
 networks:
   attendance_network:
