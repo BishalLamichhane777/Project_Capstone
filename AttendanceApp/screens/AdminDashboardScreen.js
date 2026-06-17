@@ -37,6 +37,7 @@ const quickActions = [
   { icon: ClipboardList, label: 'Review\nWaivers', route: 'AdminWaivers', color: '#fff0f0', iconColor: '#e74c3c' },
   { icon: Download, label: 'Export\nReports', route: 'AdminReports', color: '#f3eeff', iconColor: '#7c3aed' },
   { icon: Bell, label: 'Send\nAlerts', route: 'SendAlerts', color: '#e8f4ff', iconColor: '#2980b9' },
+  { icon: Users, label: 'Manage\nBatches', route: 'ManageBatches', color: '#f3eeff', iconColor: '#7c3aed' },
 ];
 
 function RiskBadge({ risk }) {
@@ -70,7 +71,7 @@ function WeeklyChart() {
 }
 
 export default function AdminDashboardScreen({ navigation }) {
-  const { logoutState, user } = useAuth();
+  const { logoutState, user, token } = useAuth();
   const [dashboardStats, setDashboardStats] = useState(null);
   const [recentSessions, setRecentSessions] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,7 +80,7 @@ export default function AdminDashboardScreen({ navigation }) {
   const fetchData = async () => {
     try {
       const statsRes = await fetch(API.adminStats, {
-        headers: { Authorization: `Bearer ${user?.token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (statsRes.ok) {
         const statsData = await statsRes.json();
@@ -87,7 +88,7 @@ export default function AdminDashboardScreen({ navigation }) {
       }
 
       const sessionsRes = await fetch(API.adminRecentSessions, {
-        headers: { Authorization: `Bearer ${user?.token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (sessionsRes.ok) {
         const sessionsData = await sessionsRes.json();

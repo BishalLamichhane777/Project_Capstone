@@ -40,6 +40,10 @@ def init_admin(app):
     csrf.exempt(student_bp)
     csrf.exempt(admin_bp)
 
+    # Exempt batch blueprint (uses JWT auth, not cookies)
+    from routes.batch import batch_bp
+    csrf.exempt(batch_bp)
+
     try:
         from health import health_bp
         csrf.exempt(health_bp)

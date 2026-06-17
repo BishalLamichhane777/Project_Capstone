@@ -14,6 +14,7 @@ services:
       - "5000:5000"
     volumes:
       - "./Backend Sajak/backend/backend/database:/app/database"
+      - "./Backend Sajak/backend/backend/services/face_recognition/embeddings:/app/services/face_recognition/embeddings"
       - ./firebase_credentials.json:/app/firebase_credentials.json:ro
     env_file:
       - .env

@@ -31,6 +31,9 @@ class Student(db.Model):
     waiver_requests = db.relationship(
         "WaiverRequest", back_populates="student", cascade="all, delete-orphan"
     )
+    batches = db.relationship(
+        "BatchStudent", back_populates="student", cascade="all, delete-orphan"
+    )
 
     def to_dict(self):
         """Serialize student profile with user info."""

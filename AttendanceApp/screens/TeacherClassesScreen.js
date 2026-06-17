@@ -66,6 +66,70 @@ function formatClassTime(scheduleTimeStr, durationMinutes) {
   }
 }
 
+/**
+ * Build the human-readable time string for a class card.
+ *
+ * Priority:
+ *   1. New fields: scheduled_date + scheduled_time [+ scheduled_end_time]
+ *   2. Legacy field: schedule_time + duration_minutes
+ *   3. Fallback: "TBD"
+ *
+ * Format: "Jun 14, 2026 • 09:00 AM – 10:30 AM"
+ * If end time not set: "Jun 14, 2026 • 09:00 AM"
+ */
+function buildTimeLabel(cls) {
+  // ── 1. New fine-grained fields ────────────────────────────────────
+  if (cls.scheduled_date && cls.scheduled_time) {
+    try {
+      // scheduled_date = "YYYY-MM-DD", scheduled_time = "HH:MM:SS"
+      const dateStr = cls.scheduled_date;            // e.g. "2026-06-14"
+      const timeStr = cls.scheduled_time.slice(0, 5); // e.g. "09:00"
+
+      // Parse the date for a pretty label
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const monthNames = ['Jan','Feb','Mar','Apr','May','Jun',
+                          'Jul','Aug','Sep','Oct','Nov','Dec'];
+      const datePart = `${monthNames[month - 1]} ${day}, ${year}`;
+
+      // Format start time
+      const [sh, sm] = timeStr.split(':').map(Number);
+      const startAmpm = sh >= 12 ? 'PM' : 'AM';
+      const startH = sh % 12 || 12;
+      const startLabel = `${startH}:${String(sm).padStart(2, '0')} ${startAmpm}`;
+
+      if (cls.scheduled_end_time) {
+        const endStr = cls.scheduled_end_time.slice(0, 5);
+        const [eh, em] = endStr.split(':').map(Number);
+        const endAmpm = eh >= 12 ? 'PM' : 'AM';
+        const endH = eh % 12 || 12;
+        const endLabel = `${endH}:${String(em).padStart(2, '0')} ${endAmpm}`;
+        return `${datePart} • ${startLabel} – ${endLabel}`;
+      }
+      return `${datePart} • ${startLabel}`;
+    } catch (_) {
+      // fall through to legacy
+    }
+  }
+
+  // ── 2. Legacy schedule_time + duration_minutes ────────────────────
+  if (cls.schedule_time) {
+    try {
+      const startTime = new Date(cls.schedule_time);
+      const endTime = new Date(startTime.getTime() + (cls.duration_minutes || 0) * 60000);
+      const fmt = (d) => {
+        let h = d.getHours();
+        const m = String(d.getMinutes()).padStart(2, '0');
+        const ap = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return `${h}:${m} ${ap}`;
+      };
+      return `${fmt(startTime)} – ${fmt(endTime)}`;
+    } catch (_) {}
+  }
+
+  return 'TBD';
+}
+
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const isOngoing = status === 'ongoing';
@@ -79,16 +143,41 @@ function StatusBadge({ status }) {
   );
 }
 
+// ─── Schedule badge ───────────────────────────────────────────────────────────
+function ScheduleBadge({ scheduleStatus, scheduledTime, scheduledDate }) {
+  // Build a concise time string for "Starts HH:MM" labels
+  const timeShort = scheduledTime ? scheduledTime.slice(0, 5) : null;
+
+  const configs = {
+    ongoing:     { label: 'Live Now',      bg: '#e8faf1', text: '#27ae60', dot: true  },
+    ready:       { label: 'Live Now',      bg: '#e8faf1', text: '#27ae60', dot: true  },
+    not_started: { label: 'Starting Soon', bg: '#fffbeb', text: '#d97706', dot: false },
+    future_date: { label: 'Upcoming',      bg: '#eef2ff', text: '#2952e3', dot: false },
+    ended_today: { label: 'Ended Today',   bg: '#f0f2f8', text: '#8a94a6', dot: false },
+    ended:       { label: 'Ended',         bg: '#f0f2f8', text: '#8a94a6', dot: false },
+    unscheduled: { label: 'TBD',           bg: '#f0f2f8', text: '#aab0be', dot: false },
+  };
+  const cfg = configs[scheduleStatus] || configs.unscheduled;
+  return (
+    <View style={[styles.badge, { backgroundColor: cfg.bg }]}>
+      {cfg.dot && <View style={[styles.badgeDot, { backgroundColor: cfg.text }]} />}
+      <Text style={[styles.badgeText, { color: cfg.text }]}>{cfg.label}</Text>
+    </View>
+  );
+}
+
 // ─── Class Card ───────────────────────────────────────────────────────────────
 function ClassCard({ item, navigation }) {
   const isOngoing = item.status === 'ongoing';
+  const schedStatus = item.schedule_status || (item.active_session_id ? 'ongoing' : 'unscheduled');
+  const canStart = schedStatus === 'ready' || schedStatus === 'ongoing';
+
   return (
     <View style={[
       styles.card,
       isOngoing && { borderLeftWidth: 4, borderLeftColor: item.accent },
     ]}>
       <View style={styles.cardTop}>
-        {/* Left accent dot */}
         <View style={[styles.cardDot, { backgroundColor: item.light }]}>
           <BookOpen size={16} color={item.accent} />
         </View>
@@ -98,7 +187,11 @@ function ClassCard({ item, navigation }) {
           <Text style={styles.cardCode}>{item.code}</Text>
         </View>
 
-        <StatusBadge status={item.status} />
+        <ScheduleBadge
+          scheduleStatus={schedStatus}
+          scheduledTime={item.scheduled_time}
+          scheduledDate={item.scheduled_date}
+        />
       </View>
 
       <View style={styles.cardMeta}>
@@ -118,13 +211,21 @@ function ClassCard({ item, navigation }) {
 
       <View style={styles.cardActions}>
         <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: item.light }]}
-          onPress={() => navigation.navigate('StartClass', { classItem: item })}
-          activeOpacity={0.8}
+          style={[
+            styles.actionBtn,
+            { backgroundColor: canStart ? item.light : '#f0f2f8', opacity: canStart ? 1 : 0.55 },
+          ]}
+          onPress={() => canStart && navigation.navigate('StartClass', { classItem: item })}
+          activeOpacity={canStart ? 0.8 : 1}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Play size={11} fill={item.accent} color={item.accent} style={{marginRight: 6}} />
-            <Text style={[styles.actionBtnText, { color: item.accent }]}>
+            <Play
+              size={11}
+              fill={canStart ? item.accent : '#aab0be'}
+              color={canStart ? item.accent : '#aab0be'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.actionBtnText, { color: canStart ? item.accent : '#aab0be' }]}>
               {isOngoing ? 'Take Attendance' : 'Start Class'}
             </Text>
           </View>
@@ -185,24 +286,51 @@ export default function TeacherClassesScreen({ navigation }) {
           subject: cls.subject,
           code: cls.class_name,
           room: cls.room || 'TBD',
-          time: formatClassTime(cls.schedule_time, cls.duration_minutes),
+          // Use the new buildTimeLabel which handles both new and legacy fields
+          time: buildTimeLabel(cls),
           students: cls.students_count || 0,
           status: cls.active_session_id ? 'ongoing' : 'upcoming',
           active_session_id: cls.active_session_id,
           accent: color.accent,
           light: color.light,
+          // schedule enforcement fields
+          schedule_status:    cls.schedule_status || null,
+          scheduled_date:     cls.scheduled_date || null,
+          scheduled_time:     cls.scheduled_time || null,
+          scheduled_end_time: cls.scheduled_end_time || null,
+          // keep legacy field for other consumers
+          schedule_time:      cls.schedule_time || null,
+          duration_minutes:   cls.duration_minutes,
         };
 
-        if (cls.schedule_time) {
-          const clsDate = new Date(cls.schedule_time);
-          const clsDayIndex = clsDate.getDay();
+        // ── Day-strip bucketing ──────────────────────────────────────
+        // Priority: new scheduled_date → legacy schedule_time → Today
+        let bucketed = false;
 
+        if (cls.scheduled_date) {
+          // "YYYY-MM-DD" → parse as local date to get day-of-week
+          const [y, m, d] = cls.scheduled_date.split('-').map(Number);
+          const clsDayIndex = new Date(y, m - 1, d).getDay();
           WEEK_DAYS.forEach((day) => {
             if (day.dayIndex === clsDayIndex) {
               newClassData[day.key].push(formatted);
+              bucketed = true;
             }
           });
-        } else {
+        }
+
+        if (!bucketed && cls.schedule_time) {
+          const clsDate = new Date(cls.schedule_time);
+          const clsDayIndex = clsDate.getDay();
+          WEEK_DAYS.forEach((day) => {
+            if (day.dayIndex === clsDayIndex) {
+              newClassData[day.key].push(formatted);
+              bucketed = true;
+            }
+          });
+        }
+
+        if (!bucketed) {
           newClassData['Today'].push(formatted);
         }
       });

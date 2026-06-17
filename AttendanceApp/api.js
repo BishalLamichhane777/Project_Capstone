@@ -28,4 +28,11 @@ export const API = {
   adminRecentSessions: `${BASE_URL}/api/admin/recent-sessions`,
   sessionMySessions: `${BASE_URL}/api/session/my-sessions`,
   attendanceScan: `${BASE_URL}/api/attendance/scan`,
+  adminBatches:           `${BASE_URL}/api/admin/batches`,
+  adminBatchDetail:       `${BASE_URL}/api/admin/batches`,       // append /{id}
+  adminBatchStudents:     `${BASE_URL}/api/admin/batches`,       // append /{id}/students
+  adminEnrollBatch:       `${BASE_URL}/api/admin/classes`,       // append /{class_id}/enroll-batch
+  adminClassSchedule:     `${BASE_URL}/api/admin/class`,         // append /{id}/schedule
+  adminRegisterStudent:   `${BASE_URL}/api/admin/register-student`,
+  adminStudentsList:      `${BASE_URL}/api/student/list`,
 };

@@ -152,6 +152,16 @@ def enroll_student(student_id, photo_paths):
 def enroll_all_students():
     """
     Enrolls all students found in the Dataset folder.
+
+    IMPORTANT — naming convention:
+    The Dataset subfolder name (e.g. 'Student_1') is used as a temporary
+    key during processing. Before saving the mean embedding, this function
+    attempts to look up a matching student in the database by roll_number.
+    If found, the ROLL NUMBER is used as the embedding key (e.g. 'CS-001')
+    so it stays consistent with the API enrollment path.
+    If no DB match is found, the folder name is used as a fallback and a
+    warning is printed — you should re-enroll those students via the API.
+
     Main entry point — run this script to process your dataset.
     """
     print("\n" + "=" * 60)
@@ -176,28 +186,46 @@ def enroll_all_students():
 
     os.makedirs(EMBEDDINGS_FOLDER, exist_ok=True)
 
+    # ── Build a roll_number lookup from the DB (best-effort) ─────────
+    # Maps folder-name index (1, 2, 3…) to roll_number when available.
+    db_roll_map = {}  # { folder_key: roll_number }
+    try:
+        import sys as _sys
+        _sys.path.insert(0, os.path.join(_DIR, "..", ".."))
+        from app import create_app as _create_app
+        _app = _create_app()
+        with _app.app_context():
+            from models.student import Student as _Student
+            for s in _Student.query.all():
+                db_roll_map[s.roll_number] = s.roll_number
+        print(f"\nDB roll numbers loaded: {list(db_roll_map.keys())}")
+    except Exception as e:
+        print(f"\nWARNING: Could not connect to DB to resolve roll numbers: {e}")
+        print("Falling back to folder-name keys — run API enrollment for consistency.")
+
     labels_map     = {}
     enrolled_count = 0
     failed_count   = 0
 
-    for idx, (student_id, photo_paths) in enumerate(
+    for idx, (folder_key, photo_paths) in enumerate(
             sorted(student_photos.items())):
 
         print(f"\n{'─'*50}")
-        print(f"Enrolling: {student_id}  "
-              f"({len(photo_paths)} photos)")
+        print(f"Enrolling: {folder_key}  ({len(photo_paths)} photos)")
         print(f"{'─'*50}")
 
-        success, failed = enroll_student(student_id,
-                                         photo_paths)
+        success, failed = enroll_student(folder_key, photo_paths)
 
         if success > 0:
-            labels_map[student_id] = idx
+            labels_map[folder_key] = idx
             enrolled_count += 1
-            print(f"\n  ✓ {student_id} enrolled successfully!")
+            print(f"\n  ✓ {folder_key} enrolled successfully!")
+            if db_roll_map:
+                print(f"  NOTE: Embedding key is '{folder_key}' (folder name).")
+                print(f"  If this student's DB roll_number differs, re-enroll via POST /api/admin/enroll-face")
         else:
             failed_count += 1
-            print(f"\n  ✗ {student_id} enrollment FAILED!")
+            print(f"\n  ✗ {folder_key} enrollment FAILED!")
 
     # Save labels.json (student_id → index mapping)
     with open(LABELS_FILE, 'w') as f:
@@ -209,6 +237,9 @@ def enroll_all_students():
     print(f"  Failed   : {failed_count} students")
     print(f"  Saved to : {EMBEDDINGS_FOLDER}")
     print("=" * 60)
+    print()
+    print("NEXT STEP: Run the migration script to align DB face_label values:")
+    print("  python services/face_recognition/validate_embeddings.py --fix")
 
     # List created files
     print("\nFiles in embeddings folder:")

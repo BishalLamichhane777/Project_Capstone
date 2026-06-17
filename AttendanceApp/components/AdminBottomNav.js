@@ -1,15 +1,16 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
-import { LayoutDashboard, ClipboardList, BarChart3, Settings } from 'lucide-react-native';
+import { LayoutDashboard, ClipboardList, BarChart3, Settings, Users } from 'lucide-react-native';
 
 const GOLD = '#b07d00';
 
 const tabs = [
   { name: 'Home',     icon: LayoutDashboard,  route: 'AdminDashboard' },
-  { name: 'Waivers',  icon: ClipboardList,  route: 'AdminWaivers' },
-  { name: 'Reports',  icon: BarChart3,  route: 'StudentAnalytics' },
-  { name: 'Settings', icon: Settings,  route: 'AdminSettings' },
+  { name: 'Waivers',  icon: ClipboardList,    route: 'AdminWaivers' },
+  { name: 'Batches',  icon: Users,            route: 'ManageBatches' },
+  { name: 'Reports',  icon: BarChart3,        route: 'StudentAnalytics' },
+  { name: 'Settings', icon: Settings,         route: 'AdminSettings' },
 ];
 
 export default function AdminBottomNav({ navigation, active }) {

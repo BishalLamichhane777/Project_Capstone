@@ -114,7 +114,7 @@ function UpcomingCard({ item, navigation }) {
 }
 
 export default function TeacherDashboardScreen({ navigation }) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -122,7 +122,7 @@ export default function TeacherDashboardScreen({ navigation }) {
   const fetchSessions = async () => {
     try {
       const res = await fetch(API.sessionMySessions, {
-        headers: { Authorization: `Bearer ${user?.token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
@@ -142,6 +142,14 @@ export default function TeacherDashboardScreen({ navigation }) {
   useEffect(() => {
     fetchSessions();
   }, []);
+
+  // Re-fetch when screen comes back into focus (e.g. after batch changes)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchSessions();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const onRefresh = () => {
     setRefreshing(true);

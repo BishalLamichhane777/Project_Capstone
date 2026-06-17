@@ -11,7 +11,8 @@ import { BookOpen, Clock, MapPin, User, Timer, Trash2, X, ChevronLeft, Calendar 
 
 const BLUE = '#2952e3';
 
-function ClassCard({ item, onDelete }) {
+function ClassCard({ item, onDelete, onSetSchedule }) {
+  const hasSchedule = item.scheduled_date || item.scheduled_time;
   return (
     <View style={styles.card}>
       <View style={styles.cardRow}>
@@ -36,8 +37,21 @@ function ClassCard({ item, onDelete }) {
             <Timer size={11} color="#6b7280" />
             <Text style={[styles.detailText, { marginLeft: 4 }]}>{item.duration_minutes}min · {item.enrolled_count || 0} students</Text>
           </View>
+          {hasSchedule && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+              <Calendar size={11} color={BLUE} />
+              <Text style={{ fontSize: 11, color: BLUE, fontWeight: '600' }}>
+                {item.scheduled_date || ''}
+                {item.scheduled_time ? ` at ${item.scheduled_time.slice(0, 5)}` : ''}
+                {item.scheduled_end_time ? ` – ${item.scheduled_end_time.slice(0, 5)}` : ''}
+              </Text>
+            </View>
+          )}
         </View>
         <View style={styles.cardActions}>
+          <TouchableOpacity style={styles.scheduleBtn} onPress={() => onSetSchedule && onSetSchedule(item)}>
+            <Calendar size={13} color={BLUE} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.deleteBtn} onPress={() => onDelete(item)}>
             <Trash2 size={13} color="#e74c3c" />
           </TouchableOpacity>
@@ -47,7 +61,7 @@ function ClassCard({ item, onDelete }) {
   );
 }
 
-function FormModal({ visible, onClose, onSave, teachers, saving }) {
+function FormModal({ visible, onClose, onSave, teachers, batches, saving }) {
   const [className, setClassName] = useState('');
   const [subject, setSubject] = useState('');
   const [room, setRoom] = useState('');
@@ -55,6 +69,12 @@ function FormModal({ visible, onClose, onSave, teachers, saving }) {
   const [scheduleTime, setScheduleTime] = useState('');
   const [teacherId, setTeacherId] = useState(null);
   const [teacherOpen, setTeacherOpen] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState(null);
+  const [batchOpen, setBatchOpen] = useState(false);
+  // Fine-grained schedule fields
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [scheduledEndTime, setScheduledEndTime] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -65,6 +85,11 @@ function FormModal({ visible, onClose, onSave, teachers, saving }) {
       setScheduleTime('');
       setTeacherId(null);
       setTeacherOpen(false);
+      setSelectedBatch(null);
+      setBatchOpen(false);
+      setScheduledDate('');
+      setScheduledTime('');
+      setScheduledEndTime('');
     }
   }, [visible]);
 
@@ -81,12 +106,16 @@ function FormModal({ visible, onClose, onSave, teachers, saving }) {
       return;
     }
     onSave({
-      class_name: className.trim(),
-      subject: subject.trim(),
-      room: room.trim() || null,
-      duration_minutes: dur,
-      teacher_id: teacherId,
-      schedule_time: scheduleTime.trim() || null,
+      class_name:         className.trim(),
+      subject:            subject.trim(),
+      room:               room.trim() || null,
+      duration_minutes:   dur,
+      teacher_id:         teacherId,
+      schedule_time:      scheduleTime.trim() || null,
+      batch_id:           selectedBatch?.batch_id || null,
+      scheduled_date:     scheduledDate.trim() || null,
+      scheduled_time:     scheduledTime.trim() || null,
+      scheduled_end_time: scheduledEndTime.trim() || null,
     });
   };
 
@@ -118,8 +147,22 @@ function FormModal({ visible, onClose, onSave, teachers, saving }) {
               <TextInput style={styles.fieldInput} placeholder="e.g. 90" placeholderTextColor="#aab0be" value={duration} onChangeText={setDuration} keyboardType="numeric" />
             </View>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>SCHEDULE TIME (ISO 8601, optional)</Text>
+              <Text style={styles.fieldLabel}>LEGACY DATETIME (ISO 8601, optional)</Text>
               <TextInput style={styles.fieldInput} placeholder="e.g. 2026-06-02T10:00:00" placeholderTextColor="#aab0be" value={scheduleTime} onChangeText={setScheduleTime} />
+            </View>
+
+            {/* Fine-grained schedule */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>SCHEDULE DATE (YYYY-MM-DD, optional)</Text>
+              <TextInput style={styles.fieldInput} placeholder="e.g. 2026-06-20" placeholderTextColor="#aab0be" value={scheduledDate} onChangeText={setScheduledDate} />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>START TIME (HH:MM, optional)</Text>
+              <TextInput style={styles.fieldInput} placeholder="e.g. 09:00" placeholderTextColor="#aab0be" value={scheduledTime} onChangeText={setScheduledTime} />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>END TIME (HH:MM, optional)</Text>
+              <TextInput style={styles.fieldInput} placeholder="e.g. 10:30" placeholderTextColor="#aab0be" value={scheduledEndTime} onChangeText={setScheduledEndTime} />
             </View>
 
             {/* Teacher Picker */}
@@ -157,6 +200,42 @@ function FormModal({ visible, onClose, onSave, teachers, saving }) {
               )}
             </View>
 
+            {/* Batch Picker */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>ENROLL BATCH (OPTIONAL)</Text>
+              <TouchableOpacity
+                style={[styles.fieldInput, styles.dropdownTrigger]}
+                onPress={() => setBatchOpen(!batchOpen)}
+              >
+                <Text style={[styles.dropdownValue, !selectedBatch && { color: '#aab0be' }]}>
+                  {selectedBatch ? `${selectedBatch.batch_name} (${selectedBatch.student_count} students)` : 'None — enroll students manually'}
+                </Text>
+                <Text style={styles.dropdownArrow}>{batchOpen ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              {batchOpen && (
+                <View style={styles.dropdownMenu}>
+                  <TouchableOpacity style={styles.dropdownItem} onPress={() => { setSelectedBatch(null); setBatchOpen(false); }}>
+                    <Text style={styles.dropdownItemText}>None</Text>
+                  </TouchableOpacity>
+                  {batches.map(b => (
+                    <TouchableOpacity key={b.batch_id} style={styles.dropdownItem}
+                      onPress={() => { setSelectedBatch(b); setBatchOpen(false); }}>
+                      <Text style={[styles.dropdownItemText, selectedBatch?.batch_id === b.batch_id && styles.dropdownItemActive]}>
+                        {b.batch_name} — {b.student_count} students
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {selectedBatch && (
+                <View style={{ marginTop: 6, backgroundColor: '#eef2ff', borderRadius: 10, padding: 10 }}>
+                  <Text style={{ fontSize: 12, color: '#3b5bdb' }}>
+                    ✓ {selectedBatch.student_count} students will be enrolled automatically
+                  </Text>
+                </View>
+              )}
+            </View>
+
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={saving}>
               {saving ? (
                 <ActivityIndicator color="#ffffff" />
@@ -171,13 +250,100 @@ function FormModal({ visible, onClose, onSave, teachers, saving }) {
   );
 }
 
+// ─── Schedule Modal (set/update schedule on existing class) ───────────────────
+function ScheduleModal({ visible, onClose, onSave, item, saving }) {
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [scheduledEndTime, setScheduledEndTime] = useState('');
+
+  useEffect(() => {
+    if (visible && item) {
+      setScheduledDate(item.scheduled_date || '');
+      setScheduledTime(item.scheduled_time ? item.scheduled_time.slice(0, 5) : '');
+      setScheduledEndTime(item.scheduled_end_time ? item.scheduled_end_time.slice(0, 5) : '');
+    }
+  }, [visible, item]);
+
+  const handleSave = () => {
+    onSave({
+      scheduled_date:     scheduledDate.trim() || null,
+      scheduled_time:     scheduledTime.trim() || null,
+      scheduled_end_time: scheduledEndTime.trim() || null,
+    });
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Set Schedule</Text>
+            <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
+              <X size={13} color="#8a94a6" />
+            </TouchableOpacity>
+          </View>
+          {item && (
+            <Text style={{ fontSize: 13, color: '#8a94a6', marginBottom: 16 }}>
+              {item.subject} — {item.class_name}
+            </Text>
+          )}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>DATE (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.fieldInput}
+              placeholder="e.g. 2026-06-20"
+              placeholderTextColor="#aab0be"
+              value={scheduledDate}
+              onChangeText={setScheduledDate}
+            />
+          </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>START TIME (HH:MM)</Text>
+            <TextInput
+              style={styles.fieldInput}
+              placeholder="e.g. 09:00"
+              placeholderTextColor="#aab0be"
+              value={scheduledTime}
+              onChangeText={setScheduledTime}
+            />
+          </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>END TIME (HH:MM)</Text>
+            <TextInput
+              style={styles.fieldInput}
+              placeholder="e.g. 10:30"
+              placeholderTextColor="#aab0be"
+              value={scheduledEndTime}
+              onChangeText={setScheduledEndTime}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.saveBtn}
+            onPress={handleSave}
+            disabled={saving}
+            activeOpacity={0.85}
+          >
+            {saving ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.saveBtnText}>Save Schedule</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function ManageSchedulesScreen({ navigation }) {
   const { token } = useAuth();
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [scheduleModalItem, setScheduleModalItem] = useState(null);
 
   useEffect(() => {
     if (token) {
@@ -188,16 +354,20 @@ export default function ManageSchedulesScreen({ navigation }) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [classRes, teacherRes] = await Promise.all([
+      const [classRes, teacherRes, batchRes] = await Promise.all([
         fetch(API.adminClassList, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API.adminUsers}?role=teacher`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(API.adminBatches, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       const classData = await classRes.json();
       const teacherData = await teacherRes.json();
+      const batchData = await batchRes.json();
       if (classRes.ok) setClasses(classData);
       else Alert.alert('Error', classData.error || 'Failed to load classes');
       if (teacherRes.ok) setTeachers(teacherData);
       else console.log('Could not load teachers:', teacherData.error);
+      if (batchRes.ok) setBatches(batchData);
+      else console.log('Could not load batches:', batchData.error);
     } catch (e) {
       console.log('Fetch error:', e);
       Alert.alert('Error', 'Network error while loading data');
@@ -257,6 +427,32 @@ export default function ManageSchedulesScreen({ navigation }) {
     }
   };
 
+  const handleSetSchedule = async (form) => {
+    if (!scheduleModalItem) return;
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `${API.adminClassSchedule}/${scheduleModalItem.class_id}/schedule`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(form),
+        },
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setScheduleModalItem(null);
+        fetchData();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to update schedule');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Network error while updating schedule');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -282,7 +478,12 @@ export default function ManageSchedulesScreen({ navigation }) {
             </Text>
 
             {classes.map(item => (
-              <ClassCard key={item.class_id} item={item} onDelete={handleDelete} />
+              <ClassCard
+                key={item.class_id}
+                item={item}
+                onDelete={handleDelete}
+                onSetSchedule={(cls) => setScheduleModalItem(cls)}
+              />
             ))}
 
             {classes.length === 0 && (
@@ -304,6 +505,15 @@ export default function ManageSchedulesScreen({ navigation }) {
         onClose={() => setModalVisible(false)}
         onSave={handleCreate}
         teachers={teachers}
+        batches={batches}
+        saving={saving}
+      />
+
+      <ScheduleModal
+        visible={scheduleModalItem !== null}
+        onClose={() => setScheduleModalItem(null)}
+        onSave={handleSetSchedule}
+        item={scheduleModalItem}
         saving={saving}
       />
 
@@ -345,6 +555,7 @@ const styles = StyleSheet.create({
   dot: { fontSize: 11, color: '#8a94a6' },
   teacherText: { fontSize: 11, color: '#6b7280' },
   cardActions: { gap: 6 },
+  scheduleBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center' },
   deleteBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#fff0f0', justifyContent: 'center', alignItems: 'center' },
   actionIcon: { fontSize: 13 },
 

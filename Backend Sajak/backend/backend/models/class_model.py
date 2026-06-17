@@ -1,6 +1,7 @@
 """Class and Enrollment models."""
 
 from datetime import datetime, timezone
+import datetime as dt
 
 from database import db
 
@@ -14,6 +15,9 @@ class Class(db.Model):
     teacher_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     schedule_time = db.Column(db.DateTime, nullable=True)
     duration_minutes = db.Column(db.Integer, nullable=False)
+    scheduled_date     = db.Column(db.Date,   nullable=True)
+    scheduled_time     = db.Column(db.Time,   nullable=True)
+    scheduled_end_time = db.Column(db.Time,   nullable=True)
 
     # Relationships
     teacher = db.relationship("User", foreign_keys=[teacher_id])
@@ -36,6 +40,9 @@ class Class(db.Model):
                 self.schedule_time.isoformat() if self.schedule_time else None
             ),
             "duration_minutes": self.duration_minutes,
+            "scheduled_date":     self.scheduled_date.isoformat()     if self.scheduled_date     else None,
+            "scheduled_time":     self.scheduled_time.isoformat()     if self.scheduled_time     else None,
+            "scheduled_end_time": self.scheduled_end_time.isoformat() if self.scheduled_end_time else None,
         }
 
 

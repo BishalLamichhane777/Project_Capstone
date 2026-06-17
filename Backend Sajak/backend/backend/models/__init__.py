@@ -7,6 +7,8 @@ from models.session import Session
 from models.attendance import AttendanceLog, AttendanceRecord
 from models.excuse import WaiverRequest
 from models.notification import Notification
+from models.batch import Batch, BatchStudent
+from models.batch_class_link import BatchClassLink
 
 __all__ = [
     "User",
@@ -18,4 +20,7 @@ __all__ = [
     "AttendanceRecord",
     "WaiverRequest",
     "Notification",
+    "Batch",
+    "BatchStudent",
+    "BatchClassLink",
 ]

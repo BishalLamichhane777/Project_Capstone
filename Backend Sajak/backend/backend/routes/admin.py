@@ -1,6 +1,7 @@
 """Admin routes — class CRUD, session delete, user management, notifications."""
 
 import logging
+import datetime as dt
 from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
@@ -78,6 +79,36 @@ def create_class():
                 422,
             )
 
+    # ── New fine-grained schedule fields (all optional) ───────────────
+    scheduled_date_str     = data.get("scheduled_date")      # "YYYY-MM-DD"
+    scheduled_time_str2    = data.get("scheduled_time")      # "HH:MM" or "HH:MM:SS"
+    scheduled_end_time_str = data.get("scheduled_end_time")  # "HH:MM" or "HH:MM:SS"
+
+    scheduled_date     = None
+    scheduled_time_val = None
+    scheduled_end_time = None
+
+    if scheduled_date_str:
+        try:
+            scheduled_date = dt.date.fromisoformat(scheduled_date_str)
+        except ValueError:
+            return jsonify({"error": "scheduled_date must be YYYY-MM-DD", "status": 422}), 422
+
+    if scheduled_time_str2:
+        try:
+            scheduled_time_val = dt.time.fromisoformat(scheduled_time_str2)
+        except ValueError:
+            return jsonify({"error": "scheduled_time must be HH:MM or HH:MM:SS", "status": 422}), 422
+
+    if scheduled_end_time_str:
+        try:
+            scheduled_end_time = dt.time.fromisoformat(scheduled_end_time_str)
+        except ValueError:
+            return jsonify({"error": "scheduled_end_time must be HH:MM or HH:MM:SS", "status": 422}), 422
+
+    if scheduled_time_val and scheduled_end_time and scheduled_end_time <= scheduled_time_val:
+        return jsonify({"error": "scheduled_end_time must be after scheduled_time", "status": 422}), 422
+
     cls = Class(
         class_name=class_name,
         subject=subject,
@@ -85,11 +116,36 @@ def create_class():
         teacher_id=teacher_id,
         schedule_time=schedule_time,
         duration_minutes=duration_minutes,
+        scheduled_date=scheduled_date,
+        scheduled_time=scheduled_time_val,
+        scheduled_end_time=scheduled_end_time,
     )
     db.session.add(cls)
     db.session.commit()
 
-    return jsonify({"class_id": cls.class_id, "message": "Class created"}), 201
+    # Optional batch auto-enrollment
+    batch_id = data.get("batch_id")
+    auto_enrolled = 0
+    if batch_id:
+        from models.batch import Batch, BatchStudent
+        batch = Batch.query.get(batch_id)
+        if batch:
+            for bs in batch.batch_students:
+                existing = Enrollment.query.filter_by(
+                    student_id=bs.student_id, class_id=cls.class_id
+                ).first()
+                if not existing:
+                    db.session.add(Enrollment(
+                        student_id=bs.student_id, class_id=cls.class_id
+                    ))
+                    auto_enrolled += 1
+            db.session.commit()
+
+    return jsonify({
+        "class_id":     cls.class_id,
+        "message":      "Class created",
+        "auto_enrolled": auto_enrolled,
+    }), 201
 
 
 @admin_bp.route("/class/list", methods=["GET"])
@@ -156,9 +212,97 @@ def update_class(class_id):
                 422,
             )
 
+    # Fine-grained schedule fields
+    if "scheduled_date" in data:
+        if data["scheduled_date"]:
+            try:
+                cls.scheduled_date = dt.date.fromisoformat(data["scheduled_date"])
+            except ValueError:
+                return jsonify({"error": "scheduled_date must be YYYY-MM-DD", "status": 422}), 422
+        else:
+            cls.scheduled_date = None
+    if "scheduled_time" in data:
+        if data["scheduled_time"]:
+            try:
+                cls.scheduled_time = dt.time.fromisoformat(data["scheduled_time"])
+            except ValueError:
+                return jsonify({"error": "scheduled_time must be HH:MM or HH:MM:SS", "status": 422}), 422
+        else:
+            cls.scheduled_time = None
+    if "scheduled_end_time" in data:
+        if data["scheduled_end_time"]:
+            try:
+                cls.scheduled_end_time = dt.time.fromisoformat(data["scheduled_end_time"])
+            except ValueError:
+                return jsonify({"error": "scheduled_end_time must be HH:MM or HH:MM:SS", "status": 422}), 422
+        else:
+            cls.scheduled_end_time = None
+    if cls.scheduled_time and cls.scheduled_end_time and cls.scheduled_end_time <= cls.scheduled_time:
+        return jsonify({"error": "scheduled_end_time must be after scheduled_time", "status": 422}), 422
+
     db.session.commit()
 
     return jsonify({"message": "Class updated"}), 200
+
+
+@admin_bp.route("/class/<int:class_id>/schedule", methods=["PUT"])
+@require_role("admin")
+def set_class_schedule(class_id):
+    """Set or update the schedule for a class.
+
+    Body (all fields optional — omit a field to clear it):
+      { "scheduled_date": "YYYY-MM-DD",
+        "scheduled_time": "HH:MM",
+        "scheduled_end_time": "HH:MM" }
+    """
+    cls = Class.query.get(class_id)
+    if not cls:
+        return jsonify({"error": "Class not found", "status": 404}), 404
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required", "status": 400}), 400
+
+    if "scheduled_date" in data:
+        if data["scheduled_date"]:
+            try:
+                cls.scheduled_date = dt.date.fromisoformat(data["scheduled_date"])
+            except ValueError:
+                return jsonify({"error": "scheduled_date must be YYYY-MM-DD", "status": 422}), 422
+        else:
+            cls.scheduled_date = None
+
+    if "scheduled_time" in data:
+        if data["scheduled_time"]:
+            try:
+                cls.scheduled_time = dt.time.fromisoformat(data["scheduled_time"])
+            except ValueError:
+                return jsonify({"error": "scheduled_time must be HH:MM or HH:MM:SS", "status": 422}), 422
+        else:
+            cls.scheduled_time = None
+
+    if "scheduled_end_time" in data:
+        if data["scheduled_end_time"]:
+            try:
+                cls.scheduled_end_time = dt.time.fromisoformat(data["scheduled_end_time"])
+            except ValueError:
+                return jsonify({"error": "scheduled_end_time must be HH:MM or HH:MM:SS", "status": 422}), 422
+        else:
+            cls.scheduled_end_time = None
+
+    if cls.scheduled_time and cls.scheduled_end_time and cls.scheduled_end_time <= cls.scheduled_time:
+        return jsonify({"error": "scheduled_end_time must be after scheduled_time", "status": 422}), 422
+
+    db.session.commit()
+    logger.info(
+        "Schedule updated for class_id=%s: date=%s time=%s end=%s",
+        class_id, cls.scheduled_date, cls.scheduled_time, cls.scheduled_end_time,
+    )
+
+    enrolled_count = Enrollment.query.filter_by(class_id=class_id).count()
+    class_data = cls.to_dict()
+    class_data["enrolled_count"] = enrolled_count
+    return jsonify(class_data), 200
 
 
 @admin_bp.route("/class/<int:class_id>", methods=["DELETE"])
@@ -352,6 +496,178 @@ def get_recent_sessions():
             "absent_count": absent
         })
     return jsonify(results), 200
+
+
+# ── Unified Student Registration ─────────────────────────────────────────
+
+
+@admin_bp.route("/register-student", methods=["POST"])
+@require_role("admin")
+def register_student():
+    """Create a User, Student, and enroll their face in one atomic operation.
+
+    Accepts multipart/form-data:
+      - full_name   (string, required)
+      - email       (string, required)
+      - password    (string, required)
+      - roll_number (string, required)
+      - phone       (string, optional)
+      - images      (multiple image files, required, min 3, max 10)
+
+    The DB records are NOT committed until face enrollment succeeds.
+    On any failure the session is rolled back so no partial state is left.
+    """
+    import bcrypt as _bcrypt
+    from services.face_recognition.enroll import enroll_student_from_images
+    from services.face_recognition import reload_embeddings
+
+    # ── 1. Parse required text fields ────────────────────────────────
+    full_name   = request.form.get("full_name",   "").strip()
+    email       = request.form.get("email",       "").strip()
+    password    = request.form.get("password",    "")
+    roll_number = request.form.get("roll_number", "").strip()
+    phone       = request.form.get("phone",       "").strip() or None
+
+    # Validate all required text fields are present
+    if not full_name or not email or not password or not roll_number:
+        return (
+            jsonify({
+                "error": "full_name, email, password, and roll_number are all required",
+                "status": 400,
+            }),
+            400,
+        )
+
+    # ── 2. Validate image files ───────────────────────────────────────
+    images = request.files.getlist("images")
+    # Filter out any empty file slots (browser sends empty entries sometimes)
+    images = [f for f in images if f and f.filename != ""]
+
+    if len(images) < 3:
+        return (
+            jsonify({
+                "error": f"At least 3 face images are required (received {len(images)})",
+                "status": 400,
+            }),
+            400,
+        )
+
+    if len(images) > 10:
+        return (
+            jsonify({
+                "error": f"Maximum 10 images allowed (received {len(images)})",
+                "status": 400,
+            }),
+            400,
+        )
+
+    # ── 3. Check for duplicate email ─────────────────────────────────
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "Email already exists", "status": 409}), 409
+
+    # ── 4. Check for duplicate roll_number ───────────────────────────
+    if Student.query.filter_by(roll_number=roll_number).first():
+        return jsonify({"error": "Roll number already exists", "status": 409}), 409
+
+    # ── 5. Hash password (same method as existing register endpoint) ──
+    salt          = _bcrypt.gensalt()
+    password_hash = _bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+    try:
+        # ── 6. Create User record (role = 'student') ──────────────────
+        user = User(
+            fullname=full_name,
+            email=email,
+            password_hash=password_hash,
+            role="student",
+            phone=phone,
+        )
+        db.session.add(user)
+        # flush to get user.id without committing yet
+        db.session.flush()
+
+        # ── 7. Create Student record linked to the new user ───────────
+        # face_label is set to roll_number — used as the embedding file key
+        student = Student(
+            user_id=user.id,
+            roll_number=roll_number,
+            program="",          # program not collected here; update separately if needed
+            face_label=roll_number,
+        )
+        db.session.add(student)
+        # flush to get student.student_id without committing yet
+        db.session.flush()
+
+        logger.info(
+            "register-student: user_id=%s student_id=%s roll=%s — starting face enrollment",
+            user.id, student.student_id, roll_number,
+        )
+
+        # ── 8. Run face enrollment — DB commit is withheld until this succeeds ──
+        # enroll_student_from_images reads each FileStorage in-memory (no temp files).
+        # Returns (success: bool, message: str, skip_reasons: list[str])
+        success, message, skip_reasons = enroll_student_from_images(
+            face_label=roll_number,
+            image_files=images,
+        )
+
+        if not success:
+            # Enrollment produced zero valid embeddings — roll back both records
+            db.session.rollback()
+            logger.warning(
+                "register-student: face enrollment failed for roll=%s — rolled back. reason: %s",
+                roll_number, message,
+            )
+            return (
+                jsonify({
+                    "error": f"Face enrollment failed: {message}",
+                    "skip_reasons": skip_reasons,
+                    "status": 500,
+                }),
+                500,
+            )
+
+        # ── 9. Commit DB only after enrollment has succeeded ──────────
+        db.session.commit()
+
+        # ── 10. Refresh the in-process embedding cache ────────────────
+        # Must happen AFTER commit so the student row exists if anything
+        # in reload_embeddings() queries the DB.
+        reload_embeddings()
+
+        images_processed = len(images) - len(skip_reasons)
+
+        logger.info(
+            "register-student: SUCCESS user_id=%s student_id=%s roll=%s images_processed=%s",
+            user.id, student.student_id, roll_number, images_processed,
+        )
+
+        # ── 11. Return 201 with IDs and enrollment summary ────────────
+        return (
+            jsonify({
+                "message":          "Student registered and face enrolled successfully",
+                "user_id":          user.id,
+                "student_id":       student.student_id,
+                "face_label":       roll_number,
+                "images_processed": images_processed,
+            }),
+            201,
+        )
+
+    except Exception as exc:
+        # Catch any unexpected error (DB constraint, network, etc.) and roll back
+        db.session.rollback()
+        logger.exception(
+            "register-student: unexpected error for roll=%s: %s",
+            roll_number, exc,
+        )
+        return (
+            jsonify({
+                "error": f"Registration failed: {str(exc)}",
+                "status": 500,
+            }),
+            500,
+        )
 
 
 # ── Face Enrollment ───────────────────────────────────────────────────────

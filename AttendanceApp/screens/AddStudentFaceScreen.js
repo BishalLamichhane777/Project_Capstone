@@ -1,287 +1,564 @@
-import React, { useState } from 'react';
+/**
+ * AddStudentFaceScreen.js
+ *
+ * Unified student registration screen for admins.
+ * Collects student details + 3-10 face photos and submits everything
+ * to POST /api/admin/register-student in a single multipart/form-data call.
+ *
+ * The backend atomically creates the User, Student, and face embedding
+ * — or rolls back everything on failure.
+ */
+
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar, Alert, TextInput,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  Alert,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
-import AdminBottomNav from '../components/AdminBottomNav';
-import { Camera, CheckCircle, ChevronLeft, ScanFace } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { useAuth } from '../context/AuthContext';
+import { API } from '../api';
 
-const BLUE = '#2952e3';
-const GOLD = '#b07d00';
+// ── Design tokens (matches AdminDashboardScreen) ──────────────────────────
+const BLUE    = '#2952e3';
+const GREEN   = '#27AE60';
+const GRAY    = '#95A5A6';
+const LABEL   = '#2C3E50';
+const BG      = '#f5f7fa';
+const CARD_BG = '#ffffff';
 
-const courses = ['Computer Science', 'Mathematics', 'Physics', 'History', 'Psychology', 'Arts'];
-const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-
-const recentStudents = [
-  { id: '2024-1023', name: 'Aarav Thapa',    course: 'Computer Science', year: '3rd Year', initials: 'AT', registered: 'Oct 18' },
-  { id: '2024-1045', name: 'Mina Shrestha',  course: 'Mathematics',      year: '2nd Year', initials: 'MS', registered: 'Oct 17' },
-  { id: '2024-1067', name: 'Rajan Gurung',   course: 'Physics',          year: '1st Year', initials: 'RG', registered: 'Oct 15' },
-];
+// ─────────────────────────────────────────────────────────────────────────
 
 export default function AddStudentFaceScreen({ navigation }) {
-  const [name, setName]         = useState('');
-  const [studentId, setStudentId] = useState('');
-  const [course, setCourse]     = useState('');
-  const [year, setYear]         = useState('');
-  const [photoAdded, setPhotoAdded] = useState(false);
-  const [courseOpen, setCourseOpen] = useState(false);
-  const [yearOpen, setYearOpen]   = useState(false);
+  // ── Form state ──────────────────────────────────────────────────────
+  const [fullName,   setFullName]   = useState('');
+  const [email,      setEmail]      = useState('');
+  const [password,   setPassword]   = useState('');
+  const [rollNumber, setRollNumber] = useState('');
+  const [program,    setProgram]    = useState('');
+  const [phone,      setPhone]      = useState('');
 
-  const handlePhotoUpload = () => {
-    Alert.alert('Upload Photo', 'Choose photo source', [
-      { text: 'Camera',        onPress: () => setPhotoAdded(true) },
-      { text: 'Photo Library', onPress: () => setPhotoAdded(true) },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
+  // ── Photo state ─────────────────────────────────────────────────────
+  // Each item: { uri: string, assetId: string|null }
+  const [photos, setPhotos] = useState([]);
 
-  const handleSubmit = () => {
-    if (!name.trim() || !studentId.trim() || !course || !year || !photoAdded) {
-      Alert.alert('Incomplete', 'Please fill all fields and upload a photo.');
+  // ── UI state ────────────────────────────────────────────────────────
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ── Auth ────────────────────────────────────────────────────────────
+  const { token } = useAuth();
+
+  // Set the navigation header title
+  useEffect(() => {
+    navigation.setOptions({ title: 'Add New Student' });
+  }, [navigation]);
+
+  // ── Derived flags ────────────────────────────────────────────────────
+  const hasRequiredFields =
+    fullName.trim() !== '' &&
+    email.trim()    !== '' &&
+    password        !== '' &&
+    rollNumber.trim() !== '';
+
+  const hasEnoughPhotos = photos.length >= 3;
+  const canSubmit = hasRequiredFields && hasEnoughPhotos && !isLoading;
+
+  // ── Photo picker ─────────────────────────────────────────────────────
+  const handleAddPhotos = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    console.log('Permission status:', status);
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission required',
+        'Please allow access to your photo library to select student photos.',
+      );
       return;
     }
-    Alert.alert(
-      '✅ Student Registered',
-      `${name} (${studentId}) has been added to the face recognition database.`,
-      [{ text: 'OK', onPress: () => { setName(''); setStudentId(''); setCourse(''); setYear(''); setPhotoAdded(false); } }]
-    );
+
+    const remaining = 10 - photos.length;
+    console.log('Remaining slots:', remaining);
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', 'Maximum 10 photos allowed. Remove some to add new ones.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.8,
+    });
+
+    console.log('Picker result canceled:', result.canceled);
+    console.log('Picker result assets:', result.assets);
+
+    if (!result.canceled && result.assets.length > 0) {
+      const converted = await Promise.all(result.assets.map(async (asset) => {
+        const manipulated = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ resize: { width: 800 } }],
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        console.log('Converted asset uri:', manipulated.uri);
+        return {
+          ...asset,
+          uri: manipulated.uri,
+          mimeType: 'image/jpeg',
+          fileName: asset.fileName?.replace(/\.heic$/i, '.jpg') || 'photo.jpg',
+        };
+      }));
+
+      setPhotos(prev => {
+        const updated = [...prev, ...converted].slice(0, 10);
+        console.log('Updated photos count:', updated.length);
+        return updated;
+      });
+    }
   };
 
+  // Remove a single photo by index
+  const handleRemovePhoto = (index) => {
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // ── Form reset ────────────────────────────────────────────────────────
+  const resetForm = () => {
+    setFullName('');
+    setEmail('');
+    setPassword('');
+    setRollNumber('');
+    setProgram('');
+    setPhone('');
+    setPhotos([]);
+  };
+
+  // ── Submission ────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+
+    setIsLoading(true);
+
+    try {
+      // Build multipart/form-data body
+      const formData = new FormData();
+
+      // Text fields — names must match backend exactly
+      formData.append('full_name',   fullName.trim());
+      formData.append('email',       email.trim().toLowerCase());
+      formData.append('password',    password);
+      formData.append('roll_number', rollNumber.trim().toUpperCase());
+      if (program.trim()) formData.append('program', program.trim());
+      if (phone.trim())   formData.append('phone',   phone.trim());
+
+      // Image files — field name must be 'images' (plural)
+      // DO NOT set Content-Type manually — fetch sets it with the correct boundary
+      photos.forEach((image, index) => {
+        formData.append('images', {
+          uri:  image.uri,
+          type: 'image/jpeg',
+          name: `photo_${index}.jpg`,
+        });
+        console.log('Appending image:', index, image.uri);
+      });
+
+      const response = await fetch(API.adminRegisterStudent, {
+        method: 'POST',
+        headers: {
+          // NOTE: Content-Type is intentionally omitted so fetch can
+          // attach the multipart boundary automatically. Setting it
+          // manually breaks image parsing on the backend.
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.status === 201) {
+        // Success — show confirmation and navigate back
+        Alert.alert(
+          'Success',
+          `Student registered successfully! Face enrolled with ${data.images_processed} photo${data.images_processed !== 1 ? 's' : ''}.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                resetForm();
+                navigation.goBack();
+              },
+            },
+          ],
+        );
+      } else if (response.status === 409) {
+        // Duplicate email or roll number
+        Alert.alert('Duplicate Entry', data.error || 'A student with this email or roll number already exists.');
+      } else if (response.status === 400) {
+        // Validation error from backend
+        Alert.alert('Validation Error', data.error || 'Please check your inputs and try again.');
+      } else {
+        // 500 or unexpected — likely a face enrollment issue
+        Alert.alert(
+          'Registration Failed',
+          'Registration failed. Please check the photos are clear and well-lit, then try again.',
+        );
+      }
+    } catch (error) {
+      // Network or parse error
+      console.error('Register student error:', error);
+      Alert.alert(
+        'Registration Failed',
+        'Registration failed. Please check the photos are clear and well-lit, then try again.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+      <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={22} color="#1a1f36" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Student Face</Text>
-        <View style={{ width: 38 }} />
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* ── STUDENT DETAILS CARD ──────────────────────────────── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Student Details</Text>
 
-        {/* Info Banner */}
-        <View style={styles.infoBanner}>
-          <ScanFace size={18} color="#3b5bdb" />
-          <Text style={styles.infoText}>
-            Upload a clear face photo of the student. This will be used by the automated face recognition system to mark attendance.
-          </Text>
-        </View>
-
-        {/* Photo Upload */}
-        <Text style={styles.sectionTitle}>Student Photo</Text>
-        <TouchableOpacity style={styles.photoBox} onPress={handlePhotoUpload} activeOpacity={0.8}>
-          {photoAdded ? (
-            <View style={styles.photoAdded}>
-              <CheckCircle size={32} color="#27ae60" />
-              <Text style={styles.photoAddedText}>Photo uploaded successfully</Text>
-              <Text style={styles.photoChangeText}>Tap to change</Text>
-            </View>
-          ) : (
-            <View style={styles.photoEmpty}>
-              <View style={styles.photoIconCircle}>
-                <Camera size={28} color={BLUE} />
-              </View>
-              <Text style={styles.photoTitle}>Upload Face Photo</Text>
-              <Text style={styles.photoSub}>JPG or PNG · Clear front-facing photo</Text>
-              <View style={styles.photoTips}>
-                <Text style={styles.photoTip}>✓ Good lighting</Text>
-                <Text style={styles.photoTip}>✓ No sunglasses</Text>
-                <Text style={styles.photoTip}>✓ Face centered</Text>
-              </View>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        {/* Student Details */}
-        <Text style={styles.sectionTitle}>Student Details</Text>
-        <View style={styles.card}>
-
-          {/* Full Name */}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>FULL NAME</Text>
+            {/* Full Name */}
+            <Text style={styles.label}>Full Name <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. Sajak Singh Khadka"
               placeholderTextColor="#aab0be"
-              value={name}
-              onChangeText={setName}
+              value={fullName}
+              onChangeText={setFullName}
+              autoCapitalize="words"
+              returnKeyType="next"
             />
-          </View>
 
-          {/* Student ID */}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>STUDENT ID</Text>
+            {/* Email */}
+            <Text style={styles.label}>Email <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. 2024-8836"
+              placeholder="e.g. sajak@example.com"
               placeholderTextColor="#aab0be"
-              value={studentId}
-              onChangeText={setStudentId}
-              keyboardType="default"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="next"
+            />
+
+            {/* Password */}
+            <Text style={styles.label}>Password <Text style={styles.required}>*</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Minimum 8 characters"
+              placeholderTextColor="#aab0be"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              returnKeyType="next"
+            />
+
+            {/* Roll Number */}
+            <Text style={styles.label}>Roll Number <Text style={styles.required}>*</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. CS-2024-001"
+              placeholderTextColor="#aab0be"
+              value={rollNumber}
+              onChangeText={setRollNumber}
+              autoCapitalize="characters"
+              returnKeyType="next"
+            />
+
+            {/* Program (optional) */}
+            <Text style={styles.label}>Program <Text style={styles.optional}>(optional)</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. Computer Science"
+              placeholderTextColor="#aab0be"
+              value={program}
+              onChangeText={setProgram}
+              returnKeyType="next"
+            />
+
+            {/* Phone (optional) */}
+            <Text style={[styles.label, { marginBottom: 4 }]}>
+              Phone <Text style={styles.optional}>(optional)</Text>
+            </Text>
+            <TextInput
+              style={[styles.input, { marginBottom: 0 }]}
+              placeholder="e.g. +601234567890"
+              placeholderTextColor="#aab0be"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              returnKeyType="done"
             />
           </View>
 
-          {/* Course */}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>COURSE / DEPARTMENT</Text>
-            <TouchableOpacity style={styles.input} onPress={() => { setCourseOpen(!courseOpen); setYearOpen(false); }}>
-              <Text style={{ color: course ? '#1a1f36' : '#aab0be', fontSize: 14 }}>
-                {course || 'Select course'}
-              </Text>
+          {/* ── PHOTO SECTION CARD ───────────────────────────────── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Student Photos</Text>
+            <Text style={styles.cardSubtitle}>3–10 clear, well-lit, front-facing photos required</Text>
+
+            {/* Add Photos button */}
+            <TouchableOpacity
+              style={styles.addPhotosBtn}
+              onPress={handleAddPhotos}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.addPhotosBtnText}>＋  Add Photos</Text>
             </TouchableOpacity>
-            {courseOpen && (
-              <View style={styles.dropdown}>
-                {courses.map(c => (
-                  <TouchableOpacity key={c} style={styles.dropdownItem} onPress={() => { setCourse(c); setCourseOpen(false); }}>
-                    <Text style={[styles.dropdownText, course === c && styles.dropdownActive]}>{c}</Text>
-                  </TouchableOpacity>
+
+            {/* Thumbnails */}
+            {photos.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.thumbnailScroll}
+                contentContainerStyle={styles.thumbnailRow}
+              >
+                {photos.map((photo, index) => (
+                  <View key={index} style={styles.thumbnailWrapper}>
+                    <Image source={{ uri: photo.uri }} style={styles.thumbnail} />
+                    {/* Remove button */}
+                    <TouchableOpacity
+                      style={styles.removeBtn}
+                      onPress={() => handleRemovePhoto(index)}
+                      hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
+                    >
+                      <Text style={styles.removeBtnText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
                 ))}
-              </View>
+              </ScrollView>
+            )}
+
+            {/* Photo counter */}
+            <Text style={styles.photoCounter}>
+              {photos.length} photo{photos.length !== 1 ? 's' : ''} selected
+            </Text>
+
+            {/* Minimum warning */}
+            {photos.length > 0 && !hasEnoughPhotos && (
+              <Text style={styles.photoWarning}>Minimum 3 photos required</Text>
             )}
           </View>
 
-          {/* Year */}
-          <View style={[styles.fieldGroup, { marginBottom: 0 }]}>
-            <Text style={styles.fieldLabel}>YEAR OF STUDY</Text>
-            <TouchableOpacity style={styles.input} onPress={() => { setYearOpen(!yearOpen); setCourseOpen(false); }}>
-              <Text style={{ color: year ? '#1a1f36' : '#aab0be', fontSize: 14 }}>
-                {year || 'Select year'}
-              </Text>
-            </TouchableOpacity>
-            {yearOpen && (
-              <View style={styles.dropdown}>
-                {years.map(y => (
-                  <TouchableOpacity key={y} style={styles.dropdownItem} onPress={() => { setYear(y); setYearOpen(false); }}>
-                    <Text style={[styles.dropdownText, year === y && styles.dropdownActive]}>{y}</Text>
-                  </TouchableOpacity>
-                ))}
+          {/* ── SUBMIT BUTTON ────────────────────────────────────── */}
+          <TouchableOpacity
+            style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            activeOpacity={0.85}
+          >
+            {isLoading ? (
+              <View style={styles.submitInner}>
+                <ActivityIndicator size="small" color="#ffffff" />
+                <Text style={styles.submitText}>Registering...</Text>
               </View>
+            ) : (
+              <Text style={styles.submitText}>Register Student</Text>
             )}
-          </View>
-        </View>
+          </TouchableOpacity>
 
-        {/* Recently Added */}
-        <Text style={styles.sectionTitle}>Recently Added</Text>
-        <View style={styles.card}>
-          {recentStudents.map((s, i) => (
-            <View key={s.id} style={[styles.recentRow, i !== recentStudents.length - 1 && styles.recentBorder]}>
-              <View style={styles.recentAvatar}>
-                <Text style={styles.recentAvatarText}>{s.initials}</Text>
-              </View>
-              <View style={styles.recentInfo}>
-                <Text style={styles.recentName}>{s.name}</Text>
-                <Text style={styles.recentMeta}>{s.id} · {s.course}</Text>
-              </View>
-              <View style={styles.recentRight}>
-                <View style={styles.registeredBadge}>
-                  <Text style={styles.registeredText}>✓ Registered</Text>
-                </View>
-                <Text style={styles.registeredDate}>{s.registered}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Submit */}
-        <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} activeOpacity={0.85}>
-          <ScanFace size={18} color="#ffffff" />
-          <Text style={styles.submitText}>Register Student Face</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      <AdminBottomNav navigation={navigation} active="Home" />
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f5f7fa' },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 18, paddingVertical: 14,
-    backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#eef1f5',
+  safeArea: {
+    flex: 1,
+    backgroundColor: BG,
   },
-  backBtn: { width: 38, height: 38, justifyContent: 'center', alignItems: 'center' },
-  backArrow: { fontSize: 22, color: '#1a1f36', fontWeight: '600' },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#1a1f36' },
-  scroll: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
-
-  infoBanner: {
-    backgroundColor: '#eef2ff', borderRadius: 14, padding: 14,
-    flexDirection: 'row', gap: 10, marginBottom: 22, alignItems: 'flex-start',
+  scroll: {
+    flex: 1,
   },
-  infoIcon: { fontSize: 18 },
-  infoText: { flex: 1, fontSize: 13, color: '#3b5bdb', lineHeight: 19 },
-
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: '#8a94a6', letterSpacing: 0.8, marginBottom: 10 },
-
-  photoBox: {
-    backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 2,
-    borderColor: '#d0d9f5', borderStyle: 'dashed',
-    marginBottom: 22, overflow: 'hidden',
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
-  photoEmpty: { alignItems: 'center', paddingVertical: 30, gap: 8 },
-  photoIconCircle: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center',
-  },
-  photoIcon: { fontSize: 28 },
-  photoTitle: { fontSize: 15, fontWeight: '700', color: '#1a1f36' },
-  photoSub: { fontSize: 12, color: '#8a94a6' },
-  photoTips: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  photoTip: { fontSize: 11, color: '#27ae60', fontWeight: '600' },
-  photoAdded: { alignItems: 'center', paddingVertical: 24, gap: 6 },
-  photoAddedIcon: { fontSize: 32 },
-  photoAddedText: { fontSize: 14, fontWeight: '700', color: '#27ae60' },
-  photoChangeText: { fontSize: 12, color: '#8a94a6' },
 
+  // Card
   card: {
-    backgroundColor: '#ffffff', borderRadius: 16, padding: 16,
-    marginBottom: 22,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    backgroundColor: CARD_BG,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  fieldGroup: { marginBottom: 14 },
-  fieldLabel: { fontSize: 11, fontWeight: '800', color: '#8a94a6', letterSpacing: 0.6, marginBottom: 7 },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1a1f36',
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    color: '#8a94a6',
+    marginBottom: 14,
+  },
+
+  // Form fields
+  label: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: LABEL,
+    marginBottom: 4,
+    marginTop: 12,
+  },
+  required: {
+    color: '#e74c3c',
+  },
+  optional: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#8a94a6',
+  },
   input: {
-    backgroundColor: '#f8f9ff', borderRadius: 12, borderWidth: 1.5,
-    borderColor: '#e6e9f0', paddingHorizontal: 14, paddingVertical: 13,
-    fontSize: 14, color: '#1a1f36',
+    borderWidth: 1.5,
+    borderColor: '#e6e9f0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#1a1f36',
+    backgroundColor: '#f8f9ff',
+    marginBottom: 4,
   },
-  dropdown: {
-    backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1.5,
-    borderColor: '#e6e9f0', marginTop: 4, overflow: 'hidden',
-  },
-  dropdownItem: { paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#f0f2f5' },
-  dropdownText: { fontSize: 13, color: '#8a94a6' },
-  dropdownActive: { color: BLUE, fontWeight: '700' },
 
-  recentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11 },
-  recentBorder: { borderBottomWidth: 1, borderBottomColor: '#f0f2f5' },
-  recentAvatar: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: '#eef2ff',
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
+  // Photo section
+  addPhotosBtn: {
+    backgroundColor: '#3498DB',
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginBottom: 14,
   },
-  recentAvatarText: { fontSize: 13, fontWeight: '700', color: BLUE },
-  recentInfo: { flex: 1 },
-  recentName: { fontSize: 13, fontWeight: '700', color: '#1a1f36', marginBottom: 2 },
-  recentMeta: { fontSize: 11, color: '#8a94a6' },
-  recentRight: { alignItems: 'flex-end', gap: 3 },
-  registeredBadge: { backgroundColor: '#edfaf3', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
-  registeredText: { fontSize: 10, color: '#27ae60', fontWeight: '700' },
-  registeredDate: { fontSize: 10, color: '#aab0be' },
+  addPhotosBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  thumbnailScroll: {
+    marginBottom: 10,
+  },
+  thumbnailRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 4,
+  },
+  thumbnailWrapper: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+  },
+  thumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#e6e9f0',
+  },
+  removeBtn: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#e74c3c',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  removeBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+    lineHeight: 14,
+  },
+  photoCounter: {
+    fontSize: 13,
+    color: '#8a94a6',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  photoWarning: {
+    fontSize: 12,
+    color: '#e74c3c',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 6,
+  },
 
+  // Submit button
   submitBtn: {
-    backgroundColor: BLUE, borderRadius: 14, paddingVertical: 16,
-    alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
-    gap: 8, marginBottom: 14,
-    shadowColor: BLUE, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
+    backgroundColor: GREEN,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    marginTop: 4,
   },
-  submitIcon: { fontSize: 18 },
-  submitText: { fontSize: 15, color: '#ffffff', fontWeight: '700' },
+  submitBtnDisabled: {
+    backgroundColor: GRAY,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  submitInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  submitText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });

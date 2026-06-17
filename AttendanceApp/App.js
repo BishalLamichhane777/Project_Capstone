@@ -23,6 +23,9 @@ import TeacherClassesScreen from './screens/TeacherClassesScreen';
 import TeacherReportsScreen from './screens/TeacherReportsScreen';
 import TeacherProfileScreen from './screens/TeacherProfileScreen';
 
+import ManageBatchesScreen from './screens/ManageBatchesScreen';
+import ManageBatchDetailScreen from './screens/ManageBatchDetailScreen';
+
 import { AuthProvider } from './context/AuthContext';
 
 const Stack = createNativeStackNavigator();
@@ -52,6 +55,10 @@ export default function App() {
           <Stack.Screen name="AdminSettings"      component={AdminSettingsScreen} />
           <Stack.Screen name="SendAlerts"         component={SendAlertsScreen} />
           <Stack.Screen name="ExportReports"      component={ExportReportsScreen} />
+
+          {/* ── Batch Management ── */}
+          <Stack.Screen name="ManageBatches"     component={ManageBatchesScreen} />
+          <Stack.Screen name="ManageBatchDetail" component={ManageBatchDetailScreen} />
 
           {/* ── Teacher ── */}
           <Stack.Screen name="TeacherDashboard"   component={TeacherDashboardScreen} />

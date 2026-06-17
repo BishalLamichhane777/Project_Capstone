@@ -489,6 +489,32 @@ def scan_attendance():
 
     student_name = student.user.fullname if student.user else "Unknown"
 
+    # ── 4b. Enrollment check ──────────────────────────────────────────
+    # Only students enrolled in THIS class may have attendance logged.
+    # A face recognized globally (e.g. a student from another class who
+    # happens to walk past the camera) must NOT receive an attendance mark.
+    enrollment = Enrollment.query.filter_by(
+        student_id=student_id,
+        class_id=session.class_id,
+    ).first()
+    if not enrollment:
+        logger.warning(
+            "Recognized student_id=%s (%s) is NOT enrolled in class_id=%s "
+            "(session=%s) — attendance NOT logged.",
+            student_id, student_name, session.class_id, session_id,
+        )
+        return jsonify({
+            "status"       : "not_enrolled",
+            "student_id"   : student_id,
+            "student_name" : student_name,
+            "event"        : None,
+            "confidence"   : confidence,
+            "message"      : (
+                f"{student_name} is not enrolled in this class — "
+                "attendance not recorded"
+            ),
+        }), 200
+
     # ── 5. Cooldown check ─────────────────────────────────────────────
     # Prevents a single physical pass from generating multiple rapid logs.
     # Threshold comes from config so it can be tuned via env var without

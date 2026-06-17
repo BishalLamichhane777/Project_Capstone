@@ -71,7 +71,7 @@ function StudentCard({ student, onPress }) {
 }
 
 export default function StudentAnalyticsScreen({ navigation, route }) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const studentId = route.params?.student_id || null;
   const isSingleView = studentId || user?.role === 'student';
 
@@ -90,7 +90,7 @@ export default function StudentAnalyticsScreen({ navigation, route }) {
         let url = API.attendanceAnalytics;
         if (studentId) url += `?student_id=${studentId}`;
 
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${user?.token}` } });
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         if (res.ok) {
           const json = await res.json();
           if (isSingleView) {

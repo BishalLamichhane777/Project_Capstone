@@ -82,6 +82,9 @@ def create_app(config_class=Config) -> Flask:
     app.register_blueprint(student_bp, url_prefix="/api/student")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
 
+    from routes.batch import batch_bp
+    app.register_blueprint(batch_bp, url_prefix="/api/admin")
+
     # Keep legacy health check if it exists
     try:
         from health import health_bp
@@ -94,6 +97,17 @@ def create_app(config_class=Config) -> Flask:
         import models  # noqa: F401 — triggers model registration
         db.create_all()
         logger.info("Database tables created / verified")
+
+        # ── Face embedding consistency check ───────────────────────────
+        # Warns at startup if any DB face_label has no matching .npy file.
+        # This catches the Student_N vs roll_number mismatch class of bugs
+        # without blocking startup — recognition will still work for students
+        # whose labels are consistent.
+        try:
+            from services.face_recognition.validate_embeddings import validate_face_labels
+            validate_face_labels()
+        except Exception as _ve:
+            logger.warning("Face embedding validation skipped: %s", _ve)
 
     # ── Global Error Handlers ──────────────────────────────────────────
     @app.errorhandler(400)

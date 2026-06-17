@@ -37,5 +37,13 @@ class Config:
     # same session. Prevents rapid duplicate logs from a single pass.
     SCAN_COOLDOWN_SECONDS = int(os.getenv("SCAN_COOLDOWN_SECONDS", "15"))
 
+    # ── Scheduling ────────────────────────────────────────────────────
+    # Timezone used for all scheduling checks (is-today, time-window).
+    # Must match the physical location of the server/school.
+    SERVER_TIMEZONE = os.getenv("SERVER_TIMEZONE", "Asia/Kathmandu")
+
+    # Minutes before scheduled_time that a teacher may start a session.
+    SESSION_START_BUFFER_MINUTES = int(os.getenv("SESSION_START_BUFFER_MINUTES", "15"))
+
     # ── CSRF Protection (Flask-WTF) ───────────────────────────────────
     WTF_CSRF_ENABLED = True
