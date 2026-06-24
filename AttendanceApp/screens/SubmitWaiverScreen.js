@@ -5,13 +5,15 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   TextInput,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
 import { ChevronLeft, Info, ChevronUp, ChevronDown, FileText, File, X } from 'lucide-react-native';
@@ -45,6 +47,9 @@ export default function SubmitWaiverScreen({ navigation }) {
       if (histRes.ok) {
         const absent = histData.filter(h => h.status === 'Absent');
         setAbsentSessions(absent);
+      } else if (histRes.status === 404 && histData.error?.toLowerCase().includes('student profile')) {
+        Alert.alert('Error', 'Your student profile is incomplete. Please contact your administrator.');
+        return;
       }
 
       const excRes = await fetch(API.myExcuses, {
@@ -53,6 +58,9 @@ export default function SubmitWaiverScreen({ navigation }) {
       const excData = await excRes.json();
       if (excRes.ok) {
         setPastExcuses(excData);
+      } else if (excRes.status === 404 && excData.error?.toLowerCase().includes('student profile')) {
+        Alert.alert('Error', 'Your student profile is incomplete. Please contact your administrator.');
+        return;
       }
     } catch (error) {
       console.error(error);
@@ -131,6 +139,11 @@ export default function SubmitWaiverScreen({ navigation }) {
         <View style={{ width: 38 }} />
       </View>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Info Banner */}
@@ -265,6 +278,7 @@ export default function SubmitWaiverScreen({ navigation }) {
           )}
         </TouchableOpacity>
       </View>
+      </KeyboardAvoidingView>
 
       <BottomNav navigation={navigation} active="History" />
     </SafeAreaView>

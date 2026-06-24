@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
@@ -13,49 +12,55 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { API } from '../api';
 import { useAuth } from '../context/AuthContext';
+import {
+  User, ClipboardList, Shield,
+  GraduationCap, Mail, Eye, EyeOff,
+  BookOpen,
+} from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 const TEACHER_COLOR = '#1a8a5a';
 const ADMIN_COLOR = '#b07d00';
 
 const ROLES = [
-  { key: 'Student', icon: '👤', label: 'Student' },
-  { key: 'Teacher', icon: '📋', label: 'Teacher' },
-  { key: 'Admin',   icon: '🛡️', label: 'Admin'   },
+  { key: 'Student', icon: User,          label: 'Student' },
+  { key: 'Teacher', icon: ClipboardList, label: 'Teacher' },
+  { key: 'Admin',   icon: Shield,        label: 'Admin'   },
 ];
 
 const ROLE_CONFIG = {
   Student: {
-    banner: '📘 Logging in as Student — access your attendance and waivers',
+    bannerIcon: BookOpen,
+    banner: 'Logging in as Student — access your attendance and waivers',
     bannerBg: '#eef2ff',
     bannerText: '#3b5bdb',
     buttonBg: BLUE,
     buttonShadow: BLUE,
     buttonLabel: 'Login as Student',
     navigate: 'Home',
-    showGoogle: true,
   },
   Teacher: {
-    banner: '📋 Logging in as Teacher — manage classes and take attendance',
+    bannerIcon: ClipboardList,
+    banner: 'Logging in as Teacher — manage classes and take attendance',
     bannerBg: '#e8f8f1',
     bannerText: '#1a8a5a',
     buttonBg: TEACHER_COLOR,
     buttonShadow: TEACHER_COLOR,
-    buttonLabel: '📋  Login as Teacher',
+    buttonLabel: 'Login as Teacher',
     navigate: 'TeacherDashboard',
-    showGoogle: false,
   },
   Admin: {
-    banner: '🛡️ Logging in as Admin — access the management dashboard',
+    bannerIcon: Shield,
+    banner: 'Logging in as Admin — access the management dashboard',
     bannerBg: '#fff8e6',
     bannerText: ADMIN_COLOR,
     buttonBg: ADMIN_COLOR,
     buttonShadow: ADMIN_COLOR,
-    buttonLabel: '🛡️  Login as Admin',
+    buttonLabel: 'Login as Admin',
     navigate: 'AdminDashboard',
-    showGoogle: false,
   },
 };
 
@@ -147,7 +152,7 @@ export default function LoginScreen({ navigation }) {
 
             {/* Icon */}
             <View style={styles.iconContainer}>
-              <Text style={styles.iconText}>🎓</Text>
+              <GraduationCap size={28} color={BLUE} />
             </View>
 
             {/* Title */}
@@ -156,13 +161,16 @@ export default function LoginScreen({ navigation }) {
 
             {/* Role Toggle — 3 options */}
             <View style={styles.toggleContainer}>
-              {ROLES.map(({ key, icon, label }) => (
+              {ROLES.map(({ key, icon: RoleIcon, label }) => (
                 <TouchableOpacity
                   key={key}
                   style={[styles.toggleButton, role === key && styles.toggleActive]}
                   onPress={() => setRole(key)}
                 >
-                  <Text style={styles.toggleIcon}>{icon}</Text>
+                  <RoleIcon
+                    size={18}
+                    color={role === key ? '#1a1f36' : '#8a94a6'}
+                  />
                   <Text style={[styles.toggleText, role === key && styles.toggleTextActive]}>
                     {label}
                   </Text>
@@ -172,6 +180,7 @@ export default function LoginScreen({ navigation }) {
 
             {/* Role Info Banner */}
             <View style={[styles.roleBanner, { backgroundColor: config.bannerBg }]}>
+              <config.bannerIcon size={14} color={config.bannerText} style={{ marginRight: 6 }} />
               <Text style={[styles.roleBannerText, { color: config.bannerText }]}>
                 {config.banner}
               </Text>
@@ -189,7 +198,7 @@ export default function LoginScreen({ navigation }) {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <Text style={styles.inputIcon}>✉️</Text>
+              <Mail size={18} color="#aab0be" style={styles.inputIcon} />
             </View>
 
             {/* Password Input */}
@@ -207,7 +216,10 @@ export default function LoginScreen({ navigation }) {
                 onPress={() => setShowPassword(!showPassword)}
                 style={styles.eyeButton}
               >
-                <Text style={styles.inputIcon}>{showPassword ? '👁️' : '🙈'}</Text>
+                {showPassword
+                  ? <Eye    size={18} color="#aab0be" />
+                  : <EyeOff size={18} color="#aab0be" />
+                }
               </TouchableOpacity>
             </View>
 
@@ -232,28 +244,6 @@ export default function LoginScreen({ navigation }) {
                 <Text style={styles.loginButtonText}>{config.buttonLabel}</Text>
               )}
             </TouchableOpacity>
-
-
-            {/* Divider + Google — only for Student */}
-            {config.showGoogle && (
-              <>
-                <View style={styles.dividerContainer}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>OR SIGN IN WITH</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
-                <TouchableOpacity style={styles.googleButton} activeOpacity={0.85}>
-                  <Text style={styles.googleIcon}>G</Text>
-                  <Text style={styles.googleButtonText}>Google</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* Footer */}
-            <Text style={styles.footer}>
-              Protected by Institutional Security Protocols.{'\n'}v2.10 © 2024 Attendance Systems
-            </Text>
 
           </View>
         </ScrollView>
@@ -302,7 +292,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  iconText: { fontSize: 26 },
 
   // Title
   title: {
@@ -345,7 +334,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  toggleIcon: { fontSize: 15 },
   toggleText: {
     fontSize: 11,
     fontWeight: '600',
@@ -362,11 +350,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
     marginBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   roleBannerText: {
     fontSize: 12,
-    textAlign: 'center',
     lineHeight: 18,
+    flexShrink: 1,
   },
 
   // Inputs
@@ -388,7 +378,7 @@ const styles = StyleSheet.create({
     color: '#1a1f36',
     height: '100%',
   },
-  inputIcon: { fontSize: 16, marginLeft: 8 },
+  inputIcon: { marginLeft: 8 },
   eyeButton: { padding: 4 },
 
   // Forgot
@@ -422,57 +412,4 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Divider
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 16,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#e6e9f0',
-  },
-  dividerText: {
-    fontSize: 11,
-    color: '#aab0be',
-    marginHorizontal: 10,
-    fontWeight: '500',
-    letterSpacing: 0.5,
-  },
-
-  // Google
-  googleButton: {
-    width: '100%',
-    height: 50,
-    borderWidth: 1.5,
-    borderColor: '#e6e9f0',
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    marginBottom: 28,
-    gap: 8,
-  },
-  googleIcon: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ea4335',
-  },
-  googleButtonText: {
-    fontSize: 14,
-    color: '#1a1f36',
-    fontWeight: '600',
-  },
-
-  // Footer
-  footer: {
-    fontSize: 11,
-    color: '#aab0be',
-    textAlign: 'center',
-    lineHeight: 17,
-    marginTop: 8,
-  },
 });

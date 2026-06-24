@@ -49,34 +49,57 @@ DETECTOR_BACKEND = "mtcnn"   # MTCNN for detection + alignment
 
 def generate_embedding(image_bgr):
     """
-    Generates a DeepFace face embedding from a BGR image.
-    Returns a numpy array of shape (128,) or None on failure.
+    Generates a DeepFace FaceNet embedding from a BGR image.
 
-    DeepFace.represent() internally:
-      1. Uses MTCNN to detect and align the face
-      2. Resizes the aligned face to 160x160 (FaceNet input size)
-      3. Passes it through the FaceNet CNN
-      4. Returns the 128-dimensional embedding vector
+    Enrollment path (this function):
+      - Runs MTCNN once via detector.py to find and crop the face
+      - Resizes the crop to 160×160 (FaceNet's expected input size)
+      - Calls DeepFace.represent() with detector_backend='skip' so
+        DeepFace does NOT run MTCNN a second time internally
+      - Returns a numpy array of shape (128,) or None on failure
+
+    The scan/recognition path (recognizer.py) is separate and unchanged.
     """
     from deepface import DeepFace
     import warnings
     warnings.filterwarnings('ignore')
 
+    from services.face_recognition.detector import detect_faces, get_largest_face, crop_face
+
     try:
+        # Step 1 — detect face with MTCNN (runs exactly once)
+        detections = detect_faces(image_bgr)
+        if not detections:
+            return None
+
+        best = get_largest_face(detections)
+        if best is None:
+            return None
+
+        # Step 2 — crop the face region (10% padding for alignment margin)
+        face_crop = crop_face(image_bgr, best, padding=0.1)
+        if face_crop is None or face_crop.size == 0:
+            return None
+
+        # Step 3 — resize to 160×160 — FaceNet's fixed input size.
+        # DeepFace does this internally when detector_backend != 'skip',
+        # but with 'skip' we must do it ourselves.
+        face_160 = cv2.resize(face_crop, (160, 160), interpolation=cv2.INTER_AREA)
+
+        # Step 4 — generate embedding. detector_backend='skip' tells
+        # DeepFace to treat the input as an already-cropped face and skip
+        # its own MTCNN pass — avoiding the duplicate detection cost.
         result = DeepFace.represent(
-            img_path         = image_bgr,
-            model_name       = MODEL_NAME,
-            detector_backend = DETECTOR_BACKEND,
-            enforce_detection= True,   # skip if no face found
-            align            = True    # use landmarks for alignment
+            img_path          = face_160,
+            model_name        = MODEL_NAME,
+            detector_backend  = "skip",
+            enforce_detection = False,
+            align             = False,   # alignment was done by MTCNN crop above
         )
-        # result is a list of dicts, one per detected face
-        # We take the first (largest/most confident) face
         embedding = np.array(result[0]['embedding'])
         return embedding
 
-    except Exception as e:
-        # Common reasons: no face detected, face too small
+    except Exception:
         return None
 
 
@@ -263,6 +286,11 @@ def enroll_student_from_images(face_label, image_files):
     it is silently overwritten, giving admins a clean way to update a student's
     reference photos.
 
+    Photos are processed in parallel (thread pool) to avoid blocking the Flask
+    worker for the full serial cost of N × (MTCNN + FaceNet). Each image is also
+    downscaled to MAX_ENROLL_WIDTH before ML inference — FaceNet internally
+    crops and resizes to 160×160 anyway, so there is no accuracy loss.
+
     Args:
         face_label  (str):  Unique label used as the embedding key and filename
                             stem, e.g. the student's roll_number.
@@ -271,69 +299,95 @@ def enroll_student_from_images(face_label, image_files):
 
     Returns:
         (success: bool, message: str, skip_reasons: list[str])
-
-        success      — True if at least one valid embedding was produced.
-        message      — Human-readable outcome string.
-        skip_reasons — List of per-photo skip descriptions, e.g.
-                       ["photo1.jpg: Too dark (brightness=12)",
-                        "photo2.jpg: no face detected"].
-                       Empty list on full success.
     """
     import warnings
+    import concurrent.futures
     warnings.filterwarnings('ignore')
+
+    # Downscale images to this width before ML inference.
+    # FaceNet works on a 160×160 face crop regardless of input size,
+    # so anything beyond ~640px is wasted compute in MTCNN + bilateral filter.
+    MAX_ENROLL_WIDTH = 640
 
     os.makedirs(EMBEDDINGS_FOLDER, exist_ok=True)
 
+    # ── Read all file bytes up-front (FileStorage is not thread-safe) ──
+    file_data = []
+    for file_obj in image_files:
+        filename = getattr(file_obj, 'filename', None) or 'unknown'
+        try:
+            raw_bytes = file_obj.read()
+        except Exception as exc:
+            file_data.append((filename, None, str(exc)))
+            continue
+        file_data.append((filename, raw_bytes, None))
+
+    # ── Per-image worker — decode, resize, preprocess, embed ───────────
+    def process_one(item):
+        filename, raw_bytes, read_err = item
+
+        if read_err:
+            return None, f"{filename}: failed to read ({read_err})"
+
+        # Decode
+        try:
+            nparr = np.frombuffer(raw_bytes, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        except Exception as exc:
+            return None, f"{filename}: failed to decode ({exc})"
+
+        if image is None:
+            return None, f"{filename}: failed to decode (cv2 returned None)"
+
+        # Downscale to cap ML cost — no accuracy impact
+        h, w = image.shape[:2]
+        if w > MAX_ENROLL_WIDTH:
+            scale = MAX_ENROLL_WIDTH / w
+            image = cv2.resize(image, (MAX_ENROLL_WIDTH, int(h * scale)),
+                               interpolation=cv2.INTER_AREA)
+
+        # Quality check
+        ok, reason_str = check_image_quality(image)
+        if not ok:
+            return None, f"{filename}: {reason_str}"
+
+        # Preprocessing
+        preprocessed, err = preprocess_for_enrollment(image)
+        if preprocessed is None:
+            return None, f"{filename}: preprocess failed ({err})"
+
+        # Generate embedding (MTCNN + FaceNet)
+        print(f"    Processing: {filename}...", end=" ", flush=True)
+        embedding = generate_embedding(preprocessed)
+        if embedding is None:
+            print("no face detected")
+            return None, f"{filename}: no face detected"
+
+        print(f"OK (dim={len(embedding)})")
+        return embedding, None
+
+    # Cap workers at 3: with 1 gunicorn worker, 4 CPU threads competing on
+    # TensorFlow internals causes more contention than benefit. 3 threads
+    # gives genuine parallelism while staying within a single-core Docker
+    # budget without thrashing.
+    n_workers = min(len(file_data), 3)
     embeddings   = []
     skip_reasons = []
 
-    for file_obj in image_files:
-        filename = getattr(file_obj, 'filename', None) or 'unknown'
-
-        # Decode bytes -> BGR numpy array in memory
-        try:
-            raw_bytes = file_obj.read()
-            nparr     = np.frombuffer(raw_bytes, np.uint8)
-            image     = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        except Exception as exc:
-            reason = f"{filename}: failed to decode ({exc})"
-            print(f"    SKIP: {reason}")
-            skip_reasons.append(reason)
-            continue
-
-        # Quality check — mirrors enroll_student() exactly
-        ok, reason_str = check_image_quality(image)
-        if not ok:
-            reason = f"{filename}: {reason_str}"
-            print(f"    SKIP: {reason}")
-            skip_reasons.append(reason)
-            continue
-
-        # Preprocessing — mirrors enroll_student() exactly
-        preprocessed, err = preprocess_for_enrollment(image)
-        if preprocessed is None:
-            reason = f"{filename}: preprocess failed ({err})"
-            print(f"    PREPROCESS FAIL: {reason}")
-            skip_reasons.append(reason)
-            continue
-
-        # Generate embedding
-        print(f"    Processing: {filename}...", end=" ")
-        embedding = generate_embedding(preprocessed)
-
-        if embedding is None:
-            reason = f"{filename}: no face detected"
-            print(reason)
-            skip_reasons.append(reason)
-            continue
-
-        embeddings.append(embedding)
-        print(f"OK (dim={len(embedding)})")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as pool:
+        futures = {pool.submit(process_one, item): item[0] for item in file_data}
+        for future in concurrent.futures.as_completed(futures):
+            embedding, reason = future.result()
+            if embedding is not None:
+                embeddings.append(embedding)
+            else:
+                skip_reasons.append(reason)
+                print(f"    SKIP: {reason}")
 
     if len(embeddings) == 0:
         return False, "No valid face embeddings generated", skip_reasons
 
-    # Compute L2-normalised mean embedding — same as enroll_student()
+    # Compute L2-normalised mean embedding
     mean_embedding  = np.mean(embeddings, axis=0)
     mean_embedding /= (np.linalg.norm(mean_embedding) + 1e-10)
 
@@ -342,7 +396,7 @@ def enroll_student_from_images(face_label, image_files):
     print(f"    Mean embedding saved: {mean_path}")
     print(f"    Photos used: {len(embeddings)} | Skipped: {len(skip_reasons)}")
 
-    # Update labels.json — add/update entry for this face_label
+    # Update labels.json
     labels_map = {}
     if os.path.exists(LABELS_FILE):
         try:
@@ -352,7 +406,6 @@ def enroll_student_from_images(face_label, image_files):
             labels_map = {}
 
     if face_label not in labels_map:
-        # Assign next available integer index
         next_idx = max(labels_map.values(), default=-1) + 1
         labels_map[face_label] = next_idx
 

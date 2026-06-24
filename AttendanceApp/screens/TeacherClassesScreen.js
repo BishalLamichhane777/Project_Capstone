@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import TeacherBottomNav from '../components/TeacherBottomNav';
 import { useAuth } from '../context/AuthContext';

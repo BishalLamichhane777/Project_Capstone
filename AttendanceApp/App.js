@@ -1,5 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LoginScreen from './screens/LoginScreen';
 import HomeScreen from './screens/HomeScreen';
 import SubmitWaiverScreen from './screens/SubmitWaiverScreen';
@@ -25,6 +26,7 @@ import TeacherProfileScreen from './screens/TeacherProfileScreen';
 
 import ManageBatchesScreen from './screens/ManageBatchesScreen';
 import ManageBatchDetailScreen from './screens/ManageBatchDetailScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
 
 import { AuthProvider } from './context/AuthContext';
 
@@ -32,8 +34,9 @@ const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NavigationContainer>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {/* ── Auth ── */}
           <Stack.Screen name="Login"              component={LoginScreen} />
@@ -66,8 +69,12 @@ export default function App() {
           <Stack.Screen name="TeacherClasses"     component={TeacherClassesScreen} />
           <Stack.Screen name="TeacherReports"     component={TeacherReportsScreen} />
           <Stack.Screen name="TeacherProfile"     component={TeacherProfileScreen} />
+
+          {/* ── Shared ── */}
+          <Stack.Screen name="Notifications"      component={NotificationsScreen} />
         </Stack.Navigator>
-      </NavigationContainer>
-    </AuthProvider>
+        </NavigationContainer>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

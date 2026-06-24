@@ -4,11 +4,12 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { API } from '../api';
 import BottomNav from '../components/BottomNav';
 import { useAuth } from '../context/AuthContext';
 import { User, Bell, Lock, Phone, Check, ChevronDown, ChevronUp, ChevronRight, LogOut } from 'lucide-react-native';
@@ -55,6 +56,7 @@ const settingsItems = [
 export default function ProfileScreen({ navigation }) {
   const { token, user, logoutState } = useAuth();
   const [fullProfile, setFullProfile] = useState(null);
+  const [enrolledCount, setEnrolledCount] = useState(0);
   const [selectedPeriod, setSelectedPeriod] = useState('Last 5 Months');
   const periods = ['Last 3 Months', 'Last 5 Months', 'This Year'];
   const [periodOpen, setPeriodOpen] = useState(false);
@@ -73,6 +75,20 @@ export default function ProfileScreen({ navigation }) {
         }
       } catch (error) {
         console.error('Error fetching full profile:', error);
+      }
+
+      try {
+        const classRes = await fetch(API.studentClasses, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        if (classRes.ok) {
+          const data = await classRes.json();
+          setEnrolledCount(data.length);
+        }
+      } catch (error) {
+        console.error('Error fetching enrolled classes:', error);
       }
     };
 
@@ -162,20 +178,9 @@ export default function ProfileScreen({ navigation }) {
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>5</Text>
+              <Text style={styles.statValue}>{enrolledCount}</Text>
               <Text style={styles.statLabel}>ACTIVE</Text>
               <Text style={styles.statSub}>subjects</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: '#f39c12' }]}>B+</Text>
-              <Text style={styles.statLabel}>GPA</Text>
-              <View style={styles.starRow}>
-                {[1,2,3,4].map(s => (
-                  <Text key={s} style={styles.star}>★</Text>
-                ))}
-                <Text style={[styles.star, { color: '#ddd' }]}>★</Text>
-              </View>
             </View>
           </View>
         </View>
@@ -472,14 +477,6 @@ const styles = StyleSheet.create({
   statBarFill: {
     height: '100%',
     borderRadius: 2,
-  },
-  starRow: {
-    flexDirection: 'row',
-    marginTop: 2,
-  },
-  star: {
-    fontSize: 10,
-    color: '#f39c12',
   },
 
   // Card

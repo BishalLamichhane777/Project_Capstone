@@ -405,6 +405,154 @@ def update_user(user_id):
     return jsonify({"message": "User updated"}), 200
 
 
+# ── Send Notification ────────────────────────────────────────────────────
+
+
+@admin_bp.route("/send-notification", methods=["POST"])
+@require_role("admin")
+def send_notification():
+    """Send a push notification and persist Notification rows.
+
+    Body (JSON):
+      {
+        "title":       "string (required)",
+        "message":     "string (required)",
+        "target_type": "all_students" | "all_teachers" | "specific_student"
+                       | "specific_teacher" | "batch"  (required),
+        "target_id":   int  -- required when target_type is specific_student,
+                                specific_teacher, or batch
+      }
+
+    Returns:
+      { "recipients": N, "push_sent": K, "message": "..." }
+    """
+    from services.notifications import _send_fcm_multicast
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required", "status": 400}), 400
+
+    title       = (data.get("title") or "").strip()
+    message_txt = (data.get("message") or "").strip()
+    target_type = (data.get("target_type") or "").strip()
+    target_id   = data.get("target_id")
+
+    if not title or not message_txt:
+        return jsonify({"error": "title and message are required", "status": 400}), 400
+
+    valid_targets = {
+        "all_students", "all_teachers",
+        "specific_student", "specific_teacher", "batch",
+    }
+    if target_type not in valid_targets:
+        return jsonify({
+            "error": f"target_type must be one of: {', '.join(sorted(valid_targets))}",
+            "status": 400,
+        }), 400
+
+    if target_type in ("specific_student", "specific_teacher", "batch") and not target_id:
+        return jsonify({
+            "error": f"target_id is required when target_type is '{target_type}'",
+            "status": 400,
+        }), 400
+
+    # ── Resolve recipient users ───────────────────────────────────────
+    recipient_users: list[User] = []
+
+    if target_type == "all_students":
+        recipient_users = User.query.filter_by(role="student").all()
+
+    elif target_type == "all_teachers":
+        recipient_users = User.query.filter_by(role="teacher").all()
+
+    elif target_type == "specific_student":
+        student = Student.query.get(int(target_id))
+        if not student:
+            return jsonify({"error": "Student not found", "status": 404}), 404
+        user = User.query.get(student.user_id)
+        if not user:
+            return jsonify({"error": "User account not found for student", "status": 404}), 404
+        recipient_users = [user]
+
+    elif target_type == "specific_teacher":
+        user = User.query.filter_by(id=int(target_id), role="teacher").first()
+        if not user:
+            return jsonify({"error": "Teacher not found", "status": 404}), 404
+        recipient_users = [user]
+
+    elif target_type == "batch":
+        from models.batch import Batch, BatchStudent
+        batch = Batch.query.get(int(target_id))
+        if not batch:
+            return jsonify({"error": "Batch not found", "status": 404}), 404
+        for bs in batch.batch_students:
+            student_user = User.query.get(bs.student.user_id) if bs.student else None
+            if student_user:
+                recipient_users.append(student_user)
+
+    if not recipient_users:
+        return jsonify({
+            "recipients": 0,
+            "push_sent":  0,
+            "message":    "No recipients found for the selected target.",
+        }), 200
+
+    # ── Persist Notification rows ─────────────────────────────────────
+    notif_type = "General"   # stored in the type column
+    for user in recipient_users:
+        db.session.add(Notification(
+            user_id=user.id,
+            type=notif_type,
+            message=f"{title}: {message_txt}",
+        ))
+
+    # Also save a copy for the admin who sent it so it appears in their bell
+    admin_user_id = g.current_user["user_id"]
+    admin_ids_in_recipients = {u.id for u in recipient_users}
+    if admin_user_id not in admin_ids_in_recipients:
+        # Build a human-readable summary for the admin's own record
+        target_label = {
+            "all_students":     "All Students",
+            "all_teachers":     "All Teachers",
+            "specific_student": "Specific Student",
+            "specific_teacher": "Specific Teacher",
+            "batch":            "Batch",
+        }.get(target_type, target_type)
+        db.session.add(Notification(
+            user_id=admin_user_id,
+            type="General",
+            message=f"[Sent to {target_label}] {title}: {message_txt}",
+        ))
+
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("send-notification: DB commit failed: %s", exc)
+        return jsonify({"error": "Failed to save notifications", "status": 500}), 500
+
+    # ── Send push notifications to devices that have a token ──────────
+    tokens = [u.device_token for u in recipient_users if u.device_token]
+    push_sent = 0
+    if tokens:
+        success = _send_fcm_multicast(device_tokens=tokens, title=title, body=message_txt)
+        push_sent = len(tokens) if success else 0
+
+    logger.info(
+        "send-notification: target=%s id=%s recipients=%d push_tokens=%d push_sent=%d",
+        target_type, target_id, len(recipient_users), len(tokens), push_sent,
+    )
+
+    return jsonify({
+        "recipients": len(recipient_users),
+        "push_sent":  push_sent,
+        "message":    (
+            f"Notification sent to {len(recipient_users)} recipient(s). "
+            f"{push_sent} push notification(s) delivered."
+        ),
+    }), 200
+
+
 # ── Notifications ─────────────────────────────────────────────────────────
 
 

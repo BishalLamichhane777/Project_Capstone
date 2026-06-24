@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar, Alert, Switch,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Alert, Switch,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AdminBottomNav from '../components/AdminBottomNav';
 import {
   User, Lock, Shield, Bell, Mail, AlertTriangle, ScanFace, Calendar,

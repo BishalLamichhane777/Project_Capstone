@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar, Alert, RefreshControl, ActivityIndicator
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Alert, RefreshControl, ActivityIndicator
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AdminBottomNav from '../components/AdminBottomNav';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
@@ -76,6 +76,7 @@ export default function AdminDashboardScreen({ navigation }) {
   const [recentSessions, setRecentSessions] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchData = async () => {
     try {
@@ -94,6 +95,15 @@ export default function AdminDashboardScreen({ navigation }) {
         const sessionsData = await sessionsRes.json();
         setRecentSessions(sessionsData);
       }
+
+      // Fetch unread notification count for badge
+      const notifRes = await fetch(API.notificationUnreadCount, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (notifRes.ok) {
+        const notifData = await notifRes.json();
+        setUnreadCount(notifData.unread_count ?? 0);
+      }
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to fetch dashboard data.');
@@ -106,6 +116,11 @@ export default function AdminDashboardScreen({ navigation }) {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const unsub = navigation.addListener('focus', fetchData);
+    return unsub;
+  }, [navigation]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -142,6 +157,19 @@ export default function AdminDashboardScreen({ navigation }) {
             <Shield size={12} color={GOLD} style={{ marginRight: 4 }} />
             <Text style={styles.adminBadgeText}>Admin</Text>
           </View>
+          <TouchableOpacity
+            style={styles.bellBtn}
+            onPress={() => navigation.navigate('Notifications')}
+          >
+            <Bell size={18} color="#1a1f36" />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
             <LogOut size={18} color="#e74c3c" />
           </TouchableOpacity>
@@ -328,6 +356,22 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#f0d080',
   },
   adminBadgeText: { fontSize: 12, color: GOLD, fontWeight: '700' },
+  bellBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 6, elevation: 3,
+    position: 'relative',
+  },
+  bellBadge: {
+    position: 'absolute', top: -3, right: -3,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#e74c3c',
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: '#f5f7fa',
+  },
+  bellBadgeText: { fontSize: 9, color: '#ffffff', fontWeight: '800' },
   logoutBtn: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: '#fff0f0', justifyContent: 'center', alignItems: 'center',

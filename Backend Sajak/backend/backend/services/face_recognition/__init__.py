@@ -17,6 +17,27 @@ except Exception as e:
     _EMBEDDINGS = {}
     logger.error("Failed to load face recognition embeddings: %s", e)
 
+# Warm-up DeepFace + FaceNet at startup so the first real scan doesn't
+# pay the model-load penalty (typically 2–5 s on first call).
+def _warmup_deepface():
+    try:
+        from deepface import DeepFace
+        import warnings
+        warnings.filterwarnings('ignore')
+        blank = np.zeros((160, 160, 3), dtype=np.uint8)
+        DeepFace.represent(
+            img_path=blank,
+            model_name="Facenet",
+            detector_backend="skip",
+            enforce_detection=False,
+            align=False,
+        )
+        logger.info("DeepFace FaceNet model warmed up successfully.")
+    except Exception as e:
+        logger.warning("DeepFace warm-up failed (non-fatal): %s", e)
+
+_warmup_deepface()
+
 
 def reload_embeddings() -> None:
     """Reload all student embeddings from disk into the module-level cache.
@@ -63,6 +84,18 @@ def recognize_student(image_bytes: bytes) -> dict:
                 "face_label": None,
                 "message": "Failed to decode image"
             }
+
+        # Downscale if the frame is larger than 640px wide.
+        # FaceNet operates on a 160×160 face crop, so anything beyond
+        # ~640px wide wastes MTCNN inference time with no accuracy gain.
+        # The frontend already resizes to 480px; this guard handles any
+        # client that skips that step.
+        MAX_WIDTH = 640
+        h, w = img.shape[:2]
+        if w > MAX_WIDTH:
+            scale = MAX_WIDTH / w
+            img = cv2.resize(img, (MAX_WIDTH, int(h * scale)),
+                             interpolation=cv2.INTER_AREA)
 
         # Perform recognition
         result = recognize_face(img, _EMBEDDINGS)

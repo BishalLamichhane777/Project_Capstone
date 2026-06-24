@@ -5,12 +5,12 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
 import { BookOpen, Clock, ChevronLeft, Inbox } from 'lucide-react-native';
@@ -101,7 +101,10 @@ export default function AttendanceHistoryScreen({ navigation }) {
       if (res.ok) {
         setRecords(data);
       } else {
-        Alert.alert('Error', data.error || 'Failed to load attendance history');
+        const message = (res.status === 404 && data.error?.toLowerCase().includes('student profile'))
+          ? 'Your student profile is incomplete. Please contact your administrator.'
+          : data.error || 'Failed to load attendance history';
+        Alert.alert('Error', message);
       }
     } catch (e) {
       console.log('Error fetching history:', e);

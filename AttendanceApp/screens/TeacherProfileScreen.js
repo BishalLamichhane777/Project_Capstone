@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar, Switch,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Switch,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import TeacherBottomNav from '../components/TeacherBottomNav';
 import { Edit2, Key, Image as ImageIcon, Globe, Palette, Bell, Mail, Smartphone, Lock, Camera, Save, HelpCircle, Bug, FileText, Clipboard, Settings, ChevronRight, LogOut, Phone, Building, Calendar } from 'lucide-react-native';
 

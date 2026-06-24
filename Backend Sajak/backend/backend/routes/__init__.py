@@ -7,6 +7,8 @@ from routes.excuse import excuse_bp
 from routes.student import student_bp
 from routes.admin import admin_bp
 
+from routes.notifications import notifications_bp
+
 __all__ = [
     "auth_bp",
     "session_bp",
@@ -14,4 +16,5 @@ __all__ = [
     "excuse_bp",
     "student_bp",
     "admin_bp",
+    "notifications_bp",
 ]

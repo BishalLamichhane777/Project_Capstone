@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar, Dimensions,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import TeacherBottomNav from '../components/TeacherBottomNav';
 import { CheckCircle2, AlertTriangle, ClipboardList, Trophy, Upload, ChevronRight } from 'lucide-react-native';
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LayoutDashboard, History, GraduationCap, User } from 'lucide-react-native';
 
@@ -13,8 +14,9 @@ const tabs = [
 ];
 
 export default function BottomNav({ navigation, active }) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.bottomNav}>
+    <View style={[styles.bottomNav, { paddingBottom: 10 + insets.bottom }]}>
       {tabs.map((tab) => (
         <TouchableOpacity
           key={tab.name}
@@ -37,7 +39,7 @@ const styles = StyleSheet.create({
   bottomNav: {
     flexDirection: 'row',
     backgroundColor: '#ffffff',
-    paddingVertical: 10,
+    paddingTop: 10,
     paddingHorizontal: 10,
     borderTopWidth: 1,
     borderTopColor: '#eef1f5',

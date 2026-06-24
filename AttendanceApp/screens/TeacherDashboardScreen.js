@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar, RefreshControl, ActivityIndicator, Alert,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, RefreshControl, ActivityIndicator, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import TeacherBottomNav from '../components/TeacherBottomNav';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
@@ -118,6 +118,7 @@ export default function TeacherDashboardScreen({ navigation }) {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchSessions = async () => {
     try {
@@ -139,14 +140,25 @@ export default function TeacherDashboardScreen({ navigation }) {
     }
   };
 
+  const fetchUnreadCount = () => {
+    fetch(API.notificationUnreadCount, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setUnreadCount(d.unread_count ?? 0); })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     fetchSessions();
+    fetchUnreadCount();
   }, []);
 
   // Re-fetch when screen comes back into focus (e.g. after batch changes)
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       fetchSessions();
+      fetchUnreadCount();
     });
     return unsubscribe;
   }, [navigation]);
@@ -186,8 +198,18 @@ export default function TeacherDashboardScreen({ navigation }) {
               <Text style={styles.nameText}>Hello, {displayName}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.bellBtn}>
+          <TouchableOpacity
+            style={styles.bellBtn}
+            onPress={() => navigation.navigate('Notifications')}
+          >
             <Bell size={18} color="#1a1f36" />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -287,8 +309,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07, shadowRadius: 6, elevation: 3,
+    position: 'relative',
   },
   bellIcon: { fontSize: 18 },
+  bellBadge: {
+    position: 'absolute', top: -3, right: -3,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#e74c3c',
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: '#f5f7fa',
+  },
+  bellBadgeText: { fontSize: 9, color: '#ffffff', fontWeight: '800' },
 
   // Stats
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },

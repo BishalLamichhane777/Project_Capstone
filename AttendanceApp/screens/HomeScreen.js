@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BottomNav from '../components/BottomNav';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { Bell, CheckCircle2, ClipboardList, FileText, ChevronRight } from 'lucide-react-native';
+import { API } from '../api';
 
 
 // Simple circular progress using border trick
@@ -49,7 +50,31 @@ function WeeklyTrendChart() {
 }
 
 export default function HomeScreen({ navigation }) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    fetch(API.notificationUnreadCount, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setUnreadCount(d.unread_count ?? 0); })
+      .catch(() => {});
+  }, []);
+
+  // Reset badge when returning from NotificationsScreen
+  useEffect(() => {
+    const unsub = navigation.addListener('focus', () => {
+      fetch(API.notificationUnreadCount, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setUnreadCount(d.unread_count ?? 0); })
+        .catch(() => {});
+    });
+    return unsub;
+  }, [navigation]);
+
   const displayName = user?.fullname || 'Student';
   const displayInitials = user?.fullname
     ? user.fullname.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -77,8 +102,18 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.nameText}>{displayName}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.bellButton}>
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={() => navigation.navigate('Notifications')}
+          >
             <Bell size={17} color="#1a1f36" />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -220,10 +255,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07,
     shadowRadius: 6,
     elevation: 3,
+    position: 'relative',
   },
   bellIcon: {
     fontSize: 17,
   },
+  bellBadge: {
+    position: 'absolute', top: -3, right: -3,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#e74c3c',
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: '#f5f7fa',
+  },
+  bellBadgeText: { fontSize: 9, color: '#ffffff', fontWeight: '800' },
 
   // Card
   card: {

@@ -16,7 +16,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -25,10 +24,12 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
+import { Eye, EyeOff } from 'lucide-react-native';
 
 // ── Design tokens (matches AdminDashboardScreen) ──────────────────────────
 const BLUE    = '#2952e3';
@@ -55,6 +56,7 @@ export default function AddStudentFaceScreen({ navigation }) {
 
   // ── UI state ────────────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // ── Auth ────────────────────────────────────────────────────────────
   const { token } = useAuth();
@@ -97,7 +99,7 @@ export default function AddStudentFaceScreen({ navigation }) {
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
       selectionLimit: remaining,
-      quality: 0.8,
+      quality: 1,   // pass through uncompressed — ImageManipulator handles the single encode below
     });
 
     console.log('Picker result canceled:', result.canceled);
@@ -107,8 +109,8 @@ export default function AddStudentFaceScreen({ navigation }) {
       const converted = await Promise.all(result.assets.map(async (asset) => {
         const manipulated = await ImageManipulator.manipulateAsync(
           asset.uri,
-          [{ resize: { width: 800 } }],
-          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+          [{ resize: { width: 480 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
         );
         console.log('Converted asset uri:', manipulated.uri);
         return {
@@ -274,15 +276,23 @@ export default function AddStudentFaceScreen({ navigation }) {
 
             {/* Password */}
             <Text style={styles.label}>Password <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Minimum 8 characters"
-              placeholderTextColor="#aab0be"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              returnKeyType="next"
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                placeholder="Minimum 8 characters"
+                placeholderTextColor="#aab0be"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                returnKeyType="next"
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowPassword(p => !p)}
+              >
+                {showPassword ? <Eye size={18} color="#aab0be" /> : <EyeOff size={18} color="#aab0be" />}
+              </TouchableOpacity>
+            </View>
 
             {/* Roll Number */}
             <Text style={styles.label}>Roll Number <Text style={styles.required}>*</Text></Text>
@@ -386,6 +396,14 @@ export default function AddStudentFaceScreen({ navigation }) {
             ) : (
               <Text style={styles.submitText}>Register Student</Text>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => { resetForm(); navigation.goBack(); }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
@@ -560,5 +578,33 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#e6e9f0',
+    borderRadius: 8,
+    backgroundColor: '#f8f9ff',
+    marginBottom: 4,
+    paddingRight: 4,
+  },
+  eyeBtn: {
+    padding: 10,
+  },
+  cancelBtn: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    borderWidth: 1.5,
+    borderColor: '#e6e9f0',
+    backgroundColor: '#ffffff',
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#8a94a6',
   },
 });

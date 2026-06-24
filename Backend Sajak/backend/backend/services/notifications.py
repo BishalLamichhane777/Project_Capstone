@@ -1,57 +1,73 @@
 """FCM push notification service.
 
-Uses Firebase Admin SDK messaging.
+Uses the Expo Push Notification API (https://exp.host/--/exponent-push-api/v2/push/send)
+which works with ExponentPushToken values registered by expo-notifications on the client.
 All operations wrapped in try/except — failures are logged, never crash the API.
 """
 
 import logging
 
+import requests as _requests
+
 logger = logging.getLogger(__name__)
+
+_EXPO_PUSH_URL = "https://exp.host/--/exponent-push-api/v2/push/send"
+_EXPO_HEADERS  = {
+    "Accept":       "application/json",
+    "Content-Type": "application/json",
+}
 
 
 def _send_fcm(device_token: str, title: str, body: str) -> bool:
-    """Send a single FCM push notification.
+    """Send a single Expo push notification.
 
+    Accepts an ExponentPushToken (e.g. "ExponentPushToken[xxxxxx]").
     Returns True on success, False on failure.
     """
     try:
-        from firebase_admin import messaging
-
-        message = messaging.Message(
-            notification=messaging.Notification(title=title, body=body),
-            token=device_token,
+        payload = {"to": device_token, "title": title, "body": body}
+        response = _requests.post(
+            _EXPO_PUSH_URL, json=payload, headers=_EXPO_HEADERS, timeout=10
         )
-        response = messaging.send(message)
-        logger.info("FCM sent successfully: %s", response)
+        response.raise_for_status()
+        data = response.json()
+        # Expo returns a "data" array; each entry has a "status" field
+        statuses = [item.get("status") for item in data.get("data", [])]
+        if "error" in statuses:
+            logger.error("Expo push error response (token=%s): %s", device_token, data)
+            return False
+        logger.info("Expo push sent successfully to token=%s", device_token)
         return True
     except Exception as exc:
-        logger.error("FCM send failed (token=%s): %s", device_token, exc)
+        logger.error("Expo push failed (token=%s): %s", device_token, exc)
         return False
 
 
 def _send_fcm_multicast(device_tokens: list, title: str, body: str) -> bool:
-    """Send FCM push to multiple devices.
+    """Send Expo push notification to multiple devices in one request.
 
-    Returns True if at least one message was sent successfully.
+    Returns True if the request succeeded and at least one message was
+    accepted (status != 'error').
     """
     if not device_tokens:
         return False
     try:
-        from firebase_admin import messaging
-
-        message = messaging.MulticastMessage(
-            notification=messaging.Notification(title=title, body=body),
-            tokens=device_tokens,
+        payload = {"to": device_tokens, "title": title, "body": body}
+        response = _requests.post(
+            _EXPO_PUSH_URL, json=payload, headers=_EXPO_HEADERS, timeout=10
         )
-        response = messaging.send_each_for_multicast(message)
+        response.raise_for_status()
+        data = response.json()
+        statuses  = [item.get("status") for item in data.get("data", [])]
+        ok_count  = statuses.count("ok")
+        err_count = statuses.count("error")
         logger.info(
-            "FCM multicast: %d success, %d failure",
-            response.success_count,
-            response.failure_count,
+            "Expo multicast: %d ok, %d error (of %d tokens)",
+            ok_count, err_count, len(device_tokens),
         )
-        return response.success_count > 0
+        return ok_count > 0
     except Exception as exc:
-        logger.error("FCM multicast failed: %s", exc)
+        logger.error("Expo multicast failed: %s", exc)
         return False
 
 

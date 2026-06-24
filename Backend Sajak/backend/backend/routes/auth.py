@@ -159,6 +159,32 @@ def register():
 
     db.session.commit()
 
+    # Post-commit verification for student role: confirm the students row
+    # was actually persisted. In normal operation this will always pass, but
+    # if a silent DB error or ORM edge-case caused the row to be dropped we
+    # catch it here rather than leaving the user in a broken half-registered
+    # state (user row exists, students row missing).
+    if role == "student":
+        saved_student = Student.query.filter_by(user_id=user.id).first()
+        if not saved_student:
+            logger.error(
+                "register: user_id=%s was committed but students row is missing — "
+                "possible DB constraint or ORM issue.",
+                user.id,
+            )
+            return (
+                jsonify(
+                    {
+                        "error": (
+                            "User created but student profile failed to save. "
+                            "Please contact admin."
+                        ),
+                        "status": 500,
+                    }
+                ),
+                500,
+            )
+
     # Create user in Firebase Auth (best-effort)
     try:
         from firebase_admin import auth as firebase_auth
@@ -200,3 +226,39 @@ def me():
         }
 
     return jsonify(result), 200
+
+
+@auth_bp.route("/device-token", methods=["POST"])
+def register_device_token():
+    """Save the caller's Expo push token to their user record.
+
+    Requires a valid JWT in the Authorization header.
+    Body: { "device_token": "<ExponentPushToken[...]>" }
+
+    The token is stored on the users.device_token column and used by
+    services/notifications.py to send FCM/Expo push notifications.
+    """
+    # Authenticate using the same pattern as /me
+    auth_error = authenticate()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required", "status": 400}), 400
+
+    device_token = data.get("device_token", "").strip()
+    if not device_token:
+        return jsonify({"error": "device_token is required", "status": 400}), 400
+
+    user_id = g.current_user["user_id"]
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found", "status": 404}), 404
+
+    user.device_token = device_token
+    db.session.commit()
+
+    logger.info("Device token saved for user_id=%s role=%s", user_id, user.role)
+
+    return jsonify({"message": "Device token saved"}), 200

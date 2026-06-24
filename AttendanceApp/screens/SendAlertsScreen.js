@@ -1,127 +1,314 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, StatusBar, Alert, TextInput,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar,
+  Alert, TextInput, ActivityIndicator, Modal, FlatList,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AdminBottomNav from '../components/AdminBottomNav';
-import { AlertTriangle, XCircle, ClipboardList, Megaphone, ChevronLeft, Check, Send } from 'lucide-react-native';
+import {
+  AlertTriangle, XCircle, ClipboardList, Megaphone, ChevronLeft,
+  Check, Send, Users, User, BookOpen, ChevronDown, Bell,
+} from 'lucide-react-native';
+import { API } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 const BLUE = '#2952e3';
-const GOLD = '#b07d00';
 
-const alertTypes = [
-  { key: 'attendance', icon: AlertTriangle, label: 'Low Attendance',   sub: 'Warn students below threshold', color: '#fff8e6', activeColor: '#f39c12' },
-  { key: 'absence',    icon: XCircle, label: 'Absence Reminder',  sub: 'Remind about missed classes',   color: '#fff0f0', activeColor: '#e74c3c' },
-  { key: 'waiver',     icon: ClipboardList, label: 'Waiver Update',     sub: 'Notify waiver status change',   color: '#eef2ff', activeColor: BLUE },
-  { key: 'general',    icon: Megaphone, label: 'General Announcement', sub: 'Broadcast to all students',  color: '#edfaf3', activeColor: '#27ae60' },
+// ─── Target-type options ─────────────────────────────────────────────────
+const TARGET_TYPES = [
+  { key: 'all_students',      label: 'All Students',     icon: Users,      needsPicker: false },
+  { key: 'all_teachers',      label: 'All Teachers',     icon: Users,      needsPicker: false },
+  { key: 'specific_student',  label: 'Specific Student', icon: User,       needsPicker: true  },
+  { key: 'specific_teacher',  label: 'Specific Teacher', icon: User,       needsPicker: true  },
+  { key: 'batch',             label: 'Batch / Group',    icon: BookOpen,   needsPicker: true  },
 ];
 
-const recipientGroups = [
-  { key: 'all',      label: 'All Students',       count: '248' },
-  { key: 'highrisk', label: 'High Risk Students',  count: '14' },
-  { key: 'midrisk',  label: 'Mid Risk Students',   count: '23' },
-  { key: 'class',    label: 'Specific Class',      count: null },
+// ─── Alert-type chips (cosmetic only) ────────────────────────────────────
+const ALERT_TYPES = [
+  { key: 'attendance', icon: AlertTriangle, label: 'Low Attendance',      color: '#fff8e6', activeColor: '#f39c12' },
+  { key: 'absence',    icon: XCircle,       label: 'Absence Reminder',    color: '#fff0f0', activeColor: '#e74c3c' },
+  { key: 'waiver',     icon: ClipboardList, label: 'Waiver Update',       color: '#eef2ff', activeColor: BLUE      },
+  { key: 'general',    icon: Megaphone,     label: 'General',             color: '#edfaf3', activeColor: '#27ae60' },
 ];
 
-const recentAlerts = [
-  { type: AlertTriangle, title: 'Low Attendance Warning',    recipients: '14 students', time: '2h ago',  color: '#fff8e6' },
-  { type: Megaphone, title: 'Semester Exam Schedule',     recipients: 'All students', time: '1d ago',  color: '#edfaf3' },
-  { type: XCircle, title: 'Absence Reminder — CS-301',  recipients: '8 students',  time: '3d ago',  color: '#fff0f0' },
-];
+function formatRelative(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
+// ─── Picker Modal ────────────────────────────────────────────────────────
+function PickerModal({ visible, title, items, onSelect, onClose, loading }) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose} />
+      <View style={styles.modalSheet}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <TouchableOpacity onPress={onClose}><XCircle size={22} color="#8a94a6" /></TouchableOpacity>
+        </View>
+        {loading ? (
+          <ActivityIndicator size="large" color={BLUE} style={{ marginVertical: 30 }} />
+        ) : items.length === 0 ? (
+          <Text style={styles.modalEmpty}>No options available</Text>
+        ) : (
+          <FlatList
+            data={items}
+            keyExtractor={i => String(i.value)}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={styles.modalItem} onPress={() => onSelect(item)}>
+                <Text style={styles.modalItemText}>{item.label}</Text>
+                <Text style={styles.modalItemSub}>{item.sub || ''}</Text>
+              </TouchableOpacity>
+            )}
+            style={{ maxHeight: 320 }}
+          />
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Main Screen ─────────────────────────────────────────────────────────
 export default function SendAlertsScreen({ navigation }) {
-  const [selectedType,   setSelectedType]   = useState('attendance');
-  const [selectedGroup,  setSelectedGroup]  = useState('all');
-  const [subject,        setSubject]        = useState('');
-  const [message,        setMessage]        = useState('');
+  const { token } = useAuth();
 
-  const activeType = alertTypes.find(t => t.key === selectedType);
+  // Form state
+  const [alertType,   setAlertType]   = useState('general');
+  const [targetType,  setTargetType]  = useState('all_students');
+  const [targetId,    setTargetId]    = useState(null);
+  const [targetLabel, setTargetLabel] = useState('');
+  const [title,       setTitle]       = useState('');
+  const [message,     setMessage]     = useState('');
+  const [sending,     setSending]     = useState(false);
 
-  const handleSend = () => {
-    if (!subject.trim() || !message.trim()) {
-      Alert.alert('Missing Fields', 'Please fill in both subject and message.');
+  // Picker modal
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerItems,   setPickerItems]   = useState([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+
+  // Recent notifications
+  const [recents,        setRecents]        = useState([]);
+  const [recentsLoading, setRecentsLoading] = useState(true);
+
+  const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+  // Fetch recent notifications on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(API.adminNotifications, { headers: authHeaders });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data)) setRecents(data.slice(0, 5));
+      } catch (_) {}
+      setRecentsLoading(false);
+    })();
+  }, []);
+
+  // When target type changes, clear selection
+  useEffect(() => {
+    setTargetId(null);
+    setTargetLabel('');
+  }, [targetType]);
+
+  const activeAlertType = ALERT_TYPES.find(t => t.key === alertType);
+  const currentTarget   = TARGET_TYPES.find(t => t.key === targetType);
+
+  // ── Open picker and load data ──────────────────────────────────────
+  const openPicker = useCallback(async () => {
+    setPickerItems([]);
+    setPickerVisible(true);
+    setPickerLoading(true);
+    try {
+      let url, items = [];
+      if (targetType === 'specific_student') {
+        url = API.adminStudentsList;
+        const res  = await fetch(url, { headers: authHeaders });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data)) {
+          items = data.map(s => ({
+            value: s.student_id,
+            label: s.fullname || s.name || `Student #${s.student_id}`,
+            sub:   s.roll_number || s.email || '',
+          }));
+        }
+      } else if (targetType === 'specific_teacher') {
+        url = API.adminTeachers;
+        const res  = await fetch(url, { headers: authHeaders });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data)) {
+          items = data.map(u => ({
+            value: u.id,
+            label: u.fullname,
+            sub:   u.email || '',
+          }));
+        }
+      } else if (targetType === 'batch') {
+        url = API.adminBatches;
+        const res  = await fetch(url, { headers: authHeaders });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data)) {
+          items = data.map(b => ({
+            value: b.batch_id,
+            label: b.batch_name,
+            sub:   `${b.student_count ?? 0} students`,
+          }));
+        }
+      }
+      setPickerItems(items);
+    } catch (_) {
+      setPickerItems([]);
+    }
+    setPickerLoading(false);
+  }, [targetType, token]);
+
+  const handlePickerSelect = (item) => {
+    setTargetId(item.value);
+    setTargetLabel(item.label);
+    setPickerVisible(false);
+  };
+
+  // ── Send ──────────────────────────────────────────────────────────────
+  const handleSend = async () => {
+    if (!title.trim() || !message.trim()) {
+      Alert.alert('Missing Fields', 'Please fill in both title and message.');
       return;
     }
-    const group = recipientGroups.find(g => g.key === selectedGroup);
-    Alert.alert(
-      '✅ Alert Sent',
-      `Your alert has been sent to ${group.label}.`,
-      [{ text: 'OK', onPress: () => { setSubject(''); setMessage(''); } }]
-    );
+    if (currentTarget?.needsPicker && !targetId) {
+      Alert.alert('Select Recipient', `Please select a ${currentTarget.label.toLowerCase()}.`);
+      return;
+    }
+    setSending(true);
+    try {
+      const body = {
+        title:       title.trim(),
+        message:     message.trim(),
+        target_type: targetType,
+      };
+      if (targetId) body.target_id = targetId;
+
+      const res  = await fetch(API.adminSendNotification, {
+        method:  'POST',
+        headers: authHeaders,
+        body:    JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        Alert.alert(
+          'Notification Sent',
+          data.message || `Sent to ${data.recipients} recipient(s).`,
+          [{ text: 'OK', onPress: () => { setTitle(''); setMessage(''); setTargetId(null); setTargetLabel(''); } }]
+        );
+        // Refresh recents
+        try {
+          const r2 = await fetch(API.adminNotifications, { headers: authHeaders });
+          const d2 = await r2.json();
+          if (r2.ok && Array.isArray(d2)) setRecents(d2.slice(0, 5));
+        } catch (_) {}
+      } else {
+        Alert.alert('Error', data.error || 'Failed to send notification.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Network error. Please try again.');
+    }
+    setSending(false);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <ChevronLeft size={22} color="#1a1f36" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Send Alerts</Text>
+        <Text style={styles.headerTitle}>Send Notification</Text>
         <View style={{ width: 38 }} />
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Alert Type */}
-        <Text style={styles.sectionLabel}>ALERT TYPE</Text>
+        {/* Alert Type chips */}
+        <Text style={styles.sectionLabel}>NOTIFICATION TYPE</Text>
         <View style={styles.typeGrid}>
-          {alertTypes.map(type => {
-            const isActive = selectedType === type.key;
+          {ALERT_TYPES.map(type => {
+            const isActive = alertType === type.key;
             return (
               <TouchableOpacity
                 key={type.key}
-                style={[styles.typeCard, { backgroundColor: type.color }, isActive && { borderColor: type.activeColor, borderWidth: 2 }]}
-                onPress={() => setSelectedType(type.key)}
+                style={[styles.typeCard, { backgroundColor: type.color },
+                        isActive && { borderColor: type.activeColor, borderWidth: 2 }]}
+                onPress={() => setAlertType(type.key)}
                 activeOpacity={0.8}
               >
                 <View style={{ marginBottom: 6 }}>
                   <type.icon size={22} color={isActive ? type.activeColor : '#1a1f36'} />
                 </View>
-                <Text style={[styles.typeLabel, isActive && { color: type.activeColor }]}>{type.label}</Text>
-                <Text style={styles.typeSub}>{type.sub}</Text>
-                {isActive && <View style={[styles.typeCheck, { backgroundColor: type.activeColor }]}>
-                  <Check size={11} color="#ffffff" />
-                </View>}
+                <Text style={[styles.typeLabel, isActive && { color: type.activeColor }]}>
+                  {type.label}
+                </Text>
+                {isActive && (
+                  <View style={[styles.typeCheck, { backgroundColor: type.activeColor }]}>
+                    <Check size={11} color="#ffffff" />
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Recipients */}
-        <Text style={styles.sectionLabel}>RECIPIENTS</Text>
+        {/* Target audience */}
+        <Text style={styles.sectionLabel}>SEND TO</Text>
         <View style={styles.card}>
-          {recipientGroups.map((group, i) => (
-            <TouchableOpacity
-              key={group.key}
-              style={[styles.recipientRow, i !== recipientGroups.length - 1 && styles.recipientBorder]}
-              onPress={() => setSelectedGroup(group.key)}
-            >
-              <View style={[styles.radioOuter, selectedGroup === group.key && styles.radioOuterActive]}>
-                {selectedGroup === group.key && <View style={styles.radioInner} />}
-              </View>
-              <Text style={styles.recipientLabel}>{group.label}</Text>
-              {group.count && (
-                <View style={styles.recipientCount}>
-                  <Text style={styles.recipientCountText}>{group.count}</Text>
+          {TARGET_TYPES.map((t, i) => {
+            const isActive = targetType === t.key;
+            return (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.recipientRow, i !== TARGET_TYPES.length - 1 && styles.recipientBorder]}
+                onPress={() => setTargetType(t.key)}
+              >
+                <View style={[styles.radioOuter, isActive && styles.radioOuterActive]}>
+                  {isActive && <View style={styles.radioInner} />}
                 </View>
-              )}
-            </TouchableOpacity>
-          ))}
+                <t.icon size={16} color={isActive ? BLUE : '#8a94a6'} style={{ marginRight: 10 }} />
+                <Text style={[styles.recipientLabel, isActive && { color: BLUE }]}>{t.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
+        {/* Specific-target picker */}
+        {currentTarget?.needsPicker && (
+          <>
+            <Text style={styles.sectionLabel}>SELECT {currentTarget.label.toUpperCase()}</Text>
+            <TouchableOpacity style={styles.pickerRow} onPress={openPicker} activeOpacity={0.85}>
+              <Text style={[styles.pickerText, !targetLabel && { color: '#aab0be' }]}>
+                {targetLabel || `Tap to select ${currentTarget.label}…`}
+              </Text>
+              <ChevronDown size={18} color="#8a94a6" />
+            </TouchableOpacity>
+          </>
+        )}
+
         {/* Compose */}
-        <Text style={styles.sectionLabel}>COMPOSE MESSAGE</Text>
+        <Text style={styles.sectionLabel}>COMPOSE</Text>
         <View style={styles.card}>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Subject</Text>
+            <Text style={styles.fieldLabel}>Title</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. Low Attendance Warning"
               placeholderTextColor="#aab0be"
-              value={subject}
-              onChangeText={setSubject}
+              value={title}
+              onChangeText={setTitle}
             />
           </View>
           <View style={[styles.fieldGroup, { marginBottom: 0 }]}>
@@ -140,44 +327,70 @@ export default function SendAlertsScreen({ navigation }) {
         </View>
 
         {/* Preview */}
-        {(subject || message) ? (
-          <View style={[styles.previewCard, { borderLeftColor: activeType?.activeColor }]}>
+        {(title || message) ? (
+          <View style={[styles.previewCard, { borderLeftColor: activeAlertType?.activeColor }]}>
             <Text style={styles.previewLabel}>PREVIEW</Text>
-            {activeType && (
+            {activeAlertType && (
               <View style={{ marginBottom: 6 }}>
-                <activeType.icon size={20} color={activeType.activeColor} />
+                <activeAlertType.icon size={20} color={activeAlertType.activeColor} />
               </View>
             )}
-            <Text style={styles.previewSubject}>{subject || 'Subject...'}</Text>
-            <Text style={styles.previewMessage}>{message || 'Message...'}</Text>
+            <Text style={styles.previewSubject}>{title || 'Title…'}</Text>
+            <Text style={styles.previewMessage}>{message || 'Message…'}</Text>
+            <Text style={styles.previewTo}>
+              → {currentTarget?.label}{targetLabel ? ` · ${targetLabel}` : ''}
+            </Text>
           </View>
         ) : null}
 
         {/* Send Button */}
-        <TouchableOpacity style={styles.sendBtn} onPress={handleSend} activeOpacity={0.85}>
-          <Send size={18} color="#ffffff" />
-          <Text style={styles.sendText}>Send Alert</Text>
+        <TouchableOpacity
+          style={[styles.sendBtn, sending && { opacity: 0.7 }]}
+          onPress={handleSend}
+          activeOpacity={0.85}
+          disabled={sending}
+        >
+          {sending
+            ? <ActivityIndicator size="small" color="#ffffff" />
+            : <Send size={18} color="#ffffff" />}
+          <Text style={styles.sendText}>{sending ? 'Sending…' : 'Send Notification'}</Text>
         </TouchableOpacity>
 
-        {/* Recent Alerts */}
+        {/* Recent Sent */}
         <Text style={styles.sectionLabel}>RECENTLY SENT</Text>
         <View style={styles.card}>
-          {recentAlerts.map((alert, i) => (
-            <View key={i} style={[styles.recentRow, i !== recentAlerts.length - 1 && styles.recentBorder]}>
-              <View style={[styles.recentIcon, { backgroundColor: alert.color }]}>
-                <alert.type size={18} color="#1a1f36" />
+          {recentsLoading ? (
+            <ActivityIndicator size="small" color={BLUE} style={{ marginVertical: 16 }} />
+          ) : recents.length === 0 ? (
+            <Text style={styles.emptyText}>No notifications sent yet</Text>
+          ) : (
+            recents.map((n, i) => (
+              <View key={n.notif_id} style={[styles.recentRow, i !== recents.length - 1 && styles.recentBorder]}>
+                <View style={[styles.recentIcon, { backgroundColor: '#eef2ff' }]}>
+                  <Bell size={18} color={BLUE} />
+                </View>
+                <View style={styles.recentInfo}>
+                  <Text style={styles.recentTitle} numberOfLines={1}>{n.message}</Text>
+                  <Text style={styles.recentMeta}>{n.type}</Text>
+                </View>
+                <Text style={styles.recentTime}>{formatRelative(n.sent_at)}</Text>
               </View>
-              <View style={styles.recentInfo}>
-                <Text style={styles.recentTitle}>{alert.title}</Text>
-                <Text style={styles.recentMeta}>{alert.recipients}</Text>
-              </View>
-              <Text style={styles.recentTime}>{alert.time}</Text>
-            </View>
-          ))}
+            ))
+          )}
         </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Picker Modal */}
+      <PickerModal
+        visible={pickerVisible}
+        title={`Select ${currentTarget?.label}`}
+        items={pickerItems}
+        onSelect={handlePickerSelect}
+        onClose={() => setPickerVisible(false)}
+        loading={pickerLoading}
+      />
 
       <AdminBottomNav navigation={navigation} active="Home" />
     </SafeAreaView>
@@ -185,39 +398,35 @@ export default function SendAlertsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f5f7fa' },
+  safeArea:     { flex: 1, backgroundColor: '#f5f7fa' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 18, paddingVertical: 14,
     backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#eef1f5',
   },
-  backBtn: { width: 38, height: 38, justifyContent: 'center', alignItems: 'center' },
-  backArrow: { fontSize: 22, color: '#1a1f36', fontWeight: '600' },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#1a1f36' },
-  scroll: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
+  backBtn:      { width: 38, height: 38, justifyContent: 'center', alignItems: 'center' },
+  headerTitle:  { fontSize: 17, fontWeight: '800', color: '#1a1f36' },
+  scroll:       { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
   sectionLabel: { fontSize: 11, fontWeight: '800', color: '#8a94a6', letterSpacing: 0.8, marginBottom: 10, marginLeft: 2 },
 
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 22 },
+  typeGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 22 },
   typeCard: {
-    width: '47%', borderRadius: 14, padding: 14, borderWidth: 2, borderColor: 'transparent',
-    position: 'relative',
+    width: '47%', borderRadius: 14, padding: 14,
+    borderWidth: 2, borderColor: 'transparent', position: 'relative',
   },
-  typeIcon: { fontSize: 22, marginBottom: 6 },
-  typeLabel: { fontSize: 13, fontWeight: '700', color: '#1a1f36', marginBottom: 3 },
-  typeSub: { fontSize: 10, color: '#8a94a6', lineHeight: 14 },
+  typeLabel: { fontSize: 13, fontWeight: '700', color: '#1a1f36', marginBottom: 2 },
   typeCheck: {
     position: 'absolute', top: 10, right: 10,
     width: 20, height: 20, borderRadius: 10,
     justifyContent: 'center', alignItems: 'center',
   },
-  typeCheckText: { fontSize: 11, color: '#ffffff', fontWeight: '800' },
 
   card: {
     backgroundColor: '#ffffff', borderRadius: 16, padding: 16, marginBottom: 22,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
-  recipientRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13 },
+  recipientRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 13 },
   recipientBorder: { borderBottomWidth: 1, borderBottomColor: '#f0f2f5' },
   radioOuter: {
     width: 20, height: 20, borderRadius: 10,
@@ -225,13 +434,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginRight: 12,
   },
   radioOuterActive: { borderColor: BLUE },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE },
-  recipientLabel: { flex: 1, fontSize: 14, fontWeight: '600', color: '#1a1f36' },
-  recipientCount: { backgroundColor: '#eef2ff', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-  recipientCountText: { fontSize: 11, color: BLUE, fontWeight: '700' },
+  radioInner:       { width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE },
+  recipientLabel:   { flex: 1, fontSize: 14, fontWeight: '600', color: '#1a1f36' },
 
-  fieldGroup: { marginBottom: 14 },
-  fieldLabel: { fontSize: 11, fontWeight: '800', color: '#8a94a6', letterSpacing: 0.5, marginBottom: 7 },
+  pickerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#ffffff', borderRadius: 14, borderWidth: 1.5,
+    borderColor: '#e6e9f0', paddingHorizontal: 14, paddingVertical: 14,
+    marginBottom: 22,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
+  },
+  pickerText: { fontSize: 14, color: '#1a1f36', flex: 1 },
+
+  fieldGroup:  { marginBottom: 14 },
+  fieldLabel:  { fontSize: 11, fontWeight: '800', color: '#8a94a6', letterSpacing: 0.5, marginBottom: 7 },
   input: {
     backgroundColor: '#f8f9ff', borderRadius: 12, borderWidth: 1.5,
     borderColor: '#e6e9f0', paddingHorizontal: 14, paddingVertical: 12,
@@ -245,10 +462,10 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
   },
-  previewLabel: { fontSize: 10, fontWeight: '800', color: '#8a94a6', letterSpacing: 0.8, marginBottom: 8 },
-  previewIcon: { fontSize: 20, marginBottom: 6 },
+  previewLabel:   { fontSize: 10, fontWeight: '800', color: '#8a94a6', letterSpacing: 0.8, marginBottom: 8 },
   previewSubject: { fontSize: 14, fontWeight: '700', color: '#1a1f36', marginBottom: 4 },
-  previewMessage: { fontSize: 13, color: '#6b7280', lineHeight: 19 },
+  previewMessage: { fontSize: 13, color: '#6b7280', lineHeight: 19, marginBottom: 6 },
+  previewTo:      { fontSize: 11, color: '#8a94a6', fontStyle: 'italic' },
 
   sendBtn: {
     backgroundColor: BLUE, borderRadius: 14, paddingVertical: 16,
@@ -257,15 +474,29 @@ const styles = StyleSheet.create({
     shadowColor: BLUE, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
   },
-  sendIcon: { fontSize: 18 },
   sendText: { fontSize: 15, color: '#ffffff', fontWeight: '700' },
 
-  recentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11 },
+  recentRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 11 },
   recentBorder: { borderBottomWidth: 1, borderBottomColor: '#f0f2f5' },
-  recentIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  recentIconText: { fontSize: 16 },
-  recentInfo: { flex: 1 },
-  recentTitle: { fontSize: 13, fontWeight: '700', color: '#1a1f36', marginBottom: 2 },
-  recentMeta: { fontSize: 11, color: '#8a94a6' },
-  recentTime: { fontSize: 11, color: '#aab0be' },
+  recentIcon:   { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  recentInfo:   { flex: 1 },
+  recentTitle:  { fontSize: 13, fontWeight: '700', color: '#1a1f36', marginBottom: 2 },
+  recentMeta:   { fontSize: 11, color: '#8a94a6' },
+  recentTime:   { fontSize: 11, color: '#aab0be' },
+  emptyText:    { textAlign: 'center', color: '#aab0be', fontSize: 13, paddingVertical: 16 },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
+  modalSheet: {
+    backgroundColor: '#ffffff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20, paddingBottom: 36,
+  },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle:  { fontSize: 16, fontWeight: '800', color: '#1a1f36' },
+  modalEmpty:  { textAlign: 'center', color: '#aab0be', paddingVertical: 30 },
+  modalItem: {
+    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f2f5',
+  },
+  modalItemText: { fontSize: 14, fontWeight: '600', color: '#1a1f36' },
+  modalItemSub:  { fontSize: 12, color: '#8a94a6', marginTop: 2 },
 });

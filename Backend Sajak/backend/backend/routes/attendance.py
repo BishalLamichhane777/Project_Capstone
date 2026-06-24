@@ -1,6 +1,7 @@
 """Attendance routes — history, reports, manual override."""
 
 import logging
+import threading
 from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
@@ -582,16 +583,20 @@ def scan_attendance():
 
     db.session.commit()
 
-    # ── 8. Firebase real-time sync (best-effort) ──────────────────────
-    # SQLite is the source of truth; a Firebase failure must never block
-    # the response or cause the log entry to be rolled back.
-    try:
-        firebase_sync.sync_attendance_log(student_id, session_id, event_type)
-    except Exception as fb_exc:
-        logger.warning(
-            "Firebase sync_attendance_log failed for student=%s session=%s: %s",
-            student_id, session_id, fb_exc,
-        )
+    # ── 8. Firebase real-time sync (best-effort, non-blocking) ───────
+    # Run in a daemon thread so Firebase latency doesn't delay the
+    # response. SQLite is the source of truth — a Firebase failure
+    # never needs to roll back the already-committed log entry.
+    def _firebase_sync():
+        try:
+            firebase_sync.sync_attendance_log(student_id, session_id, event_type)
+        except Exception as fb_exc:
+            logger.warning(
+                "Firebase sync_attendance_log failed for student=%s session=%s: %s",
+                student_id, session_id, fb_exc,
+            )
+
+    threading.Thread(target=_firebase_sync, daemon=True).start()
 
     # ── 9. Response ───────────────────────────────────────────────────
     return jsonify({
