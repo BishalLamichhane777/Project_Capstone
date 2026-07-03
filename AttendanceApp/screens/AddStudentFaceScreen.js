@@ -59,7 +59,13 @@ export default function AddStudentFaceScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
 
   // ── Auth ────────────────────────────────────────────────────────────
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
+  const cardBg  = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPri = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const inputBg = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const inputBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
+  const pageBg  = isDarkMode ? '#111827' : '#f5f7fa';
 
   // Set the navigation header title
   useEffect(() => {
@@ -229,8 +235,8 @@ export default function AddStudentFaceScreen({ navigation }) {
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={BG} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBg} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -245,13 +251,13 @@ export default function AddStudentFaceScreen({ navigation }) {
         >
 
           {/* ── STUDENT DETAILS CARD ──────────────────────────────── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Student Details</Text>
+          <View style={[styles.card, { backgroundColor: cardBg }]}>
+            <Text style={[styles.cardTitle, { color: textPri }]}>Student Details</Text>
 
             {/* Full Name */}
-            <Text style={styles.label}>Full Name <Text style={styles.required}>*</Text></Text>
+            <Text style={[styles.label, { color: textPri }]}>Full Name <Text style={styles.required}>*</Text></Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
               placeholder="e.g. Sajak Singh Khadka"
               placeholderTextColor="#aab0be"
               value={fullName}
@@ -261,9 +267,9 @@ export default function AddStudentFaceScreen({ navigation }) {
             />
 
             {/* Email */}
-            <Text style={styles.label}>Email <Text style={styles.required}>*</Text></Text>
+            <Text style={[styles.label, { color: textPri }]}>Email <Text style={styles.required}>*</Text></Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
               placeholder="e.g. sajak@example.com"
               placeholderTextColor="#aab0be"
               value={email}
@@ -275,10 +281,10 @@ export default function AddStudentFaceScreen({ navigation }) {
             />
 
             {/* Password */}
-            <Text style={styles.label}>Password <Text style={styles.required}>*</Text></Text>
-            <View style={styles.passwordContainer}>
+            <Text style={[styles.label, { color: textPri }]}>Password <Text style={styles.required}>*</Text></Text>
+            <View style={[styles.passwordContainer, { backgroundColor: inputBg, borderColor: inputBdr }]}>
               <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                style={[styles.input, { flex: 1, marginBottom: 0, backgroundColor: inputBg, color: textPri }]}
                 placeholder="Minimum 8 characters"
                 placeholderTextColor="#aab0be"
                 value={password}
@@ -295,9 +301,9 @@ export default function AddStudentFaceScreen({ navigation }) {
             </View>
 
             {/* Roll Number */}
-            <Text style={styles.label}>Roll Number <Text style={styles.required}>*</Text></Text>
+            <Text style={[styles.label, { color: textPri }]}>Roll Number <Text style={styles.required}>*</Text></Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
               placeholder="e.g. CS-2024-001"
               placeholderTextColor="#aab0be"
               value={rollNumber}
@@ -307,9 +313,9 @@ export default function AddStudentFaceScreen({ navigation }) {
             />
 
             {/* Program (optional) */}
-            <Text style={styles.label}>Program <Text style={styles.optional}>(optional)</Text></Text>
+            <Text style={[styles.label, { color: textPri }]}>Program <Text style={styles.optional}>(optional)</Text></Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
               placeholder="e.g. Computer Science"
               placeholderTextColor="#aab0be"
               value={program}
@@ -318,11 +324,11 @@ export default function AddStudentFaceScreen({ navigation }) {
             />
 
             {/* Phone (optional) */}
-            <Text style={[styles.label, { marginBottom: 4 }]}>
+            <Text style={[styles.label, { marginBottom: 4, color: textPri }]}>
               Phone <Text style={styles.optional}>(optional)</Text>
             </Text>
             <TextInput
-              style={[styles.input, { marginBottom: 0 }]}
+              style={[styles.input, { marginBottom: 0, backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
               placeholder="e.g. +601234567890"
               placeholderTextColor="#aab0be"
               value={phone}
@@ -333,9 +339,9 @@ export default function AddStudentFaceScreen({ navigation }) {
           </View>
 
           {/* ── PHOTO SECTION CARD ───────────────────────────────── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Student Photos</Text>
-            <Text style={styles.cardSubtitle}>3–10 clear, well-lit, front-facing photos required</Text>
+          <View style={[styles.card, { backgroundColor: cardBg }]}>
+            <Text style={[styles.cardTitle, { color: textPri }]}>Student Photos</Text>
+            <Text style={[styles.cardSubtitle, { color: textSub }]}>3–10 clear, well-lit, front-facing photos required</Text>
 
             {/* Add Photos button */}
             <TouchableOpacity
@@ -371,7 +377,7 @@ export default function AddStudentFaceScreen({ navigation }) {
             )}
 
             {/* Photo counter */}
-            <Text style={styles.photoCounter}>
+            <Text style={[styles.photoCounter, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
               {photos.length} photo{photos.length !== 1 ? 's' : ''} selected
             </Text>
 
@@ -399,11 +405,11 @@ export default function AddStudentFaceScreen({ navigation }) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.cancelBtn}
+            style={[styles.cancelBtn, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
             onPress={() => { resetForm(); navigation.goBack(); }}
             activeOpacity={0.85}
           >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
+            <Text style={[styles.cancelBtnText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Cancel</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />

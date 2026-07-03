@@ -11,40 +11,46 @@ import { Users, ChevronLeft, Trash2, Eye, X } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
-function BatchCard({ item, onDelete, onView }) {
+function BatchCard({ item, onDelete, onView, isDarkMode }) {
   const createdDate = item.created_at
     ? new Date(item.created_at).toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric',
       })
     : '—';
 
+  const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub     = isDarkMode ? '#8a94b8' : '#6b7280';
+  const textMuted   = isDarkMode ? '#5a6080' : '#aab0be';
+  const iconBoxBg   = isDarkMode ? '#1e2540' : '#eef2ff';
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: cardBg }]}>
       <View style={styles.cardRow}>
-        <View style={[styles.iconBox, { backgroundColor: '#eef2ff' }]}>
+        <View style={[styles.iconBox, { backgroundColor: iconBoxBg }]}>
           <Users size={18} color={BLUE} />
         </View>
         <View style={styles.cardInfo}>
           <View style={styles.cardTitleRow}>
-            <Text style={styles.batchName}>{item.batch_name}</Text>
-            <View style={styles.countBadge}>
+            <Text style={[styles.batchName, { color: textPrimary }]}>{item.batch_name}</Text>
+            <View style={[styles.countBadge, { backgroundColor: iconBoxBg }]}>
               <Text style={styles.countBadgeText}>{item.student_count} students</Text>
             </View>
           </View>
           {item.description ? (
-            <Text style={styles.descriptionText}>{item.description}</Text>
+            <Text style={[styles.descriptionText, { color: textSub }]}>{item.description}</Text>
           ) : (
-            <Text style={styles.noDescText}>No description</Text>
+            <Text style={[styles.noDescText, { color: textMuted }]}>No description</Text>
           )}
-          <Text style={styles.dateText}>Created {createdDate}</Text>
+          <Text style={[styles.dateText, { color: textMuted }]}>Created {createdDate}</Text>
         </View>
       </View>
       <View style={styles.cardActions}>
-        <TouchableOpacity style={styles.viewBtn} onPress={() => onView(item)}>
+        <TouchableOpacity style={[styles.viewBtn, { backgroundColor: iconBoxBg }]} onPress={() => onView(item)}>
           <Eye size={13} color={BLUE} />
           <Text style={styles.viewBtnText}>View</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.deleteBtn} onPress={() => onDelete(item)}>
+        <TouchableOpacity style={[styles.deleteBtn, { backgroundColor: isDarkMode ? '#2e1a1a' : '#fff0f0' }]} onPress={() => onDelete(item)}>
           <Trash2 size={13} color="#e74c3c" />
           <Text style={styles.deleteBtnText}>Delete</Text>
         </TouchableOpacity>
@@ -53,10 +59,15 @@ function BatchCard({ item, onDelete, onView }) {
   );
 }
 
-function FormModal({ visible, onClose, onSave, saving }) {
+function FormModal({ visible, onClose, onSave, saving, isDarkMode }) {
   const [batchName, setBatchName] = useState('');
   const [description, setDescription] = useState('');
 
+  const modalBg  = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const inputBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const inputBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
+  const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const labelClr = isDarkMode ? '#8a94b8' : '#8a94a6';
   useEffect(() => {
     if (visible) {
       setBatchName('');
@@ -78,18 +89,18 @@ function FormModal({ visible, onClose, onSave, saving }) {
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { backgroundColor: modalBg }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Create Batch</Text>
-            <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
+            <Text style={[styles.modalTitle, { color: textPri }]}>Create Batch</Text>
+            <TouchableOpacity onPress={onClose} style={[styles.modalCloseBtn, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
               <X size={13} color="#8a94a6" />
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>BATCH NAME</Text>
+              <Text style={[styles.fieldLabel, { color: labelClr }]}>BATCH NAME</Text>
               <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
                 placeholder="e.g. CS Year 1 Morning"
                 placeholderTextColor="#aab0be"
                 value={batchName}
@@ -97,9 +108,9 @@ function FormModal({ visible, onClose, onSave, saving }) {
               />
             </View>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>DESCRIPTION (OPTIONAL)</Text>
+              <Text style={[styles.fieldLabel, { color: labelClr }]}>DESCRIPTION (OPTIONAL)</Text>
               <TextInput
-                style={[styles.fieldInput, styles.textArea]}
+                style={[styles.fieldInput, styles.textArea, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
                 placeholder="e.g. First-year Computer Science students"
                 placeholderTextColor="#aab0be"
                 value={description}
@@ -128,11 +139,17 @@ function FormModal({ visible, onClose, onSave, saving }) {
 }
 
 export default function ManageBatchesScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // ── Theme colours ────────────────────────────────────────────────────────
+  const bg          = isDarkMode ? '#111827' : '#f5f7fa';
+  const headerBg    = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const borderColor = isDarkMode ? '#2a2f42' : '#eef1f5';
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
 
   useEffect(() => {
     if (token) fetchData();
@@ -215,15 +232,15 @@ export default function ManageBatchesScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={headerBg} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: borderColor }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Manage Batches</Text>
+        <Text style={[styles.headerTitle, { color: textPrimary }]}>Manage Batches</Text>
         <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
           <Text style={styles.addBtnText}>+ Create</Text>
         </TouchableOpacity>
@@ -234,7 +251,7 @@ export default function ManageBatchesScreen({ navigation }) {
           <ActivityIndicator size="large" color={BLUE} style={{ marginTop: 60 }} />
         ) : (
           <>
-            <Text style={styles.countText}>
+            <Text style={[styles.countText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
               {batches.length} batch{batches.length !== 1 ? 'es' : ''} total
             </Text>
 
@@ -244,6 +261,7 @@ export default function ManageBatchesScreen({ navigation }) {
                 item={item}
                 onDelete={handleDelete}
                 onView={(b) => navigation.navigate('ManageBatchDetail', { batch: b })}
+                isDarkMode={isDarkMode}
               />
             ))}
 
@@ -252,8 +270,8 @@ export default function ManageBatchesScreen({ navigation }) {
                 <View style={{ marginBottom: 10 }}>
                   <Users size={36} color="#8a94a6" />
                 </View>
-                <Text style={styles.emptyTitle}>No Batches Yet</Text>
-                <Text style={styles.emptySubtitle}>Tap "+ Create" to make your first batch.</Text>
+                <Text style={[styles.emptyTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>No Batches Yet</Text>
+                <Text style={[styles.emptySubtitle, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Tap "+ Create" to make your first batch.</Text>
               </View>
             )}
           </>
@@ -266,6 +284,7 @@ export default function ManageBatchesScreen({ navigation }) {
         onClose={() => setModalVisible(false)}
         onSave={handleCreate}
         saving={saving}
+        isDarkMode={isDarkMode}
       />
 
       <AdminBottomNav navigation={navigation} active="Batches" />

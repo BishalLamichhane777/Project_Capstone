@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TeacherBottomNav from '../components/TeacherBottomNav';
+import { useAuth } from '../context/AuthContext';
 import { CheckCircle2, AlertTriangle, ClipboardList, Trophy, Upload, ChevronRight } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
@@ -43,7 +44,7 @@ const SUMMARY_STATS = [
 ];
 
 // ─── Simple Line Chart (pure RN, no library) ─────────────────────────────────
-function LineChart({ data }) {
+function LineChart({ data, isDarkMode, gridLineColor }) {
   const H = 120;
   const PAD = { top: 16, bottom: 28, left: 8, right: 8 };
   const chartH = H - PAD.top - PAD.bottom;
@@ -58,41 +59,32 @@ function LineChart({ data }) {
     ...d,
   }));
 
-  // Build SVG polyline path string
-  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  const fillD = `${pathD} L${pts[pts.length - 1].x.toFixed(1)},${(H - PAD.bottom).toFixed(1)} L${pts[0].x.toFixed(1)},${(H - PAD.bottom).toFixed(1)} Z`;
+  const labelColor = isDarkMode ? '#5a6080' : '#aab0be';
 
   return (
     <View style={{ height: H }}>
-      {/* Y-axis gridlines */}
       {[100, 80, 60].map((v) => {
         const y = PAD.top + chartH - ((v - minVal) / range) * chartH;
         return (
-          <View key={v} style={[styles.gridLine, { top: y }]}>
-            <Text style={styles.gridLabel}>{v}%</Text>
+          <View key={v} style={[styles.gridLine, { top: y, backgroundColor: gridLineColor }]}>
+            <Text style={[styles.gridLabel, { color: labelColor }]}>{v}%</Text>
           </View>
         );
       })}
 
-      {/* Bars (background fill approximation with Views) */}
       <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', alignItems: 'flex-end',
         paddingLeft: PAD.left, paddingRight: PAD.right, paddingBottom: PAD.bottom, paddingTop: PAD.top }]}>
         {pts.map((p, i) => {
           const barH = ((p.pct - minVal) / range) * chartH;
           return (
             <View key={i} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end' }}>
-              <View style={{
-                width: 3, height: barH,
-                backgroundColor: BLUE, opacity: 0.15, borderRadius: 2,
-              }} />
+              <View style={{ width: 3, height: barH, backgroundColor: BLUE, opacity: 0.15, borderRadius: 2 }} />
             </View>
           );
         })}
       </View>
 
-      {/* Line + dots */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {/* Draw line segments with absolute positioned thin views */}
         {pts.map((p, i) => {
           if (i === 0) return null;
           const prev = pts[i - 1];
@@ -101,39 +93,26 @@ function LineChart({ data }) {
           const len = Math.sqrt(dx * dx + dy * dy);
           const angle = Math.atan2(dy, dx) * (180 / Math.PI);
           return (
-            <View
-              key={i}
-              style={{
-                position: 'absolute',
-                left: prev.x,
-                top: prev.y - 1,
-                width: len,
-                height: 2.5,
-                backgroundColor: BLUE,
-                borderRadius: 2,
-                transform: [{ rotate: `${angle}deg` }],
-                transformOrigin: 'left center',
-              }}
-            />
+            <View key={i} style={{
+              position: 'absolute', left: prev.x, top: prev.y - 1,
+              width: len, height: 2.5, backgroundColor: BLUE, borderRadius: 2,
+              transform: [{ rotate: `${angle}deg` }], transformOrigin: 'left center',
+            }} />
           );
         })}
-
-        {/* Dots */}
         {pts.map((p, i) => (
           <View key={i} style={{
-            position: 'absolute',
-            left: p.x - 5, top: p.y - 5,
+            position: 'absolute', left: p.x - 5, top: p.y - 5,
             width: 10, height: 10, borderRadius: 5,
-            backgroundColor: '#ffffff',
+            backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff',
             borderWidth: 2.5, borderColor: BLUE,
           }} />
         ))}
       </View>
 
-      {/* X-axis labels */}
       <View style={[styles.xAxis, { paddingLeft: PAD.left, paddingRight: PAD.right }]}>
         {data.map((d) => (
-          <Text key={d.day} style={styles.xLabel}>{d.day}</Text>
+          <Text key={d.day} style={[styles.xLabel, { color: labelColor }]}>{d.day}</Text>
         ))}
       </View>
     </View>
@@ -141,9 +120,10 @@ function LineChart({ data }) {
 }
 
 // ─── Bar Chart ────────────────────────────────────────────────────────────────
-function BarChart({ data }) {
+function BarChart({ data, isDarkMode }) {
   const maxCount = Math.max(...data.map(d => d.count));
   const BAR_H = 120;
+  const labelColor = isDarkMode ? '#8a94b8' : '#8a94a6';
 
   return (
     <View style={{ height: BAR_H + 36 }}>
@@ -152,8 +132,7 @@ function BarChart({ data }) {
           const h = Math.max(8, (d.count / maxCount) * BAR_H);
           return (
             <View key={d.grade} style={{ flex: 1, alignItems: 'center' }}>
-              {/* Count on top */}
-              <Text style={styles.barCount}>{d.count}</Text>
+              <Text style={[styles.barCount, { color: labelColor }]}>{d.count}</Text>
               <View style={{
                 width: '70%', height: h,
                 backgroundColor: d.color, borderRadius: 8,
@@ -164,7 +143,6 @@ function BarChart({ data }) {
           );
         })}
       </View>
-      {/* Grade labels */}
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
         {data.map((d) => (
           <View key={d.grade} style={{ flex: 1, alignItems: 'center' }}>
@@ -178,20 +156,32 @@ function BarChart({ data }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function TeacherReportsScreen({ navigation }) {
+  const { isDarkMode } = useAuth();
   const [period, setPeriod] = useState('Week');
   const periods = ['Week', 'Month', 'Semester'];
 
+  // ── Theme colours ────────────────────────────────────────────────────────
+  const bg          = isDarkMode ? '#111827' : '#f5f7fa';
+  const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const rowBorder   = isDarkMode ? '#252b3e' : '#f5f7fa';
+  const periodRowBg = isDarkMode ? '#1a1f2e' : '#f0f2f8';
+  const periodActiveBg = isDarkMode ? '#252b3e' : '#ffffff';
+  const progressBgColor = isDarkMode ? '#252b3e' : '#f0f2f8';
+  const gridLineColor = isDarkMode ? '#252b3e' : '#f0f2f8';
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={bg} />
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* ── Header ── */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerTitle}>Reports</Text>
-            <Text style={styles.headerSub}>Attendance & Performance</Text>
+            <Text style={[styles.headerTitle, { color: textPrimary }]}>Reports</Text>
+            <Text style={[styles.headerSub, { color: textSub }]}>Attendance & Performance</Text>
           </View>
           <TouchableOpacity style={styles.exportBtn}>
             <Upload size={12} color="#fff" />
@@ -200,14 +190,14 @@ export default function TeacherReportsScreen({ navigation }) {
         </View>
 
         {/* ── Period Toggle ── */}
-        <View style={styles.periodRow}>
+        <View style={[styles.periodRow, { backgroundColor: periodRowBg }]}>
           {periods.map((p) => (
             <TouchableOpacity
               key={p}
-              style={[styles.periodBtn, period === p && styles.periodBtnActive]}
+              style={[styles.periodBtn, period === p && [styles.periodBtnActive, { backgroundColor: periodActiveBg }]]}
               onPress={() => setPeriod(p)}
             >
-              <Text style={[styles.periodText, period === p && styles.periodTextActive]}>{p}</Text>
+              <Text style={[styles.periodText, { color: textSub }, period === p && [styles.periodTextActive, { color: textPrimary }]]}>{p}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -215,69 +205,66 @@ export default function TeacherReportsScreen({ navigation }) {
         {/* ── Summary Stats ── */}
         <View style={styles.statsGrid}>
           {SUMMARY_STATS.map((s, i) => (
-            <View key={i} style={[styles.statCard, { backgroundColor: s.color }]}>
+            <View key={i} style={[styles.statCard, { backgroundColor: isDarkMode ? '#1a1f2e' : s.color }]}>
               <View style={{ marginBottom: 6 }}>
                 <s.icon size={22} color={s.textColor} />
               </View>
               <Text style={[styles.statValue, { color: s.textColor }]}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
+              <Text style={[styles.statLabel, { color: textSub }]}>{s.label}</Text>
             </View>
           ))}
         </View>
 
         {/* ── Attendance Line Chart ── */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
           <View style={styles.cardHeader}>
             <View>
-              <Text style={styles.cardTitle}>Attendance Trend</Text>
-              <Text style={styles.cardSub}>This {period} — all classes</Text>
+              <Text style={[styles.cardTitle, { color: textPrimary }]}>Attendance Trend</Text>
+              <Text style={[styles.cardSub, { color: textSub }]}>This {period} — all classes</Text>
             </View>
             <View style={styles.trendBadge}>
               <Text style={styles.trendText}>▲ 4.2%</Text>
             </View>
           </View>
-          <LineChart data={ATTENDANCE_WEEKLY} />
+          <LineChart data={ATTENDANCE_WEEKLY} isDarkMode={isDarkMode} gridLineColor={gridLineColor} />
         </View>
 
         {/* ── Grade Distribution Bar Chart ── */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
           <View style={styles.cardHeader}>
             <View>
-              <Text style={styles.cardTitle}>Grade Distribution</Text>
-              <Text style={styles.cardSub}>All students across classes</Text>
+              <Text style={[styles.cardTitle, { color: textPrimary }]}>Grade Distribution</Text>
+              <Text style={[styles.cardSub, { color: textSub }]}>All students across classes</Text>
             </View>
-            <Text style={styles.totalStudents}>66 total</Text>
+            <Text style={[styles.totalStudents, { color: textSub }]}>66 total</Text>
           </View>
-          <BarChart data={GRADE_DATA} />
-
-          {/* Legend */}
+          <BarChart data={GRADE_DATA} isDarkMode={isDarkMode} />
           <View style={styles.legend}>
             {GRADE_DATA.map((d) => (
               <View key={d.grade} style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: d.color }]} />
-                <Text style={styles.legendText}>Grade {d.grade} ({d.count})</Text>
+                <Text style={[styles.legendText, { color: textSub }]}>Grade {d.grade} ({d.count})</Text>
               </View>
             ))}
           </View>
         </View>
 
         {/* ── Per-Class Attendance ── */}
-        <View style={styles.card}>
-          <Text style={[styles.cardTitle, { marginBottom: 14 }]}>Per-Class Summary</Text>
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
+          <Text style={[styles.cardTitle, { marginBottom: 14, color: textPrimary }]}>Per-Class Summary</Text>
           {CLASS_SUMMARIES.map((cls, i) => (
             <View key={i} style={styles.classRow}>
               <View style={styles.classInfo}>
-                <Text style={styles.className}>{cls.name}</Text>
-                <Text style={styles.classCode}>{cls.code}</Text>
+                <Text style={[styles.className, { color: textPrimary }]}>{cls.name}</Text>
+                <Text style={[styles.classCode, { color: textSub }]}>{cls.code}</Text>
               </View>
               <View style={styles.classRight}>
-                <Text style={styles.classAttendance}>{cls.attendance}%</Text>
+                <Text style={[styles.classAttendance, { color: textPrimary }]}>{cls.attendance}%</Text>
                 <Text style={[styles.classTrend, { color: cls.trendUp ? '#27ae60' : '#e74c3c' }]}>
                   {cls.trend}
                 </Text>
               </View>
-              {/* Progress bar */}
-              <View style={styles.progressBg}>
+              <View style={[styles.progressBg, { backgroundColor: progressBgColor }]}>
                 <View style={[styles.progressFill, {
                   width: `${cls.attendance}%`,
                   backgroundColor: cls.attendance >= 90 ? '#27ae60'
@@ -289,24 +276,24 @@ export default function TeacherReportsScreen({ navigation }) {
         </View>
 
         {/* ── At-Risk Students ── */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <AlertTriangle size={16} color="#1a1f36" style={{ marginRight: 6 }} />
-            <Text style={styles.cardTitle}>At-Risk Students</Text>
+            <AlertTriangle size={16} color={textPrimary} style={{ marginRight: 6 }} />
+            <Text style={[styles.cardTitle, { color: textPrimary }]}>At-Risk Students</Text>
           </View>
-          <Text style={styles.cardSub}>Below 75% attendance threshold</Text>
+          <Text style={[styles.cardSub, { color: textSub }]}>Below 75% attendance threshold</Text>
           {[
-            { name: 'Rajan Thapa',   class: 'CS101-A', pct: 68 },
-            { name: 'Anita Sharma',  class: 'CS302-B', pct: 71 },
-            { name: 'Bikash Karki',  class: 'CS210',   pct: 74 },
+            { name: 'Rajan Thapa',  class: 'CS101-A', pct: 68 },
+            { name: 'Anita Sharma', class: 'CS302-B', pct: 71 },
+            { name: 'Bikash Karki', class: 'CS210',   pct: 74 },
           ].map((s, i) => (
-            <View key={i} style={styles.riskRow}>
+            <View key={i} style={[styles.riskRow, { borderBottomColor: rowBorder }]}>
               <View style={styles.riskAvatar}>
                 <Text style={styles.riskAvatarText}>{s.name.split(' ').map(n => n[0]).join('')}</Text>
               </View>
               <View style={styles.riskInfo}>
-                <Text style={styles.riskName}>{s.name}</Text>
-                <Text style={styles.riskClass}>{s.class}</Text>
+                <Text style={[styles.riskName, { color: textPrimary }]}>{s.name}</Text>
+                <Text style={[styles.riskClass, { color: textSub }]}>{s.class}</Text>
               </View>
               <View style={styles.riskBadge}>
                 <Text style={styles.riskPct}>{s.pct}%</Text>

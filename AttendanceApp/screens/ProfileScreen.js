@@ -1,44 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  StatusBar,
-  Alert,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar,
+  Alert, Switch, Modal, TextInput, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API } from '../api';
 import BottomNav from '../components/BottomNav';
 import { useAuth } from '../context/AuthContext';
-import { User, Bell, Lock, Phone, Check, ChevronDown, ChevronUp, ChevronRight, LogOut } from 'lucide-react-native';
+import {
+  User, Bell, Lock, Phone, Check, ChevronDown, ChevronUp,
+  ChevronRight, LogOut, Moon, Sun, X, Eye, EyeOff,
+} from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 
 const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY'];
 const chartValues = [72, 78, 65, 85, 82];
 
-function BarChart() {
+function BarChart({ isDarkMode }) {
   const max = Math.max(...chartValues);
+  const barBg = isDarkMode ? '#252b3e' : '#eef1f5';
   return (
     <View style={styles.chartWrapper}>
       <View style={styles.barsRow}>
         {chartValues.map((val, i) => (
           <View key={i} style={styles.barCol}>
-            <Text style={styles.barValue}>{val}%</Text>
-            <View style={styles.barBg}>
-              <View
-                style={[
-                  styles.barFill,
-                  {
-                    height: `${(val / max) * 100}%`,
-                    backgroundColor: val === 82 ? BLUE : '#c7d0f8',
-                  },
-                ]}
-              />
+            <Text style={[styles.barValue, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{val}%</Text>
+            <View style={[styles.barBg, { backgroundColor: barBg }]}>
+              <View style={[styles.barFill, { height: `${(val / max) * 100}%`, backgroundColor: val === 82 ? BLUE : '#c7d0f8' }]} />
             </View>
-            <Text style={styles.barMonth}>{months[i]}</Text>
+            <Text style={[styles.barMonth, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{months[i]}</Text>
           </View>
         ))}
       </View>
@@ -46,20 +37,269 @@ function BarChart() {
   );
 }
 
-const settingsItems = [
-  { icon: User, label: 'Edit Profile', sub: 'Update your personal information' },
-  { icon: Bell, label: 'Notifications', sub: 'Manage alerts and reminders' },
-  { icon: Lock, label: 'Change Password', sub: 'Update your account password' },
-  { icon: Phone, label: 'Contact Support', sub: 'Get help from our team' },
-];
+// ─── Edit Profile Modal ───────────────────────────────────────────────────────
+function EditProfileModal({ visible, onClose, currentData, token, isDarkMode, onSaved }) {
+  const [fullname, setFullname] = useState('');
+  const [phone,    setPhone]    = useState('');
+  const [saving,   setSaving]   = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setFullname(currentData?.fullname || '');
+      setPhone(currentData?.phone || '');
+    }
+  }, [visible, currentData]);
+
+  const bg       = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const overlay  = isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.45)';
+  const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub  = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const inputBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const inputBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
+
+  const handleSave = async () => {
+    if (!fullname.trim()) {
+      Alert.alert('Validation', 'Full name cannot be empty.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(API.updateMe, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ fullname: fullname.trim(), phone: phone.trim() || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update profile');
+      Alert.alert('Success', 'Profile updated successfully!');
+      onSaved({ fullname: fullname.trim(), phone: phone.trim() || null });
+      onClose();
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={[mStyles.overlay, { backgroundColor: overlay }]} />
+      <View style={[mStyles.sheet, { backgroundColor: bg }]}>
+        {/* Header */}
+        <View style={mStyles.sheetHeader}>
+          <Text style={[mStyles.sheetTitle, { color: textPri }]}>Edit Profile</Text>
+          <TouchableOpacity onPress={onClose} style={mStyles.closeBtn}>
+            <X size={20} color={textSub} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Email (read-only) */}
+        <Text style={[mStyles.fieldLabel, { color: textSub }]}>EMAIL (cannot be changed)</Text>
+        <View style={[mStyles.fieldInput, { backgroundColor: isDarkMode ? '#1a1f2e' : '#f0f2f8', borderColor: inputBdr, opacity: 0.6 }]}>
+          <Text style={[mStyles.fieldInputText, { color: textSub }]}>{currentData?.email || '—'}</Text>
+        </View>
+
+        {/* Full Name */}
+        <Text style={[mStyles.fieldLabel, { color: textSub }]}>FULL NAME</Text>
+        <TextInput
+          style={[mStyles.fieldInput, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
+          value={fullname}
+          onChangeText={setFullname}
+          placeholder="Enter your full name"
+          placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
+        />
+
+        {/* Phone */}
+        <Text style={[mStyles.fieldLabel, { color: textSub }]}>PHONE (optional)</Text>
+        <TextInput
+          style={[mStyles.fieldInput, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="e.g. +977 98XXXXXXXX"
+          placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
+          keyboardType="phone-pad"
+        />
+
+        <TouchableOpacity
+          style={[mStyles.saveBtn, saving && { opacity: 0.7 }]}
+          onPress={handleSave}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          {saving
+            ? <ActivityIndicator color="#ffffff" />
+            : <Text style={mStyles.saveBtnText}>Save Changes</Text>
+          }
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Change Password Modal ────────────────────────────────────────────────────
+function ChangePasswordModal({ visible, onClose, token, isDarkMode }) {
+  const [currentPw,  setCurrentPw]  = useState('');
+  const [newPw,      setNewPw]      = useState('');
+  const [confirmPw,  setConfirmPw]  = useState('');
+  const [saving,     setSaving]     = useState(false);
+  const [showCur,    setShowCur]    = useState(false);
+  const [showNew,    setShowNew]    = useState(false);
+  const [showConf,   setShowConf]   = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    }
+  }, [visible]);
+
+  const bg       = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const overlay  = isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.45)';
+  const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub  = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const inputBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const inputBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
+
+  const handleSave = async () => {
+    if (!currentPw || !newPw || !confirmPw) {
+      Alert.alert('Validation', 'Please fill in all fields.');
+      return;
+    }
+    if (newPw.length < 6) {
+      Alert.alert('Validation', 'New password must be at least 6 characters.');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      Alert.alert('Validation', 'New password and confirmation do not match.');
+      return;
+    }
+    if (newPw === currentPw) {
+      Alert.alert('Validation', 'New password must differ from the current one.');
+      return;
+    }
+    setSaving(true);
+    try {
+      // Verify current password by attempting login
+      const meRes = await fetch(API.currentUser, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!meRes.ok) throw new Error('Could not verify current user.');
+      const me = await meRes.json();
+
+      const loginRes = await fetch(API.login, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: me.email, password: currentPw }),
+      });
+      if (!loginRes.ok) {
+        Alert.alert('Error', 'Current password is incorrect.');
+        return;
+      }
+
+      // Update password via self-update endpoint (works for all roles)
+      const patchRes = await fetch(API.updateMe, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password: newPw }),
+      });
+      if (!patchRes.ok) {
+        const err = await patchRes.json();
+        throw new Error(err.error || 'Failed to update password');
+      }
+      Alert.alert('Success', 'Password updated successfully!');
+      onClose();
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const PasswordField = ({ label, value, onChangeText, show, toggleShow }) => (
+    <>
+      <Text style={[mStyles.fieldLabel, { color: textSub }]}>{label}</Text>
+      <View style={[mStyles.passwordRow, { backgroundColor: inputBg, borderColor: inputBdr }]}>
+        <TextInput
+          style={[mStyles.passwordInput, { color: textPri }]}
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={!show}
+          placeholder="••••••••"
+          placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
+        />
+        <TouchableOpacity onPress={toggleShow} style={mStyles.eyeBtn}>
+          {show
+            ? <EyeOff size={18} color={textSub} />
+            : <Eye    size={18} color={textSub} />
+          }
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={[mStyles.overlay, { backgroundColor: overlay }]} />
+      <View style={[mStyles.sheet, { backgroundColor: bg }]}>
+        {/* Header */}
+        <View style={mStyles.sheetHeader}>
+          <Text style={[mStyles.sheetTitle, { color: textPri }]}>Change Password</Text>
+          <TouchableOpacity onPress={onClose} style={mStyles.closeBtn}>
+            <X size={20} color={textSub} />
+          </TouchableOpacity>
+        </View>
+
+        <PasswordField
+          label="CURRENT PASSWORD"
+          value={currentPw}
+          onChangeText={setCurrentPw}
+          show={showCur}
+          toggleShow={() => setShowCur(v => !v)}
+        />
+        <PasswordField
+          label="NEW PASSWORD"
+          value={newPw}
+          onChangeText={setNewPw}
+          show={showNew}
+          toggleShow={() => setShowNew(v => !v)}
+        />
+        <PasswordField
+          label="RETYPE NEW PASSWORD"
+          value={confirmPw}
+          onChangeText={setConfirmPw}
+          show={showConf}
+          toggleShow={() => setShowConf(v => !v)}
+        />
+
+        <Text style={[mStyles.passwordHint, { color: textSub }]}>
+          Minimum 6 characters
+        </Text>
+
+        <TouchableOpacity
+          style={[mStyles.saveBtn, saving && { opacity: 0.7 }]}
+          onPress={handleSave}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          {saving
+            ? <ActivityIndicator color="#ffffff" />
+            : <Text style={mStyles.saveBtnText}>Update Password</Text>
+          }
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
 
 export default function ProfileScreen({ navigation }) {
-  const { token, user, logoutState } = useAuth();
+  const { token, user, logoutState, isDarkMode, toggleDarkMode } = useAuth();
   const [fullProfile, setFullProfile] = useState(null);
   const [enrolledCount, setEnrolledCount] = useState(0);
   const [selectedPeriod, setSelectedPeriod] = useState('Last 5 Months');
   const periods = ['Last 3 Months', 'Last 5 Months', 'This Year'];
   const [periodOpen, setPeriodOpen] = useState(false);
+  const [editProfileVisible,  setEditProfileVisible]  = useState(false);
+  const [changePasswordVisible, setChangePasswordVisible] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   useEffect(() => {
     const getProfile = async () => {
@@ -92,8 +332,14 @@ export default function ProfileScreen({ navigation }) {
       }
     };
 
-    if (token) {
+    if (token && user?.role === 'student') {
       getProfile();
+    } else if (token) {
+      // For non-student roles, still fetch the profile but skip studentClasses
+      fetch(API.currentUser, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setFullProfile(d); })
+        .catch(() => {});
     }
   }, [token]);
 
@@ -129,22 +375,21 @@ export default function ProfileScreen({ navigation }) {
     : 'ST';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#111827' : '#f5f7fa'} />
 
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Academic Dashboard</Text>
-        <TouchableOpacity style={styles.bellButton}>
-          <Bell size={17} color="#1a1f36" />
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+        <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Academic Dashboard</Text>
+        <TouchableOpacity style={[styles.bellButton, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
+          <Bell size={17} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Profile Card */}
-        <View style={styles.profileCard}>
-          {/* Avatar */}
+        <View style={[styles.profileCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
           <View style={styles.avatarWrapper}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{displayInitials}</Text>
@@ -154,59 +399,57 @@ export default function ProfileScreen({ navigation }) {
             </View>
           </View>
 
-          <Text style={styles.profileName}>{displayName}</Text>
-          <Text style={styles.profileID}>{displayID}</Text>
+          <Text style={[styles.profileName, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{displayName}</Text>
+          <Text style={[styles.profileID, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{displayID}</Text>
 
           <View style={styles.tagRow}>
-            <View style={styles.tag}>
+            <View style={[styles.tag, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
               <Text style={styles.tagText}>{program}</Text>
             </View>
-            <View style={[styles.tag, styles.tagSecondary]}>
+            <View style={[styles.tag, styles.tagSecondary, { backgroundColor: isDarkMode ? '#2e2a1a' : '#fff4e6' }]}>
               <Text style={[styles.tagText, styles.tagTextSecondary]}>{yearOfStudy}</Text>
             </View>
           </View>
 
-          {/* Stats Row */}
-          <View style={styles.statsRow}>
+          <View style={[styles.statsRow, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff' }]}>
             <View style={styles.statItem}>
-
-              <Text style={styles.statValue}>88%</Text>
-              <Text style={styles.statLabel}>ATTENDANCE</Text>
-              <View style={styles.statBar}>
+              <Text style={[styles.statValue, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>88%</Text>
+              <Text style={[styles.statLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>ATTENDANCE</Text>
+              <View style={[styles.statBar, { backgroundColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}>
                 <View style={[styles.statBarFill, { width: '88%', backgroundColor: BLUE }]} />
               </View>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{enrolledCount}</Text>
-              <Text style={styles.statLabel}>ACTIVE</Text>
-              <Text style={styles.statSub}>subjects</Text>
+              <Text style={[styles.statValue, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{enrolledCount}</Text>
+              <Text style={[styles.statLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>ACTIVE</Text>
+              <Text style={[styles.statSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>subjects</Text>
             </View>
           </View>
         </View>
 
         {/* Attendance Analytics */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
           <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle}>Attendance Analytics</Text>
+            <Text style={[styles.cardTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Attendance Analytics</Text>
             <TouchableOpacity
-              style={styles.periodPicker}
+              style={[styles.periodPicker, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}
               onPress={() => setPeriodOpen(!periodOpen)}
             >
-              <Text style={styles.periodText}>{selectedPeriod}</Text>
+              <Text style={[styles.periodText, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{selectedPeriod}</Text>
               {periodOpen ? <ChevronUp size={11} color="#8a94a6" /> : <ChevronDown size={11} color="#8a94a6" />}
             </TouchableOpacity>
           </View>
 
           {periodOpen && (
-            <View style={styles.periodDropdown}>
+            <View style={[styles.periodDropdown, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}>
               {periods.map((p) => (
                 <TouchableOpacity
                   key={p}
-                  style={styles.periodOption}
+                  style={[styles.periodOption, { borderBottomColor: isDarkMode ? '#2a2f42' : '#eef1f5' }]}
                   onPress={() => { setSelectedPeriod(p); setPeriodOpen(false); }}
                 >
-                  <Text style={[styles.periodOptionText, selectedPeriod === p && styles.periodOptionActive]}>
+                  <Text style={[styles.periodOptionText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }, selectedPeriod === p && styles.periodOptionActive]}>
                     {p}
                   </Text>
                 </TouchableOpacity>
@@ -214,32 +457,31 @@ export default function ProfileScreen({ navigation }) {
             </View>
           )}
 
-          <BarChart />
+          <BarChart isDarkMode={isDarkMode} />
 
           <View style={styles.chartLegend}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: BLUE }]} />
-              <Text style={styles.legendText}>Current Month</Text>
+              <Text style={[styles.legendText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Current Month</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#c7d0f8' }]} />
-              <Text style={styles.legendText}>Previous Months</Text>
+              <Text style={[styles.legendText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Previous Months</Text>
             </View>
           </View>
         </View>
 
         {/* Risk Assessment */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Risk Assessment</Text>
-          <Text style={styles.riskSub}>Based on your current attendance record</Text>
+        <View style={[styles.card, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
+          <Text style={[styles.cardTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Risk Assessment</Text>
+          <Text style={[styles.riskSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Based on your current attendance record</Text>
 
-          {/* Low Risk - Current */}
-          <View style={styles.riskCardActive}>
+          <View style={[styles.riskCardActive, { backgroundColor: isDarkMode ? '#1a2e1e' : '#edfaf3' }]}>
             <View style={styles.riskLeft}>
               <View style={[styles.riskDot, { backgroundColor: '#27ae60' }]} />
               <View>
-                <Text style={styles.riskLabelActive}>Low Risk (Current)</Text>
-                <Text style={styles.riskRange}>Attendance 80% — 100%</Text>
+                <Text style={[styles.riskLabelActive, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Low Risk (Current)</Text>
+                <Text style={[styles.riskRange, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Attendance 80% — 100%</Text>
               </View>
             </View>
             <View style={styles.riskBadge}>
@@ -247,64 +489,159 @@ export default function ProfileScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Thresholds Info */}
           <View style={styles.thresholdRow}>
             <View style={styles.thresholdItem}>
               <View style={[styles.thresholdDot, { backgroundColor: '#f39c12' }]} />
-              <Text style={styles.thresholdText}>Mid Risk: 60–79%</Text>
+              <Text style={[styles.thresholdText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Mid Risk: 60–79%</Text>
             </View>
             <View style={styles.thresholdItem}>
               <View style={[styles.thresholdDot, { backgroundColor: '#e74c3c' }]} />
-              <Text style={styles.thresholdText}>High Risk: Below 60%</Text>
+              <Text style={[styles.thresholdText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>High Risk: Below 60%</Text>
             </View>
           </View>
 
-          {/* Progress bar */}
           <View style={styles.riskProgressBg}>
             <View style={[styles.riskProgressFill, { width: '88%' }]} />
             <View style={[styles.riskMarker, { left: '60%' }]} />
             <View style={[styles.riskMarker, { left: '79%' }]} />
           </View>
           <View style={styles.riskProgressLabels}>
-            <Text style={styles.riskProgressLabel}>0%</Text>
+            <Text style={[styles.riskProgressLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>0%</Text>
             <Text style={[styles.riskProgressLabel, { color: '#f39c12' }]}>60%</Text>
             <Text style={[styles.riskProgressLabel, { color: '#27ae60' }]}>80%</Text>
-            <Text style={styles.riskProgressLabel}>100%</Text>
+            <Text style={[styles.riskProgressLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>100%</Text>
+          </View>
+        </View>
+
+        {/* Dark Mode Toggle */}
+        <View style={[styles.card, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
+          <Text style={[styles.cardTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36', marginBottom: 14 }]}>Appearance</Text>
+          <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
+            <View style={[styles.settingsIcon, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
+              {isDarkMode ? <Moon size={17} color="#7c8ccc" /> : <Sun size={17} color="#b07d00" />}
+            </View>
+            <View style={styles.settingsContent}>
+              <Text style={[styles.settingsLabel, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Dark Mode</Text>
+              <Text style={[styles.settingsSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
+                {isDarkMode ? 'Dark theme enabled' : 'Light theme enabled'}
+              </Text>
+            </View>
+            <Switch
+              value={isDarkMode}
+              onValueChange={toggleDarkMode}
+              trackColor={{ false: '#e0e4f0', true: '#3a4a8a' }}
+              thumbColor={isDarkMode ? '#7c8ccc' : '#aab0be'}
+            />
           </View>
         </View>
 
         {/* Settings */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Settings</Text>
-          {settingsItems.map((item, i) => (
-            <TouchableOpacity
-              key={i}
-              style={[styles.settingsRow, i !== settingsItems.length - 1 && styles.settingsBorder]}
-            >
-              <View style={styles.settingsIcon}>
-                <item.icon size={17} color="#1a1f36" />
-              </View>
-              <View style={styles.settingsContent}>
-                <Text style={styles.settingsLabel}>{item.label}</Text>
-                <Text style={styles.settingsSub}>{item.sub}</Text>
-              </View>
-              <ChevronRight size={22} color="#8a94a6" />
-            </TouchableOpacity>
-          ))}
+        <View style={[styles.card, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
+          <Text style={[styles.cardTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Settings</Text>
+
+          {/* Edit Profile */}
+          <TouchableOpacity
+            style={[styles.settingsRow, styles.settingsBorder, { borderBottomColor: isDarkMode ? '#252b3e' : '#f0f2f5' }]}
+            onPress={() => setEditProfileVisible(true)}
+          >
+            <View style={[styles.settingsIcon, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
+              <User size={17} color={isDarkMode ? '#8a94b8' : '#1a1f36'} />
+            </View>
+            <View style={styles.settingsContent}>
+              <Text style={[styles.settingsLabel, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Edit Profile</Text>
+              <Text style={[styles.settingsSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Update your personal information</Text>
+            </View>
+            <ChevronRight size={22} color={isDarkMode ? '#3a4060' : '#8a94a6'} />
+          </TouchableOpacity>
+
+          {/* Notifications toggle */}
+          <View
+            style={[styles.settingsRow, styles.settingsBorder, { borderBottomColor: isDarkMode ? '#252b3e' : '#f0f2f5' }]}
+          >
+            <View style={[styles.settingsIcon, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
+              <Bell size={17} color={isDarkMode ? '#8a94b8' : '#1a1f36'} />
+            </View>
+            <View style={styles.settingsContent}>
+              <Text style={[styles.settingsLabel, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Notifications</Text>
+              <Text style={[styles.settingsSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
+                {notificationsEnabled ? 'Alerts are enabled' : 'Alerts are disabled'}
+              </Text>
+            </View>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={v => setNotificationsEnabled(v)}
+              trackColor={{ false: isDarkMode ? '#2a2f42' : '#e0e4f0', true: '#c7d0f8' }}
+              thumbColor={notificationsEnabled ? BLUE : '#aab0be'}
+            />
+          </View>
+
+          {/* Change Password */}
+          <TouchableOpacity
+            style={[styles.settingsRow, styles.settingsBorder, { borderBottomColor: isDarkMode ? '#252b3e' : '#f0f2f5' }]}
+            onPress={() => setChangePasswordVisible(true)}
+          >
+            <View style={[styles.settingsIcon, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
+              <Lock size={17} color={isDarkMode ? '#8a94b8' : '#1a1f36'} />
+            </View>
+            <View style={styles.settingsContent}>
+              <Text style={[styles.settingsLabel, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Change Password</Text>
+              <Text style={[styles.settingsSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Update your account password</Text>
+            </View>
+            <ChevronRight size={22} color={isDarkMode ? '#3a4060' : '#8a94a6'} />
+          </TouchableOpacity>
+
+          {/* Contact Support */}
+          <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
+            <View style={[styles.settingsIcon, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
+              <Phone size={17} color={isDarkMode ? '#8a94b8' : '#1a1f36'} />
+            </View>
+            <View style={styles.settingsContent}>
+              <Text style={[styles.settingsLabel, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Contact Support</Text>
+              <Text style={[styles.settingsSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
+                iimscollege.edu.np
+              </Text>
+              <Text style={[styles.settingsSub, { color: BLUE, marginTop: 1 }]}>
+                info@iimscollege.edu.np
+              </Text>
+              <Text style={[styles.settingsSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6', marginTop: 1 }]}>
+                +977-01-4362154
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[styles.logoutButton, { backgroundColor: isDarkMode ? '#2e1a1a' : '#fff0f0', borderColor: isDarkMode ? '#4a2020' : '#ffd0d0' }]}
+          onPress={handleLogout}
+          activeOpacity={0.85}
+        >
           <LogOut size={18} color="#e74c3c" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
-
-        <Text style={styles.version}>v2.10 © 2024 Attendance Systems</Text>
 
         <View style={{ height: 100 }} />
       </ScrollView>
 
       <BottomNav navigation={navigation} active="Profile" />
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        visible={editProfileVisible}
+        onClose={() => setEditProfileVisible(false)}
+        currentData={{ fullname: displayName, email: fullProfile?.email || user?.email, phone: fullProfile?.phone }}
+        token={token}
+        isDarkMode={isDarkMode}
+        onSaved={(updated) => setFullProfile(prev => ({ ...prev, ...updated }))}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        visible={changePasswordVisible}
+        onClose={() => setChangePasswordVisible(false)}
+        token={token}
+        isDarkMode={isDarkMode}
+      />
     </SafeAreaView>
   );
 }
@@ -761,5 +1098,62 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#aab0be',
     marginBottom: 10,
+  },
+});
+
+// ─── Modal styles ─────────────────────────────────────────────────────────────
+const mStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+  },
+  sheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 36,
+  },
+  sheetHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 22,
+  },
+  sheetTitle: {
+    fontSize: 18, fontWeight: '800',
+  },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#f0f2f8',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  fieldLabel: {
+    fontSize: 11, fontWeight: '800', letterSpacing: 0.6,
+    marginBottom: 6, marginTop: 4,
+  },
+  fieldInput: {
+    borderRadius: 12, borderWidth: 1.5,
+    paddingHorizontal: 14, paddingVertical: 13,
+    fontSize: 14, marginBottom: 14,
+  },
+  fieldInputText: {
+    fontSize: 14,
+  },
+  passwordRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 12, borderWidth: 1.5,
+    paddingHorizontal: 14, marginBottom: 14,
+  },
+  passwordInput: {
+    flex: 1, fontSize: 14, paddingVertical: 13,
+  },
+  eyeBtn: {
+    padding: 6,
+  },
+  passwordHint: {
+    fontSize: 12, marginBottom: 18, marginTop: -6,
+  },
+  saveBtn: {
+    backgroundColor: BLUE, borderRadius: 14,
+    paddingVertical: 15, alignItems: 'center', marginTop: 4,
+  },
+  saveBtnText: {
+    fontSize: 15, color: '#ffffff', fontWeight: '700',
   },
 });

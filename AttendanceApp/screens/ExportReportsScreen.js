@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AdminBottomNav from '../components/AdminBottomNav';
+import { useAuth } from '../context/AuthContext';
 import {
   BarChart3, AlertTriangle, GraduationCap, ClipboardList, Calendar, CalendarDays,
   FileText, FileSpreadsheet, FileJson, ChevronLeft, Upload, Hourglass, Download, Check
@@ -36,10 +37,21 @@ const recentExports = [
 ];
 
 export default function ExportReportsScreen({ navigation }) {
+  const { isDarkMode } = useAuth();
   const [selectedReport, setSelectedReport] = useState('full');
   const [selectedFormat, setSelectedFormat] = useState('pdf');
   const [selectedPeriod, setSelectedPeriod] = useState('This Month');
   const [exporting, setExporting] = useState(false);
+
+  // ── Theme colours ────────────────────────────────────────────────────────
+  const bg          = isDarkMode ? '#111827' : '#f5f7fa';
+  const headerBg    = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const borderColor = isDarkMode ? '#2a2f42' : '#eef1f5';
+  const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const chipBg      = isDarkMode ? '#1a1f2e' : '#f0f2f8';
+  const rowBorder   = isDarkMode ? '#252b3e' : '#f0f2f5';
 
   const handleExport = () => {
     const report = reportTypes.find(r => r.key === selectedReport);
@@ -55,36 +67,36 @@ export default function ExportReportsScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={headerBg} />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: borderColor }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Export Reports</Text>
+        <Text style={[styles.headerTitle, { color: textPrimary }]}>Export Reports</Text>
         <View style={{ width: 38 }} />
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Report Type */}
-        <Text style={styles.sectionLabel}>REPORT TYPE</Text>
+        <Text style={[styles.sectionLabel, { color: textSub }]}>REPORT TYPE</Text>
         <View style={styles.reportGrid}>
           {reportTypes.map(r => {
             const isActive = selectedReport === r.key;
             return (
               <TouchableOpacity
                 key={r.key}
-                style={[styles.reportCard, { backgroundColor: r.color }, isActive && { borderColor: r.iconColor, borderWidth: 2 }]}
+                style={[styles.reportCard, { backgroundColor: isDarkMode ? '#1a1f2e' : r.color }, isActive && { borderColor: r.iconColor, borderWidth: 2 }]}
                 onPress={() => setSelectedReport(r.key)}
                 activeOpacity={0.8}
               >
                 <View style={{ marginBottom: 6 }}>
                   <r.icon size={22} color={r.iconColor} />
                 </View>
-                <Text style={[styles.reportLabel, isActive && { color: r.iconColor }]}>{r.label}</Text>
-                <Text style={styles.reportSub}>{r.sub}</Text>
+                <Text style={[styles.reportLabel, { color: isActive ? r.iconColor : textPrimary }]}>{r.label}</Text>
+                <Text style={[styles.reportSub, { color: textSub }]}>{r.sub}</Text>
                 {isActive && (
                   <View style={[styles.checkDot, { backgroundColor: r.iconColor }]}>
                     <Check size={10} color="#ffffff" />
@@ -96,55 +108,55 @@ export default function ExportReportsScreen({ navigation }) {
         </View>
 
         {/* Time Period */}
-        <Text style={styles.sectionLabel}>TIME PERIOD</Text>
+        <Text style={[styles.sectionLabel, { color: textSub }]}>TIME PERIOD</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodRow} contentContainerStyle={styles.periodContent}>
           {periods.map(p => (
             <TouchableOpacity
               key={p}
-              style={[styles.periodChip, selectedPeriod === p && styles.periodChipActive]}
+              style={[styles.periodChip, { backgroundColor: chipBg }, selectedPeriod === p && styles.periodChipActive]}
               onPress={() => setSelectedPeriod(p)}
             >
-              <Text style={[styles.periodText, selectedPeriod === p && styles.periodTextActive]}>{p}</Text>
+              <Text style={[styles.periodText, { color: textSub }, selectedPeriod === p && styles.periodTextActive]}>{p}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
         {/* Format */}
-        <Text style={styles.sectionLabel}>FILE FORMAT</Text>
+        <Text style={[styles.sectionLabel, { color: textSub }]}>FILE FORMAT</Text>
         <View style={styles.formatRow}>
           {formats.map(f => {
             const isActive = selectedFormat === f.key;
             return (
               <TouchableOpacity
                 key={f.key}
-                style={[styles.formatCard, isActive && styles.formatCardActive]}
+                style={[styles.formatCard, { backgroundColor: isActive ? (isDarkMode ? '#1e2540' : '#eef2ff') : cardBg, borderColor: isActive ? BLUE : (isDarkMode ? '#2a2f42' : '#e6e9f0') }]}
                 onPress={() => setSelectedFormat(f.key)}
                 activeOpacity={0.8}
               >
                 <View style={{ marginBottom: 6 }}>
                   <f.icon size={22} color={isActive ? BLUE : '#8a94a6'} />
                 </View>
-                <Text style={[styles.formatLabel, isActive && styles.formatLabelActive]}>{f.label}</Text>
-                <Text style={styles.formatSub}>{f.sub}</Text>
+                <Text style={[styles.formatLabel, { color: isActive ? BLUE : textSub }]}>{f.label}</Text>
+                <Text style={[styles.formatSub, { color: textSub }]}>{f.sub}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
         {/* Summary Preview */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Export Summary</Text>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryKey}>Report</Text>
-            <Text style={styles.summaryVal}>{reportTypes.find(r => r.key === selectedReport)?.label}</Text>
+        <View style={[styles.summaryCard, { backgroundColor: cardBg }]}>
+          <Text style={[styles.summaryTitle, { color: textPrimary }]}>Export Summary</Text>
+          <View style={[styles.summaryRow, { borderBottomColor: rowBorder }]}>
+            <Text style={[styles.summaryKey, { color: textSub }]}>Report</Text>
+            <Text style={[styles.summaryVal, { color: textPrimary }]}>{reportTypes.find(r => r.key === selectedReport)?.label}</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryKey}>Period</Text>
-            <Text style={styles.summaryVal}>{selectedPeriod}</Text>
+          <View style={[styles.summaryRow, { borderBottomColor: rowBorder }]}>
+            <Text style={[styles.summaryKey, { color: textSub }]}>Period</Text>
+            <Text style={[styles.summaryVal, { color: textPrimary }]}>{selectedPeriod}</Text>
           </View>
           <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.summaryKey}>Format</Text>
-            <Text style={styles.summaryVal}>{formats.find(f => f.key === selectedFormat)?.label}</Text>
+            <Text style={[styles.summaryKey, { color: textSub }]}>Format</Text>
+            <Text style={[styles.summaryVal, { color: textPrimary }]}>{formats.find(f => f.key === selectedFormat)?.label}</Text>
           </View>
         </View>
 
@@ -160,22 +172,22 @@ export default function ExportReportsScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* Recent Exports */}
-        <Text style={styles.sectionLabel}>RECENT EXPORTS</Text>
-        <View style={styles.card}>
+        <Text style={[styles.sectionLabel, { color: textSub }]}>RECENT EXPORTS</Text>
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
           {recentExports.map((ex, i) => (
             <TouchableOpacity
               key={i}
-              style={[styles.recentRow, i !== recentExports.length - 1 && styles.recentBorder]}
+              style={[styles.recentRow, i !== recentExports.length - 1 && [styles.recentBorder, { borderBottomColor: rowBorder }]]}
               onPress={() => Alert.alert('Download', `Downloading ${ex.name}...`)}
             >
-              <View style={[styles.fileIcon, { backgroundColor: ex.color }]}>
+              <View style={[styles.fileIcon, { backgroundColor: isDarkMode ? '#252b3e' : ex.color }]}>
                 <ex.icon size={18} color={ex.textColor} />
               </View>
               <View style={styles.fileInfo}>
-                <Text style={styles.fileName}>{ex.name}</Text>
-                <Text style={styles.fileMeta}>{ex.size} · {ex.date}</Text>
+                <Text style={[styles.fileName, { color: textPrimary }]}>{ex.name}</Text>
+                <Text style={[styles.fileMeta, { color: textSub }]}>{ex.size} · {ex.date}</Text>
               </View>
-              <View style={styles.downloadBtn}>
+              <View style={[styles.downloadBtn, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
                 <Download size={14} color={BLUE} />
               </View>
             </TouchableOpacity>

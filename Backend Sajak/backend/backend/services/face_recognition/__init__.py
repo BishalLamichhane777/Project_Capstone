@@ -7,6 +7,8 @@ import logging
 from models.student import Student
 from services.face_recognition.recognizer import recognize_face, load_all_embeddings
 
+__all__ = ["recognize_student", "reload_embeddings"]
+
 logger = logging.getLogger(__name__)
 
 # Cache embeddings at module load time
@@ -66,9 +68,24 @@ def reload_embeddings() -> None:
         logger.error("Failed to reload face recognition embeddings: %s", e)
 
 
-def recognize_student(image_bytes: bytes) -> dict:
-    """Decodes image_bytes, performs face recognition, and resolves
-    the matching student ID from the database.
+def recognize_student(image_bytes: bytes) -> list:
+    """Decodes image_bytes, performs face recognition on ALL detected faces,
+    and resolves matching student IDs from the database.
+
+    Returns a list of result dicts — one per recognized face:
+        [
+          {
+            "status"    : "recognized",
+            "student_id": int,
+            "confidence": float,
+            "distance"  : float,
+            "face_label": str,
+          },
+          ...
+        ]
+
+    Returns an empty list when no face is detected.
+    Returns [{"status": "error", ...}] on hard decode/recognition failures.
     """
     try:
         # Decode image bytes to BGR numpy array
@@ -76,19 +93,19 @@ def recognize_student(image_bytes: bytes) -> dict:
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             logger.error("Failed to decode image bytes with cv2.imdecode")
-            return {
-                "status": "error",
+            return [{
+                "status"    : "error",
                 "student_id": None,
                 "confidence": None,
-                "distance": None,
+                "distance"  : None,
                 "face_label": None,
-                "message": "Failed to decode image"
-            }
+                "message"   : "Failed to decode image",
+            }]
 
         # Downscale if the frame is larger than 640px wide.
         # FaceNet operates on a 160×160 face crop, so anything beyond
         # ~640px wide wastes MTCNN inference time with no accuracy gain.
-        # The frontend already resizes to 480px; this guard handles any
+        # The frontend already resizes to 720px; this guard handles any
         # client that skips that step.
         MAX_WIDTH = 640
         h, w = img.shape[:2]
@@ -97,39 +114,48 @@ def recognize_student(image_bytes: bytes) -> dict:
             img = cv2.resize(img, (MAX_WIDTH, int(h * scale)),
                              interpolation=cv2.INTER_AREA)
 
-        # Perform recognition
-        result = recognize_face(img, _EMBEDDINGS)
-        
-        status = result.get("status", "unknown")
-        distance = result.get("distance")
-        confidence = result.get("confidence")
-        
-        # If recognized, look up student_id from face_label in database
-        student_id = None
-        face_label = None
-        if status == "recognized":
-            face_label = result.get("student_id")  # recognizer returns face_label in student_id field
+        # Perform recognition — returns list of recognized-face dicts
+        raw_results = recognize_face(img, _EMBEDDINGS)
+
+        # Empty list = no face detected or no face above threshold
+        if not raw_results:
+            return []
+
+        # Hard error from recognizer (no embeddings loaded, etc.)
+        if len(raw_results) == 1 and raw_results[0].get("status") == "error":
+            return raw_results
+
+        # Resolve face_label → DB student_id for each recognized hit
+        resolved = []
+        for hit in raw_results:
+            face_label = hit.get("student_id")   # recognizer stores label here
+            confidence = hit.get("confidence")
+            distance   = hit.get("distance")
+
             student = Student.query.filter_by(face_label=face_label).first()
             if student:
-                student_id = student.student_id
+                resolved.append({
+                    "status"    : "recognized",
+                    "student_id": student.student_id,
+                    "confidence": confidence,
+                    "distance"  : distance,
+                    "face_label": face_label,
+                })
             else:
-                logger.warning("Recognized face_label '%s' but no matching student found in DB", face_label)
+                logger.warning(
+                    "Recognized face_label '%s' but no matching student found in DB",
+                    face_label,
+                )
 
-        return {
-            "status": status,
-            "student_id": student_id,
-            "confidence": confidence,
-            "distance": distance,
-            "face_label": face_label
-        }
+        return resolved
 
     except Exception as e:
         logger.exception("Error during recognize_student execution: %s", e)
-        return {
-            "status": "error",
+        return [{
+            "status"    : "error",
             "student_id": None,
             "confidence": None,
-            "distance": None,
+            "distance"  : None,
             "face_label": None,
-            "message": str(e)
-        }
+            "message"   : str(e),
+        }]

@@ -50,61 +50,46 @@ function StatusBadge({ status }) {
   );
 }
 
-function WaiverCard({ waiver }) {
+function WaiverCard({ waiver, isDarkMode }) {
   const config = statusConfig[waiver.status] || statusConfig['Pending'];
   const isPending = waiver.status === 'Pending';
-  
-  // Format Date
-  const dateStr = waiver.session_date 
+  const dateStr = waiver.session_date
     ? new Date(waiver.session_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
     : 'Unknown Date';
 
+  const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const reasonLabelColor = isDarkMode ? '#5a6080' : '#8a94a6';
+  const feedbackBg  = isDarkMode ? '#252b3e' : '#f9fafb';
+
   return (
-    <View style={styles.card}>
-      {/* Top Row */}
+    <View style={[styles.card, { backgroundColor: cardBg }]}>
       <View style={styles.cardTopRow}>
         <StatusBadge status={waiver.status} />
-        <Text style={styles.waiverID}>ID: #W-{waiver.request_id}</Text>
+        <Text style={[styles.waiverID, { color: textSub }]}>ID: #W-{waiver.request_id}</Text>
       </View>
-
-      {/* Subject */}
-      <Text style={styles.subjectText}>{waiver.class_name}</Text>
-
-      {/* Absence Date */}
+      <Text style={[styles.subjectText, { color: textPrimary }]}>{waiver.class_name}</Text>
       <View style={styles.dateRow}>
-        <Calendar size={13} color="#8a94a6" />
-        <Text style={styles.dateText}>Absence Date: {dateStr}</Text>
+        <Calendar size={13} color={textSub} />
+        <Text style={[styles.dateText, { color: textSub }]}>Absence Date: {dateStr}</Text>
       </View>
-      
-      {/* Reason Box */}
       <View style={styles.reasonBox}>
-        <Text style={styles.reasonLabel}>YOUR REASON</Text>
-        <Text style={styles.reasonText}>"{waiver.reason}"</Text>
+        <Text style={[styles.reasonLabel, { color: reasonLabelColor }]}>YOUR REASON</Text>
+        <Text style={[styles.reasonText, { color: textPrimary }]}>"{waiver.reason}"</Text>
       </View>
-
-      {/* Feedback Box */}
-      <View style={[
-        styles.feedbackBox,
-        { borderLeftColor: config.feedbackBorder },
-        isPending && styles.feedbackBoxPending,
-      ]}>
-        {!isPending && (
-          <Text style={styles.feedbackLabel}>ADMIN FEEDBACK</Text>
-        )}
-        <Text style={[
-          styles.feedbackText,
-          isPending && { color: config.text },
-        ]}>
+      <View style={[styles.feedbackBox, { backgroundColor: isPending ? '#fff8e6' : feedbackBg, borderLeftColor: config.feedbackBorder }, isPending && styles.feedbackBoxPending]}>
+        {!isPending && <Text style={[styles.feedbackLabel, { color: reasonLabelColor }]}>ADMIN FEEDBACK</Text>}
+        <Text style={[styles.feedbackText, { color: isDarkMode ? '#a0b0d0' : '#3a4a6a' }, isPending && { color: config.text }]}>
           {isPending ? config.feedbackText : `"${config.feedbackText}"`}
         </Text>
       </View>
-
     </View>
   );
 }
 
 export default function WaiverStatusScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
   const [activeTab, setActiveTab] = useState('My Requests');
   const tabs = ['Active', 'My Requests', 'Archived'];
   const [waivers, setWaivers] = useState([]);
@@ -143,27 +128,23 @@ export default function WaiverStatusScreen({ navigation }) {
       : waivers.filter(w => w.status !== 'Pending');
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#1a1f2e' : '#ffffff'} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Waiver Status</Text>
+        <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Waiver Status</Text>
         <View style={{ width: 38 }} />
       </View>
 
       {/* Tab Row */}
-      <View style={styles.tabRow}>
+      <View style={[styles.tabRow, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderBottomColor: isDarkMode ? '#2a2f42' : '#eef1f5' }]}>
         {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={styles.tabButton}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+          <TouchableOpacity key={tab} style={styles.tabButton} onPress={() => setActiveTab(tab)}>
+            <Text style={[styles.tabText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }, activeTab === tab && [styles.tabTextActive]]}>
               {tab}
             </Text>
             {activeTab === tab && <View style={styles.tabUnderline} />}
@@ -179,12 +160,12 @@ export default function WaiverStatusScreen({ navigation }) {
             <View style={{ marginBottom: 16 }}>
               <FolderOpen size={48} color="#8a94a6" />
             </View>
-            <Text style={styles.emptyTitle}>No Requests</Text>
-            <Text style={styles.emptySubtitle}>You have no waivers in this category.</Text>
+            <Text style={[styles.emptyTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>No Requests</Text>
+            <Text style={[styles.emptySubtitle, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>You have no waivers in this category.</Text>
           </View>
         ) : (
           filteredWaivers.map((waiver, index) => (
-            <WaiverCard key={waiver.request_id || index} waiver={waiver} />
+            <WaiverCard key={waiver.request_id || index} waiver={waiver} isDarkMode={isDarkMode} />
           ))
         )}
         <View style={{ height: 100 }} />

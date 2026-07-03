@@ -81,29 +81,36 @@ function OngoingCard({ item, navigation }) {
   );
 }
 
-function UpcomingCard({ item, navigation }) {
+function UpcomingCard({ item, navigation, isDarkMode }) {
+  const cardBg  = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const dateBg  = isDarkMode ? '#1e2540' : '#eef2ff';
+  const textPri = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const metaTxt = isDarkMode ? '#8a94b8' : '#6b7280';
+  const startBg = isDarkMode ? '#1e2540' : '#eef2ff';
+
   return (
-    <View style={styles.upcomingCard}>
-      <View style={styles.upcomingDate}>
+    <View style={[styles.upcomingCard, { backgroundColor: cardBg }]}>
+      <View style={[styles.upcomingDate, { backgroundColor: dateBg }]}>
         <Text style={styles.upcomingMonth}>{item.month}</Text>
         <Text style={styles.upcomingDay}>{item.day}</Text>
       </View>
       <View style={styles.upcomingInfo}>
-        <Text style={styles.upcomingSubject}>{item.subject}</Text>
-        <Text style={styles.upcomingCode}>{item.code} • {item.dept}</Text>
+        <Text style={[styles.upcomingSubject, { color: textPri }]}>{item.subject}</Text>
+        <Text style={[styles.upcomingCode, { color: textSub }]}>{item.code} • {item.dept}</Text>
         <View style={styles.upcomingDetails}>
           <View style={styles.upcomingDetailItem}>
-            <Clock size={11} color="#6b7280" />
-            <Text style={styles.upcomingDetailText}>{item.time}</Text>
+            <Clock size={11} color={metaTxt} />
+            <Text style={[styles.upcomingDetailText, { color: metaTxt }]}>{item.time}</Text>
           </View>
           <View style={styles.upcomingDetailItem}>
-            <DoorOpen size={11} color="#6b7280" />
-            <Text style={styles.upcomingDetailText}>{item.room}</Text>
+            <DoorOpen size={11} color={metaTxt} />
+            <Text style={[styles.upcomingDetailText, { color: metaTxt }]}>{item.room}</Text>
           </View>
         </View>
       </View>
       <TouchableOpacity
-        style={styles.startBtn}
+        style={[styles.startBtn, { backgroundColor: startBg }]}
         onPress={() => navigation.navigate('StartClass', { classItem: item })}
         activeOpacity={0.85}
       >
@@ -114,7 +121,7 @@ function UpcomingCard({ item, navigation }) {
 }
 
 export default function TeacherDashboardScreen({ navigation }) {
-  const { user, token } = useAuth();
+  const { user, token, isDarkMode } = useAuth();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -128,12 +135,16 @@ export default function TeacherDashboardScreen({ navigation }) {
       if (res.ok) {
         const data = await res.json();
         setSessions(data);
+      } else if (res.status === 403) {
+        // Token role mismatch (e.g. Firebase token without role claim) — silently show empty
+        setSessions([]);
       } else {
         throw new Error('Failed to fetch classes');
       }
     } catch (err) {
       console.error(err);
-      Alert.alert('Error', 'Could not load your classes.');
+      // Don't alert on network errors at startup — just show empty state
+      setSessions([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -177,8 +188,8 @@ export default function TeacherDashboardScreen({ navigation }) {
     : 'TE';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#111827' : '#f5f7fa'} />
 
       <ScrollView 
         style={styles.scroll} 
@@ -189,22 +200,22 @@ export default function TeacherDashboardScreen({ navigation }) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.avatar}>
+            <View style={[styles.avatar, { backgroundColor: isDarkMode ? '#1e2540' : '#d0d7f5' }]}>
               <Text style={styles.avatarText}>{displayInitials}</Text>
-              <View style={styles.onlineIndicator} />
+              <View style={[styles.onlineIndicator, { borderColor: isDarkMode ? '#111827' : '#f5f7fa' }]} />
             </View>
             <View>
               <Text style={styles.roleLabel}>TEACHER</Text>
-              <Text style={styles.nameText}>Hello, {displayName}</Text>
+              <Text style={[styles.nameText, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Hello, {displayName}</Text>
             </View>
           </View>
           <TouchableOpacity
-            style={styles.bellBtn}
+            style={[styles.bellBtn, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}
             onPress={() => navigation.navigate('Notifications')}
           >
-            <Bell size={18} color="#1a1f36" />
+            <Bell size={18} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
             {unreadCount > 0 && (
-              <View style={styles.bellBadge}>
+              <View style={[styles.bellBadge, { borderColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
                 <Text style={styles.bellBadgeText}>
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </Text>
@@ -213,23 +224,22 @@ export default function TeacherDashboardScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-
         {/* Quick Stats */}
         <View style={styles.statsRow}>
           {quickStats.map((s, i) => (
-            <View key={i} style={[styles.statCard, { backgroundColor: s.color }]}>
+            <View key={i} style={[styles.statCard, { backgroundColor: isDarkMode ? '#1a1f2e' : s.color }]}>
               <View style={{ marginBottom: 4 }}>
                 <s.icon size={18} color={s.textColor} />
               </View>
               <Text style={[styles.statValue, { color: s.textColor }]}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
+              <Text style={[styles.statLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{s.label}</Text>
             </View>
           ))}
         </View>
 
         {/* Today's Schedule Header */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Today's Schedule</Text>
+          <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Today's Schedule</Text>
           <TouchableOpacity onPress={() => navigation.navigate('TeacherClasses')}>
             <Text style={styles.seeAll}>See All</Text>
           </TouchableOpacity>
@@ -241,19 +251,14 @@ export default function TeacherDashboardScreen({ navigation }) {
           <>
             {sessions.length === 0 ? (
               <View style={{ alignItems: 'center', marginVertical: 20 }}>
-                <Text style={{ color: '#8a94a6' }}>No classes scheduled for today.</Text>
+                <Text style={{ color: isDarkMode ? '#8a94b8' : '#8a94a6' }}>No classes scheduled for today.</Text>
               </View>
             ) : (
               <>
-                {/* Ongoing Class Card */}
                 {ongoing && <OngoingCard item={ongoing} navigation={navigation} />}
-
-                {/* Upcoming Classes */}
                 {upcoming.map((item, idx) => (
-                  <UpcomingCard key={item.id || idx} item={item} navigation={navigation} />
+                  <UpcomingCard key={item.id || idx} item={item} navigation={navigation} isDarkMode={isDarkMode} />
                 ))}
-
-                {/* Start Attendance Banner */}
                 <TouchableOpacity
                   style={styles.startBanner}
                   onPress={() => navigation.navigate('StartClass', { classItem: ongoing || upcoming[0] })}

@@ -5,6 +5,7 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const loginState = (newToken, newUser) => {
     setToken(newToken);
@@ -16,8 +17,10 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const toggleDarkMode = () => setIsDarkMode(prev => !prev);
+
   return (
-    <AuthContext.Provider value={{ token, user, loginState, logoutState }}>
+    <AuthContext.Provider value={{ token, user, loginState, logoutState, isDarkMode, toggleDarkMode }}>
       {children}
     </AuthContext.Provider>
   );

@@ -206,10 +206,13 @@ def recognize_face(frame_bgr, embeddings_dict):
             best_distance = dist
             best_match    = student_id
 
-    # Convert cosine distance to a 0–100 confidence score for display
-    # distance=0.0 → confidence=100, distance=0.40 → confidence=60
+    # Convert cosine distance to a 0–100 confidence score for display.
+    # distance=0.0              → confidence=100%
+    # distance=COSINE_THRESHOLD → confidence=0%
+    # Using threshold-relative scaling so the score means the same thing
+    # regardless of the absolute threshold value.
     display_confidence = round(
-        max(0, (1.0 - best_distance) * 100), 1
+        max(0, (1.0 - (best_distance / COSINE_THRESHOLD)) * 100), 1
     )
 
     # Step 6: Apply threshold

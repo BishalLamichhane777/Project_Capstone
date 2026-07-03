@@ -21,19 +21,23 @@ function getInitials(name) {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
-function StudentRow({ student, index, onRemove }) {
+function StudentRow({ student, index, onRemove, isDarkMode }) {
   const color = avatarColors[index % avatarColors.length];
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const rowBorder   = isDarkMode ? '#252b3e' : '#f0f2f5';
+
   return (
-    <View style={styles.studentRow}>
+    <View style={[styles.studentRow, { borderBottomColor: rowBorder }]}>
       <View style={[styles.avatar, { backgroundColor: color }]}>
         <Text style={styles.avatarText}>{getInitials(student.fullname)}</Text>
       </View>
       <View style={styles.studentInfo}>
-        <Text style={styles.studentName}>{student.fullname}</Text>
-        <Text style={styles.studentMeta}>{student.roll_number}</Text>
+        <Text style={[styles.studentName, { color: textPrimary }]}>{student.fullname}</Text>
+        <Text style={[styles.studentMeta, { color: textSub }]}>{student.roll_number}</Text>
       </View>
       <TouchableOpacity
-        style={styles.removeBtn}
+        style={[styles.removeBtn, { backgroundColor: isDarkMode ? '#2e1a1a' : '#fff0f0' }]}
         onPress={() =>
           Alert.alert(
             'Remove Student',
@@ -51,10 +55,15 @@ function StudentRow({ student, index, onRemove }) {
   );
 }
 
-function EditModal({ visible, onClose, onSave, initialName, initialDesc, saving }) {
+function EditModal({ visible, onClose, onSave, initialName, initialDesc, saving, isDarkMode }) {
   const [batchName, setBatchName] = useState(initialName || '');
   const [description, setDescription] = useState(initialDesc || '');
 
+  const modalBg  = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const inputBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const inputBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
+  const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const labelClr = isDarkMode ? '#8a94b8' : '#8a94a6';
   useEffect(() => {
     if (visible) {
       setBatchName(initialName || '');
@@ -73,17 +82,17 @@ function EditModal({ visible, onClose, onSave, initialName, initialDesc, saving 
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { backgroundColor: modalBg }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Batch</Text>
-            <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
+            <Text style={[styles.modalTitle, { color: textPri }]}>Edit Batch</Text>
+            <TouchableOpacity onPress={onClose} style={[styles.modalCloseBtn, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
               <X size={13} color="#8a94a6" />
             </TouchableOpacity>
           </View>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>BATCH NAME</Text>
+            <Text style={[styles.fieldLabel, { color: labelClr }]}>BATCH NAME</Text>
             <TextInput
-              style={styles.fieldInput}
+              style={[styles.fieldInput, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
               value={batchName}
               onChangeText={setBatchName}
               placeholderTextColor="#aab0be"
@@ -91,9 +100,9 @@ function EditModal({ visible, onClose, onSave, initialName, initialDesc, saving 
             />
           </View>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>DESCRIPTION (OPTIONAL)</Text>
+            <Text style={[styles.fieldLabel, { color: labelClr }]}>DESCRIPTION (OPTIONAL)</Text>
             <TextInput
-              style={[styles.fieldInput, styles.textArea]}
+              style={[styles.fieldInput, styles.textArea, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
               value={description}
               onChangeText={setDescription}
               placeholderTextColor="#aab0be"
@@ -120,10 +129,17 @@ function EditModal({ visible, onClose, onSave, initialName, initialDesc, saving 
   );
 }
 
-function AddStudentsModal({ visible, onClose, onAdd, allStudents, currentStudentIds, saving }) {
+function AddStudentsModal({ visible, onClose, onAdd, allStudents, currentStudentIds, saving, isDarkMode }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState([]);
 
+  const modalBg  = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const inputBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const inputBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
+  const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub  = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const rowBorder = isDarkMode ? '#252b3e' : '#f0f2f5';
+  const rowSelBg  = isDarkMode ? '#1e2540' : '#f0f4ff';
   useEffect(() => {
     if (visible) {
       setSearch('');
@@ -152,16 +168,16 @@ function AddStudentsModal({ visible, onClose, onAdd, allStudents, currentStudent
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { maxHeight: '90%' }]}>
+        <View style={[styles.modalCard, { maxHeight: '90%', backgroundColor: modalBg }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Students</Text>
-            <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
+            <Text style={[styles.modalTitle, { color: textPri }]}>Add Students</Text>
+            <TouchableOpacity onPress={onClose} style={[styles.modalCloseBtn, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
               <X size={13} color="#8a94a6" />
             </TouchableOpacity>
           </View>
 
           <TextInput
-            style={[styles.fieldInput, { marginBottom: 12 }]}
+            style={[styles.fieldInput, { marginBottom: 12, backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
             placeholder="Search by name or roll number..."
             placeholderTextColor="#aab0be"
             value={search}
@@ -169,7 +185,7 @@ function AddStudentsModal({ visible, onClose, onAdd, allStudents, currentStudent
           />
 
           {filtered.length === 0 ? (
-            <Text style={styles.emptyAddText}>
+            <Text style={[styles.emptyAddText, { color: textSub }]}>
               {available.length === 0
                 ? 'All students are already in this batch.'
                 : 'No students match your search.'}
@@ -184,7 +200,11 @@ function AddStudentsModal({ visible, onClose, onAdd, allStudents, currentStudent
                 const color = avatarColors[index % avatarColors.length];
                 return (
                   <TouchableOpacity
-                    style={[styles.addStudentRow, isSelected && styles.addStudentRowSelected]}
+                    style={[
+                      styles.addStudentRow,
+                      { borderBottomColor: rowBorder },
+                      isSelected && { backgroundColor: rowSelBg },
+                    ]}
                     onPress={() => toggle(item.student_id)}
                     activeOpacity={0.7}
                   >
@@ -192,8 +212,8 @@ function AddStudentsModal({ visible, onClose, onAdd, allStudents, currentStudent
                       <Text style={styles.avatarText}>{getInitials(item.fullname)}</Text>
                     </View>
                     <View style={styles.studentInfo}>
-                      <Text style={styles.studentName}>{item.fullname}</Text>
-                      <Text style={styles.studentMeta}>{item.roll_number}</Text>
+                      <Text style={[styles.studentName, { color: textPri }]}>{item.fullname}</Text>
+                      <Text style={[styles.studentMeta, { color: textSub }]}>{item.roll_number}</Text>
                     </View>
                     <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
                       {isSelected && <Check size={12} color="#ffffff" />}
@@ -225,7 +245,7 @@ function AddStudentsModal({ visible, onClose, onAdd, allStudents, currentStudent
 }
 
 export default function ManageBatchDetailScreen({ navigation, route }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
   const [batch, setBatch] = useState(route?.params?.batch || null);
   const [students, setStudents] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
@@ -420,15 +440,15 @@ export default function ManageBatchDetailScreen({ navigation, route }) {
   const currentStudentIds = students.map(s => s.student_id);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#1a1f2e' : '#ffffff'} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderBottomColor: isDarkMode ? '#2a2f42' : '#eef1f5' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
+        <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]} numberOfLines={1}>
           {batch?.batch_name || 'Batch Detail'}
         </Text>
         <TouchableOpacity style={styles.editBtn} onPress={() => setEditVisible(true)}>
@@ -441,13 +461,13 @@ export default function ManageBatchDetailScreen({ navigation, route }) {
       ) : (
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Batch info card */}
-          <View style={styles.infoCard}>
-            <Text style={styles.infoName}>{batch?.batch_name}</Text>
+          <View style={[styles.infoCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
+            <Text style={[styles.infoName, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{batch?.batch_name}</Text>
             {batch?.description ? (
-              <Text style={styles.infoDesc}>{batch.description}</Text>
+              <Text style={[styles.infoDesc, { color: isDarkMode ? '#8a94b8' : '#6b7280' }]}>{batch.description}</Text>
             ) : null}
             <View style={styles.infoRow}>
-              <View style={styles.countBadge}>
+              <View style={[styles.countBadge, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
                 <Text style={styles.countBadgeText}>{batch?.student_count || 0} students</Text>
               </View>
             </View>
@@ -455,24 +475,25 @@ export default function ManageBatchDetailScreen({ navigation, route }) {
 
           {/* Students section */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Students</Text>
-            <Text style={styles.sectionCount}>{students.length}</Text>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Students</Text>
+            <Text style={[styles.sectionCount, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>{students.length}</Text>
           </View>
 
           {students.length === 0 ? (
             <View style={styles.emptyBox}>
               <Users size={32} color="#8a94a6" style={{ marginBottom: 10 }} />
-              <Text style={styles.emptyTitle}>No students in this batch yet</Text>
-              <Text style={styles.emptySubtitle}>Tap "Add Students" below to get started.</Text>
+              <Text style={[styles.emptyTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>No students in this batch yet</Text>
+              <Text style={[styles.emptySubtitle, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Tap "Add Students" below to get started.</Text>
             </View>
           ) : (
-            <View style={styles.studentsCard}>
+            <View style={[styles.studentsCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
               {students.map((student, index) => (
                 <StudentRow
                   key={student.student_id}
                   student={student}
                   index={index}
                   onRemove={handleRemove}
+                  isDarkMode={isDarkMode}
                 />
               ))}
             </View>
@@ -507,6 +528,7 @@ export default function ManageBatchDetailScreen({ navigation, route }) {
         initialName={batch?.batch_name}
         initialDesc={batch?.description}
         saving={saving}
+        isDarkMode={isDarkMode}
       />
 
       <AddStudentsModal
@@ -516,6 +538,7 @@ export default function ManageBatchDetailScreen({ navigation, route }) {
         allStudents={allStudents}
         currentStudentIds={currentStudentIds}
         saving={saving}
+        isDarkMode={isDarkMode}
       />
 
       {/* ── Enroll Batch to Class Modal ───────────────────────────────── */}
@@ -526,15 +549,15 @@ export default function ManageBatchDetailScreen({ navigation, route }) {
         onRequestClose={() => setEnrollModalVisible(false)}
       >
         <View style={styles.enrollModalOverlay}>
-          <View style={styles.enrollModalCard}>
-            <Text style={styles.enrollModalTitle}>Enroll Batch to Class</Text>
-            <Text style={styles.enrollModalSubtitle}>
+          <View style={[styles.enrollModalCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
+            <Text style={[styles.enrollModalTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Enroll Batch to Class</Text>
+            <Text style={[styles.enrollModalSubtitle, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
               Select a class to enroll all students in this batch
             </Text>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {classes.length === 0 ? (
-                <Text style={styles.enrollEmptyText}>No classes available</Text>
+                <Text style={[styles.enrollEmptyText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>No classes available</Text>
               ) : (
                 classes.map((cls) => (
                   <TouchableOpacity
@@ -542,16 +565,17 @@ export default function ManageBatchDetailScreen({ navigation, route }) {
                     onPress={() => setSelectedClassId(cls.class_id || cls.id)}
                     style={[
                       styles.classRow,
+                      { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' },
                       selectedClassId === (cls.class_id || cls.id) && styles.classRowSelected,
                     ]}
                     activeOpacity={0.7}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.className}>
+                      <Text style={[styles.className, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>
                         {cls.class_name || cls.name || 'Unnamed Class'}
                       </Text>
                       {cls.subject ? (
-                        <Text style={styles.classSubject}>{cls.subject}</Text>
+                        <Text style={[styles.classSubject, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{cls.subject}</Text>
                       ) : null}
                     </View>
                     {selectedClassId === (cls.class_id || cls.id) && (
@@ -582,7 +606,7 @@ export default function ManageBatchDetailScreen({ navigation, route }) {
               onPress={() => { setEnrollModalVisible(false); setSelectedClassId(null); }}
               style={styles.enrollCancelBtn}
             >
-              <Text style={styles.enrollCancelBtnText}>Cancel</Text>
+              <Text style={[styles.enrollCancelBtnText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>

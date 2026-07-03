@@ -61,10 +61,17 @@ COPY --from=builder /root/.deepface /root/.deepface
 COPY . /app
 WORKDIR /app
 
+# Remove any stale bytecode caches that could shadow the live source files.
+# This prevents "cannot import name X from Y (unknown location)" errors
+# caused by .pyc files built in a different environment being picked up
+# instead of the actual __init__.py.
+RUN find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
+    find /app -name "*.pyc" -delete 2>/dev/null || true
+
 RUN mkdir -p database/
 
 EXPOSE 5000
 
-HEALTHCHECK CMD curl -f http://localhost:5000/health || exit 1
+HEALTHCHECK CMD curl -f http://localhost:5000/health/ || exit 1
 
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "180", "app:create_app()"]

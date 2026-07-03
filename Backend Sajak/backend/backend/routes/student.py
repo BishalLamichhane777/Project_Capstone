@@ -27,7 +27,7 @@ def list_students():
 
 
 @student_bp.route("/classes", methods=["GET"])
-@require_role("student")
+@require_role("student", "teacher", "admin")
 def get_student_classes():
     """Return classes the logged-in student is enrolled in with active sessions."""
     student = Student.query.filter_by(user_id=g.current_user["user_id"]).first()

@@ -18,12 +18,9 @@ import SendAlertsScreen from './screens/SendAlertsScreen';
 import ExportReportsScreen from './screens/ExportReportsScreen';
 import TeacherDashboardScreen from './screens/TeacherDashboardScreen';
 import StartClassScreen from './screens/StartClassScreen';
-
-// ── New teacher screens ──────────────────────────────────────────────────────
 import TeacherClassesScreen from './screens/TeacherClassesScreen';
 import TeacherReportsScreen from './screens/TeacherReportsScreen';
 import TeacherProfileScreen from './screens/TeacherProfileScreen';
-
 import ManageBatchesScreen from './screens/ManageBatchesScreen';
 import ManageBatchDetailScreen from './screens/ManageBatchDetailScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
@@ -58,6 +55,7 @@ export default function App() {
           <Stack.Screen name="AdminSettings"      component={AdminSettingsScreen} />
           <Stack.Screen name="SendAlerts"         component={SendAlertsScreen} />
           <Stack.Screen name="ExportReports"      component={ExportReportsScreen} />
+          <Stack.Screen name="AdminReports"       component={ExportReportsScreen} />
 
           {/* ── Batch Management ── */}
           <Stack.Screen name="ManageBatches"     component={ManageBatchesScreen} />
@@ -69,6 +67,7 @@ export default function App() {
           <Stack.Screen name="TeacherClasses"     component={TeacherClassesScreen} />
           <Stack.Screen name="TeacherReports"     component={TeacherReportsScreen} />
           <Stack.Screen name="TeacherProfile"     component={TeacherProfileScreen} />
+          <Stack.Screen name="TeacherStudents"    component={StudentAnalyticsScreen} />
 
           {/* ── Shared ── */}
           <Stack.Screen name="Notifications"      component={NotificationsScreen} />

@@ -21,7 +21,7 @@ import { ChevronLeft, Info, ChevronUp, ChevronDown, FileText, File, X } from 'lu
 const BLUE = '#2952e3';
 
 export default function SubmitWaiverScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [absentSessions, setAbsentSessions] = useState([]);
@@ -127,66 +127,56 @@ export default function SubmitWaiverScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#111827' : '#f5f7fa'} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Submit Waiver</Text>
+        <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Submit Waiver</Text>
         <View style={{ width: 38 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Info Banner */}
-        <View style={styles.infoBanner}>
-          <Info size={16} color="#3a4a7a" style={{ marginTop: 1 }} />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoBanner, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
+          <Info size={16} color={isDarkMode ? '#7c9dff' : '#3a4a7a'} style={{ marginTop: 1 }} />
+          <Text style={[styles.infoText, { color: isDarkMode ? '#a0b0e0' : '#3a4a7a' }]}>
             Submit this form to appeal an absence marked by the automated system. All requests require supporting documentation.
           </Text>
         </View>
 
         {/* Select Date & Class */}
-        <Text style={styles.label}>Select Date & Class</Text>
+        <Text style={[styles.label, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Select Date & Class</Text>
         <TouchableOpacity
-          style={styles.dropdown}
+          style={[styles.dropdown, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
           onPress={() => setDropdownOpen(!dropdownOpen)}
           activeOpacity={0.8}
         >
-          <Text style={[styles.dropdownText, selectedSession ? styles.dropdownSelected : null]}>
+          <Text style={[styles.dropdownText, { color: isDarkMode ? '#8a94b8' : '#aab0be' }, selectedSession && { color: isDarkMode ? '#ffffff' : '#1a1f36', fontWeight: '500' }]}>
             {selectedSession ? `${selectedSession.class_name} - ${new Date(selectedSession.start_time).toLocaleDateString()}` : 'Choose the missed session'}
           </Text>
           {dropdownOpen ? <ChevronUp size={11} color="#8a94a6" /> : <ChevronDown size={11} color="#8a94a6" />}
         </TouchableOpacity>
 
         {dropdownOpen && (
-          <View style={styles.dropdownMenu}>
+          <View style={[styles.dropdownMenu, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}>
             {absentSessions.length === 0 ? (
               <View style={styles.dropdownItem}>
-                <Text style={styles.dropdownItemText}>No absent sessions found.</Text>
+                <Text style={[styles.dropdownItemText, { color: isDarkMode ? '#8a94b8' : '#1a1f36' }]}>No absent sessions found.</Text>
               </View>
             ) : (
               absentSessions.map((session, index) => (
                 <TouchableOpacity
                   key={session.session_id || index}
-                  style={[
-                    styles.dropdownItem,
-                    index !== absentSessions.length - 1 && styles.dropdownItemBorder,
-                  ]}
-                  onPress={() => {
-                    setSelectedSession(session);
-                    setDropdownOpen(false);
-                  }}
+                  style={[styles.dropdownItem, index !== absentSessions.length - 1 && [styles.dropdownItemBorder, { borderBottomColor: isDarkMode ? '#2a2f42' : '#f0f2f5' }]]}
+                  onPress={() => { setSelectedSession(session); setDropdownOpen(false); }}
                 >
-                  <Text style={styles.dropdownItemText}>
+                  <Text style={[styles.dropdownItemText, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>
                     {session.class_name} - {new Date(session.start_time).toLocaleDateString()}
                   </Text>
                 </TouchableOpacity>
@@ -195,12 +185,12 @@ export default function SubmitWaiverScreen({ navigation }) {
           </View>
         )}
 
-        {/* Reason for Absence */}
-        <Text style={styles.label}>Reason for Absence</Text>
+        {/* Reason */}
+        <Text style={[styles.label, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Reason for Absence</Text>
         <TextInput
-          style={styles.textArea}
-          placeholder="Briefly explain why you were absent (e.g., medical emergency, family matter)..."
-          placeholderTextColor="#aab0be"
+          style={[styles.textArea, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]}
+          placeholder="Briefly explain why you were absent..."
+          placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
           value={reason}
           onChangeText={setReason}
           multiline
@@ -209,26 +199,23 @@ export default function SubmitWaiverScreen({ navigation }) {
         />
 
         {/* Supporting Documents */}
-        <Text style={styles.label}>Supporting Documents</Text>
-
-        {/* Upload Box */}
-        <TouchableOpacity style={styles.uploadBox} onPress={handleUpload} activeOpacity={0.8}>
-          <View style={styles.uploadIconContainer}>
-            <FileText size={24} color="#1a1f36" />
+        <Text style={[styles.label, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Supporting Documents</Text>
+        <TouchableOpacity style={[styles.uploadBox, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#d0d9f5' }]} onPress={handleUpload} activeOpacity={0.8}>
+          <View style={[styles.uploadIconContainer, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
+            <FileText size={24} color={isDarkMode ? '#7c9dff' : '#1a1f36'} />
           </View>
-          <Text style={styles.uploadTitle}>Tap to upload files</Text>
-          <Text style={styles.uploadSubtitle}>PDF, JPG or PNG (max. 5MB)</Text>
+          <Text style={[styles.uploadTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Tap to upload files</Text>
+          <Text style={[styles.uploadSubtitle, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>PDF, JPG or PNG (max. 5MB)</Text>
         </TouchableOpacity>
 
-        {/* Uploaded File */}
         {uploadedFile && (
-          <View style={styles.fileCard}>
-            <View style={styles.fileIconContainer}>
+          <View style={[styles.fileCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}>
+            <View style={[styles.fileIconContainer, { backgroundColor: isDarkMode ? '#2e1a1a' : '#fff0f0' }]}>
               <File size={20} color="#e74c3c" />
             </View>
             <View style={styles.fileInfo}>
-              <Text style={styles.fileName}>{uploadedFile.name}</Text>
-              <Text style={styles.fileSize}>{uploadedFile.size}</Text>
+              <Text style={[styles.fileName, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{uploadedFile.name}</Text>
+              <Text style={[styles.fileSize, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{uploadedFile.size}</Text>
             </View>
             <TouchableOpacity onPress={handleRemoveFile} style={styles.removeButton}>
               <X size={14} color="#8a94a6" />
@@ -236,31 +223,31 @@ export default function SubmitWaiverScreen({ navigation }) {
           </View>
         )}
 
-        {/* Past Excuses History */}
-        <Text style={[styles.label, { marginTop: 20 }]}>Past Excuse Requests</Text>
+        {/* Past Excuses */}
+        <Text style={[styles.label, { marginTop: 20, color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Past Excuse Requests</Text>
         {loading ? (
           <ActivityIndicator size="small" color={BLUE} />
         ) : pastExcuses.length === 0 ? (
-          <View style={styles.historyCard}>
-            <Text style={styles.historyEmptyText}>No past excuse requests.</Text>
+          <View style={[styles.historyCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}>
+            <Text style={[styles.historyEmptyText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>No past excuse requests.</Text>
           </View>
         ) : (
           pastExcuses.map((excuse) => (
-            <View key={excuse.request_id} style={styles.historyCard}>
+            <View key={excuse.request_id} style={[styles.historyCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}>
               <View style={styles.historyHeader}>
-                <Text style={styles.historyClassText}>{excuse.class_name}</Text>
-                <View style={[styles.statusBadge, 
-                  excuse.status === 'Approved' ? styles.statusApproved : 
-                  excuse.status === 'Rejected' ? styles.statusRejected : 
+                <Text style={[styles.historyClassText, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{excuse.class_name}</Text>
+                <View style={[styles.statusBadge,
+                  excuse.status === 'Approved' ? styles.statusApproved :
+                  excuse.status === 'Rejected' ? styles.statusRejected :
                   styles.statusPending]}>
-                  <Text style={[styles.statusText, 
-                    excuse.status === 'Approved' ? styles.statusTextApproved : 
-                    excuse.status === 'Rejected' ? styles.statusTextRejected : 
+                  <Text style={[styles.statusText,
+                    excuse.status === 'Approved' ? styles.statusTextApproved :
+                    excuse.status === 'Rejected' ? styles.statusTextRejected :
                     styles.statusTextPending]}>{excuse.status}</Text>
                 </View>
               </View>
-              <Text style={styles.historyDateText}>Session Date: {new Date(excuse.session_date).toLocaleDateString()}</Text>
-              <Text style={styles.historyReasonText} numberOfLines={2}>{excuse.reason}</Text>
+              <Text style={[styles.historyDateText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Session Date: {new Date(excuse.session_date).toLocaleDateString()}</Text>
+              <Text style={[styles.historyReasonText, { color: isDarkMode ? '#a0b0e0' : '#3a4a7a' }]} numberOfLines={2}>{excuse.reason}</Text>
             </View>
           ))
         )}
@@ -269,13 +256,9 @@ export default function SubmitWaiverScreen({ navigation }) {
       </ScrollView>
 
       {/* Submit Button */}
-      <View style={styles.submitContainer}>
+      <View style={[styles.submitContainer, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
-          {submitting ? (
-            <ActivityIndicator size="small" color="#ffffff" />
-          ) : (
-            <Text style={styles.submitText}>Submit Request</Text>
-          )}
+          {submitting ? <ActivityIndicator size="small" color="#ffffff" /> : <Text style={styles.submitText}>Submit Request</Text>}
         </TouchableOpacity>
       </View>
       </KeyboardAvoidingView>

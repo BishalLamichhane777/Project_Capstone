@@ -76,7 +76,7 @@ function PickerModal({ visible, title, items, onSelect, onClose, loading }) {
 
 // ─── Main Screen ─────────────────────────────────────────────────────────
 export default function SendAlertsScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
 
   // Form state
   const [alertType,   setAlertType]   = useState('general');
@@ -220,23 +220,32 @@ export default function SendAlertsScreen({ navigation }) {
     setSending(false);
   };
 
+  const bg       = isDarkMode ? '#111827' : '#f5f7fa';
+  const headerBg = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const cardBg   = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub  = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const inputBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const inputBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
+  const rowBrd   = isDarkMode ? '#252b3e' : '#f0f2f5';
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={headerBg} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: isDarkMode ? '#2a2f42' : '#eef1f5' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={textPri} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Send Notification</Text>
+        <Text style={[styles.headerTitle, { color: textPri }]}>Send Notification</Text>
         <View style={{ width: 38 }} />
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Alert Type chips */}
-        <Text style={styles.sectionLabel}>NOTIFICATION TYPE</Text>
+        <Text style={[styles.sectionLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>NOTIFICATION TYPE</Text>
         <View style={styles.typeGrid}>
           {ALERT_TYPES.map(type => {
             const isActive = alertType === type.key;
@@ -265,21 +274,21 @@ export default function SendAlertsScreen({ navigation }) {
         </View>
 
         {/* Target audience */}
-        <Text style={styles.sectionLabel}>SEND TO</Text>
-        <View style={styles.card}>
+        <Text style={[styles.sectionLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>SEND TO</Text>
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
           {TARGET_TYPES.map((t, i) => {
             const isActive = targetType === t.key;
             return (
               <TouchableOpacity
                 key={t.key}
-                style={[styles.recipientRow, i !== TARGET_TYPES.length - 1 && styles.recipientBorder]}
+                style={[styles.recipientRow, i !== TARGET_TYPES.length - 1 && [styles.recipientBorder, { borderBottomColor: rowBrd }]]}
                 onPress={() => setTargetType(t.key)}
               >
                 <View style={[styles.radioOuter, isActive && styles.radioOuterActive]}>
                   {isActive && <View style={styles.radioInner} />}
                 </View>
                 <t.icon size={16} color={isActive ? BLUE : '#8a94a6'} style={{ marginRight: 10 }} />
-                <Text style={[styles.recipientLabel, isActive && { color: BLUE }]}>{t.label}</Text>
+                <Text style={[styles.recipientLabel, { color: isActive ? BLUE : textPri }]}>{t.label}</Text>
               </TouchableOpacity>
             );
           })}
@@ -288,7 +297,7 @@ export default function SendAlertsScreen({ navigation }) {
         {/* Specific-target picker */}
         {currentTarget?.needsPicker && (
           <>
-            <Text style={styles.sectionLabel}>SELECT {currentTarget.label.toUpperCase()}</Text>
+            <Text style={[styles.sectionLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>SELECT {currentTarget.label.toUpperCase()}</Text>
             <TouchableOpacity style={styles.pickerRow} onPress={openPicker} activeOpacity={0.85}>
               <Text style={[styles.pickerText, !targetLabel && { color: '#aab0be' }]}>
                 {targetLabel || `Tap to select ${currentTarget.label}…`}
@@ -299,12 +308,12 @@ export default function SendAlertsScreen({ navigation }) {
         )}
 
         {/* Compose */}
-        <Text style={styles.sectionLabel}>COMPOSE</Text>
-        <View style={styles.card}>
+        <Text style={[styles.sectionLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>COMPOSE</Text>
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Title</Text>
+            <Text style={[styles.fieldLabel, { color: textSub }]}>Title</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
               placeholder="e.g. Low Attendance Warning"
               placeholderTextColor="#aab0be"
               value={title}
@@ -312,9 +321,9 @@ export default function SendAlertsScreen({ navigation }) {
             />
           </View>
           <View style={[styles.fieldGroup, { marginBottom: 0 }]}>
-            <Text style={styles.fieldLabel}>Message</Text>
+            <Text style={[styles.fieldLabel, { color: textSub }]}>Message</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
               placeholder="Write your message here..."
               placeholderTextColor="#aab0be"
               value={message}
@@ -357,8 +366,8 @@ export default function SendAlertsScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* Recent Sent */}
-        <Text style={styles.sectionLabel}>RECENTLY SENT</Text>
-        <View style={styles.card}>
+        <Text style={[styles.sectionLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>RECENTLY SENT</Text>
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
           {recentsLoading ? (
             <ActivityIndicator size="small" color={BLUE} style={{ marginVertical: 16 }} />
           ) : recents.length === 0 ? (
@@ -370,8 +379,8 @@ export default function SendAlertsScreen({ navigation }) {
                   <Bell size={18} color={BLUE} />
                 </View>
                 <View style={styles.recentInfo}>
-                  <Text style={styles.recentTitle} numberOfLines={1}>{n.message}</Text>
-                  <Text style={styles.recentMeta}>{n.type}</Text>
+                  <Text style={[styles.recentTitle, { color: textPri }]} numberOfLines={1}>{n.message}</Text>
+                  <Text style={[styles.recentMeta, { color: textSub }]}>{n.type}</Text>
                 </View>
                 <Text style={styles.recentTime}>{formatRelative(n.sent_at)}</Text>
               </View>

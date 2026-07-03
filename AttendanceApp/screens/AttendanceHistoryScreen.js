@@ -62,21 +62,21 @@ function formatDate(isoStr) {
   return `${dayNames[d.getDay()]}, ${monthNames[d.getMonth()]} ${d.getDate()}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-function AttendanceItem({ item }) {
+function AttendanceItem({ item, isDarkMode }) {
   return (
-    <View style={styles.itemCard}>
-      <View style={[styles.itemIcon, { backgroundColor: '#eef2ff' }]}>
+    <View style={[styles.itemCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
+      <View style={[styles.itemIcon, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
         <BookOpen size={16} color={BLUE} />
       </View>
       <View style={styles.itemContent}>
-        <Text style={styles.itemSubject}>{item.class_name}</Text>
-        <Text style={styles.itemTime}>{formatDate(item.date)}</Text>
+        <Text style={[styles.itemSubject, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{item.class_name}</Text>
+        <Text style={[styles.itemTime, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{formatDate(item.date)}</Text>
       </View>
       <View style={styles.itemRight}>
         <StatusBadge status={item.status} />
         <View style={styles.durationRow}>
           <Clock size={10} color="#8a94a6" />
-          <Text style={styles.durationText}>{formatDuration(item.total_duration_seconds)}</Text>
+          <Text style={[styles.durationText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{formatDuration(item.total_duration_seconds)}</Text>
         </View>
       </View>
     </View>
@@ -84,7 +84,7 @@ function AttendanceItem({ item }) {
 }
 
 export default function AttendanceHistoryScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -126,15 +126,15 @@ export default function AttendanceHistoryScreen({ navigation }) {
   ];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#111827' : '#f5f7fa'} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Attendance History</Text>
+        <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Attendance History</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -146,9 +146,9 @@ export default function AttendanceHistoryScreen({ navigation }) {
             {/* Stats Row */}
             <View style={styles.statsRow}>
               {stats.map((stat, i) => (
-                <View key={i} style={styles.statCard}>
+                <View key={i} style={[styles.statCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
                   <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
-                  <Text style={styles.statLabel}>{stat.label}</Text>
+                  <Text style={[styles.statLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{stat.label}</Text>
                 </View>
               ))}
             </View>
@@ -159,19 +159,18 @@ export default function AttendanceHistoryScreen({ navigation }) {
                 <View style={{ marginBottom: 16 }}>
                   <Inbox size={48} color="#8a94a6" />
                 </View>
-                <Text style={styles.emptyTitle}>No Records Yet</Text>
-                <Text style={styles.emptySubtitle}>
+                <Text style={[styles.emptyTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>No Records Yet</Text>
+                <Text style={[styles.emptySubtitle, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
                   Your attendance records will appear here once sessions are completed.
                 </Text>
               </View>
             ) : (
               records.map((item, i) => (
-                <AttendanceItem key={item.session_id || i} item={item} />
+                <AttendanceItem key={item.session_id || i} item={item} isDarkMode={isDarkMode} />
               ))
             )}
           </>
         )}
-
         <View style={{ height: 90 }} />
       </ScrollView>
 

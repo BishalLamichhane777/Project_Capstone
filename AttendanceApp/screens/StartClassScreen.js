@@ -109,24 +109,39 @@ function RecognitionOverlay({ event }) {
   if (!event) return null;
 
   const isEntry = event.eventType === 'ENTRY';
+  // Multi-face: names are newline-separated; split for display
+  const nameLines = event._multi
+    ? event.name.split('\n')
+    : [event.name || `Student #${event.studentId}`];
 
   return (
     <Animated.View style={[styles.recognitionOverlay, { opacity }]} pointerEvents="none">
       <View style={styles.recognitionBox}>
         <View style={styles.recognitionRow}>
           <CheckCircle2 size={16} color={GREEN} style={{ marginRight: 6 }} />
-          <Text style={styles.recognitionName} numberOfLines={1}>
-            {event.name || `Student #${event.studentId}`}
+          <Text style={styles.recognitionName} numberOfLines={event._multi ? event._count : 1}>
+            {nameLines.join('  •  ')}
           </Text>
         </View>
-        <View style={[styles.recognitionBadge, isEntry ? styles.badgeEntry : styles.badgeExit]}>
-          <Text style={styles.recognitionBadgeText}>
-            {isEntry ? '▶ ENTRY' : '◀ EXIT'}
-          </Text>
-        </View>
+        {!event._multi && (
+          <View style={[styles.recognitionBadge, isEntry ? styles.badgeEntry : styles.badgeExit]}>
+            <Text style={styles.recognitionBadgeText}>
+              {isEntry ? '▶ ENTRY' : '◀ EXIT'}
+            </Text>
+          </View>
+        )}
+        {event._multi && (
+          <View style={[styles.recognitionBadge, styles.badgeEntry]}>
+            <Text style={styles.recognitionBadgeText}>
+              {`▶ ${event._count} STUDENTS`}
+            </Text>
+          </View>
+        )}
         {event.confidence != null && (
           <Text style={styles.recognitionConfidence}>
-            {Math.round(event.confidence)}% confidence
+            {event._multi
+              ? `${event._count} faces recognized`
+              : `${Math.round(event.confidence)}% confidence`}
           </Text>
         )}
       </View>
@@ -241,7 +256,64 @@ export default function StartClassScreen({ navigation, route }) {
 
   // ── Scan result handler (no nested setState) ──────────────────────────────
   const handleScanResult = useCallback((result) => {
-    const { status, student_id, student_name, event: eventType, confidence } = result;
+    const { status } = result;
+
+    // ── multiple_recognized: N faces in one frame ─────────────────────
+    if (status === 'multiple_recognized') {
+      const items = result.results || [];
+      if (items.length === 0) return;
+
+      // Flash overlay showing all names — build a synthetic event using
+      // the highest-confidence hit so the overlay component gets a name.
+      const best = items.reduce((a, b) =>
+        (b.confidence ?? 0) > (a.confidence ?? 0) ? b : a
+      );
+      setOverlayEvent({
+        name:      items.map(r => r.student_name).join('\n'),
+        studentId: best.student_id,
+        eventType: best.event,
+        confidence: best.confidence,
+        _ts:       Date.now(),
+        _multi:    true,
+        _count:    items.length,
+      });
+
+      // Update detected list for every student in the batch
+      items.forEach(({ student_id, student_name, event: eventType, confidence }) => {
+        if (student_id == null) return;
+
+        if (detectedIdsRef.current.has(student_id)) {
+          setDetected(prev =>
+            prev.map(d =>
+              d.student_id === student_id
+                ? { ...d, event: eventType, confidence }
+                : d
+            )
+          );
+        } else {
+          const match = enrolledRef.current.find(e => e.student_id === student_id);
+          const newEntry = match
+            ? { ...match, confidence, event: eventType }
+            : {
+                id:         String(student_id),
+                student_id: student_id,
+                name:       student_name || `Student #${student_id}`,
+                initials:   getInitials(student_name),
+                confidence: confidence,
+                event:      eventType,
+              };
+
+          setDetected(prev => {
+            if (prev.some(d => d.student_id === student_id)) return prev;
+            return [...prev, newEntry];
+          });
+        }
+      });
+      return;
+    }
+
+    // ── recognized: single face (original path, unchanged) ───────────
+    const { student_id, student_name, event: eventType, confidence } = result;
 
     if (status === 'recognized' && student_id != null) {
       // Flash overlay on every recognized event
@@ -298,15 +370,16 @@ export default function StartClassScreen({ navigation, route }) {
         quality:        0.6,
         base64:         false,
         skipProcessing: true,
+        shutterSound:   false,
       });
 
-      // Resize to 480px wide before uploading — FaceNet only uses a
+      // Resize to 720px wide before uploading — FaceNet only uses a
       // 160×160 face crop, so sending a 1080p frame wastes bandwidth
       // and backend decode time. This single change cuts upload size
       // by ~90% with zero accuracy loss.
       const resized = await ImageManipulator.manipulateAsync(
         photo.uri,
-        [{ resize: { width: 480 } }],
+        [{ resize: { width: 720 } }],
         { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
       );
 

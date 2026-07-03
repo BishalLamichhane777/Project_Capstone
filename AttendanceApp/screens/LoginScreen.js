@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { API } from '../api';
+import { API, BASE_URL } from '../api';
 import { useAuth } from '../context/AuthContext';
 import {
   User, ClipboardList, Shield,
@@ -82,6 +82,10 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
+      // Abort the request if it takes longer than 10 seconds
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       const response = await fetch(API.login, {
         method: 'POST',
         headers: {
@@ -91,8 +95,10 @@ export default function LoginScreen({ navigation }) {
           email: email.trim().toLowerCase(),
           password: password,
         }),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
       const data = await response.json();
       setLoading(false);
 
@@ -124,10 +130,17 @@ export default function LoginScreen({ navigation }) {
       }
     } catch (error) {
       setLoading(false);
-      Alert.alert(
-        'Connection Error',
-        'Unable to connect to the backend server. Please verify the server is running and your device is on the same network.'
-      );
+      if (error.name === 'AbortError') {
+        Alert.alert(
+          'Connection Timeout',
+          `Could not reach the server at ${BASE_URL}.\n\nMake sure:\n1. The backend is running (python app.py)\n2. Your phone and PC are on the same WiFi network\n3. The IP in api.js matches your PC's current IP`
+        );
+      } else {
+        Alert.alert(
+          'Connection Error',
+          `Unable to connect to the backend server.\n\nServer: ${BASE_URL}\n\nMake sure:\n1. The backend is running\n2. Your device is on the same network as the server`
+        );
+      }
       console.error('Login error:', error);
     }
   };

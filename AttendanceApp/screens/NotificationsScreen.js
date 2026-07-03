@@ -61,15 +61,17 @@ function formatFull(iso) {
 }
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
-function NotifModal({ notif, onClose }) {
+function NotifModal({ notif, onClose, isDarkMode }) {
   if (!notif) return null;
   const cfg  = typeConfig(notif.type);
   const Icon = cfg.icon;
+  const sheetBg  = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textMuted = isDarkMode ? '#8a94b8' : '#aab0be';
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
-      <View style={styles.modalSheet}>
-        {/* Modal header */}
+      <View style={[styles.modalSheet, { backgroundColor: sheetBg }]}>
         <View style={styles.modalHeader}>
           <View style={[styles.modalIconBox, { backgroundColor: cfg.bg }]}>
             <Icon size={22} color={cfg.color} />
@@ -79,15 +81,10 @@ function NotifModal({ notif, onClose }) {
             <X size={20} color="#8a94a6" />
           </TouchableOpacity>
         </View>
-
-        {/* Full message */}
         <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-          <Text style={styles.modalMessage}>{notif.message}</Text>
+          <Text style={[styles.modalMessage, { color: textPri }]}>{notif.message}</Text>
         </ScrollView>
-
-        {/* Timestamp */}
-        <Text style={styles.modalTime}>{formatFull(notif.sent_at)}</Text>
-
+        <Text style={[styles.modalTime, { color: textMuted }]}>{formatFull(notif.sent_at)}</Text>
         <TouchableOpacity style={styles.modalDismissBtn} onPress={onClose}>
           <Text style={styles.modalDismissText}>Close</Text>
         </TouchableOpacity>
@@ -97,27 +94,28 @@ function NotifModal({ notif, onClose }) {
 }
 
 // ─── List row ─────────────────────────────────────────────────────────────────
-function NotifItem({ item, onView }) {
+function NotifItem({ item, onView, isDarkMode }) {
   const cfg  = typeConfig(item.type);
   const Icon = cfg.icon;
+  const cardBg   = isDarkMode ? (item.is_read ? '#1a1f2e' : '#1e2440') : (item.is_read ? '#ffffff' : '#fafbff');
+  const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textMuted = isDarkMode ? '#8a94b8' : '#aab0be';
   return (
-    <View style={[styles.item, !item.is_read && styles.itemUnread]}>
+    <View style={[styles.item, { backgroundColor: cardBg }, !item.is_read && { borderLeftWidth: 3, borderLeftColor: BLUE }]}>
       <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
         <Icon size={20} color={cfg.color} />
       </View>
-
       <View style={styles.itemBody}>
         <View style={styles.itemTopRow}>
           <Text style={[styles.itemType, { color: cfg.color }]}>{cfg.label}</Text>
           {!item.is_read && <View style={styles.unreadDot} />}
         </View>
-        <Text style={styles.itemMessage} numberOfLines={2} ellipsizeMode="tail">
+        <Text style={[styles.itemMessage, { color: textPri }]} numberOfLines={2} ellipsizeMode="tail">
           {item.message}
         </Text>
-        <Text style={styles.itemTime}>{formatRelative(item.sent_at)}</Text>
+        <Text style={[styles.itemTime, { color: textMuted }]}>{formatRelative(item.sent_at)}</Text>
       </View>
-
-      <TouchableOpacity style={styles.viewBtn} onPress={() => onView(item)} activeOpacity={0.8}>
+      <TouchableOpacity style={[styles.viewBtn, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]} onPress={() => onView(item)} activeOpacity={0.8}>
         <Text style={styles.viewBtnText}>View</Text>
       </TouchableOpacity>
     </View>
@@ -126,7 +124,7 @@ function NotifItem({ item, onView }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function NotificationsScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [refreshing,    setRefreshing]    = useState(false);
@@ -184,16 +182,16 @@ export default function NotificationsScreen({ navigation }) {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#1a1f2e' : '#ffffff'} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderBottomColor: isDarkMode ? '#2a2f42' : '#eef1f5' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Notifications</Text>
           {unreadCount > 0 && (
             <View style={styles.headerBadge}>
               <Text style={styles.headerBadgeText}>{unreadCount} new</Text>
@@ -209,14 +207,14 @@ export default function NotificationsScreen({ navigation }) {
       ) : error ? (
         <View style={styles.emptyState}>
           <BellOff size={52} color="#d0d7e3" />
-          <Text style={styles.emptyTitle}>Something went wrong</Text>
-          <Text style={styles.emptySub}>{error}</Text>
+          <Text style={[styles.emptyTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Something went wrong</Text>
+          <Text style={[styles.emptySub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{error}</Text>
         </View>
       ) : notifications.length === 0 ? (
         <View style={styles.emptyState}>
           <Bell size={52} color="#d0d7e3" />
-          <Text style={styles.emptyTitle}>You're all caught up</Text>
-          <Text style={styles.emptySub}>
+          <Text style={[styles.emptyTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>You're all caught up</Text>
+          <Text style={[styles.emptySub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
             No notifications yet. We'll let you know when something comes in.
           </Text>
         </View>
@@ -224,8 +222,8 @@ export default function NotificationsScreen({ navigation }) {
         <FlatList
           data={notifications}
           keyExtractor={item => String(item.notif_id)}
-          renderItem={({ item }) => <NotifItem item={item} onView={handleView} />}
-          contentContainerStyle={styles.list}
+          renderItem={({ item }) => <NotifItem item={item} onView={handleView} isDarkMode={isDarkMode} />}
+          contentContainerStyle={[styles.list, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />
@@ -234,7 +232,7 @@ export default function NotificationsScreen({ navigation }) {
       )}
 
       {/* Detail modal */}
-      <NotifModal notif={selected} onClose={() => setSelected(null)} />
+      <NotifModal notif={selected} onClose={() => setSelected(null)} isDarkMode={isDarkMode} />
     </SafeAreaView>
   );
 }

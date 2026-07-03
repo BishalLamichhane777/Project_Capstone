@@ -47,6 +47,38 @@ MODEL_NAME       = "Facenet"
 DETECTOR_BACKEND = "mtcnn"   # MTCNN for detection + alignment
 
 
+def _compute_adaptive_threshold(embeddings_list):
+    """
+    Calculates a per-student adaptive cosine-distance threshold from the
+    pairwise distances between all enrollment embeddings.
+
+    Formula:
+        threshold = clamp(0.40 + std_dev * 2,  min=0.30, max=0.55)
+
+    A student with very consistent photos (low std_dev) gets a tighter
+    threshold; a student whose face varies a lot (glasses, lighting, pose)
+    gets a looser one.  If only one photo is available the standard
+    deviation is undefined, so the default 0.40 is returned.
+
+    Args:
+        embeddings_list: list of L2-normalised numpy arrays (128-dim each)
+
+    Returns:
+        float — the per-student threshold
+    """
+    DEFAULT_THRESHOLD = 0.40
+    if len(embeddings_list) < 2:
+        return DEFAULT_THRESHOLD
+
+    # Compute every pair (i, j) with i < j
+    pairwise_distances = []
+    for i in range(len(embeddings_list)):
+        for j in range(i + 1, len(embeddings_list)):
+            a = embeddings_list[i] / (np.linalg.norm(embeddings_list[i]) + 1e-10)
+            b = embeddings_list[j] / (np.linalg.norm(embeddings_list[j]) + 1e-10)
+            dist = float(1.0 - np.dot(a, b))
+            pairwise_distances.append(dist)
+
 def generate_embedding(image_bgr):
     """
     Generates a DeepFace FaceNet embedding from a BGR image.
@@ -152,21 +184,31 @@ def enroll_student(student_id, photo_paths):
         print(f"    ERROR: No valid embeddings for {student_id}")
         return 0, len(photo_paths)
 
-    # Compute and save the MEAN embedding
-    # This single vector represents the student during live recognition
-    # Using the mean of multiple photos makes it more robust to
-    # lighting/pose variation than any single photo
+    # Compute L2-normalised mean embedding
     mean_embedding = np.mean(embeddings, axis=0)
-    # L2-normalise so cosine distance calculation is consistent
     mean_embedding /= (np.linalg.norm(mean_embedding) + 1e-10)
 
-    mean_path = os.path.join(EMBEDDINGS_FOLDER,
-                             f"{student_id}_mean.npy")
+    # ── Per-student adaptive threshold ────────────────────────────────
+    # Calculate pairwise distances between all enrollment embeddings to
+    # measure intra-student variation, then set a threshold relative to
+    # that variation.  Consistent faces → tighter threshold; variable
+    # faces (glasses, lighting) → looser threshold.
+    student_threshold = _compute_adaptive_threshold(embeddings)
+
+    # Save .npz (new primary format) — contains both mean embedding and threshold
+    data_path = os.path.join(EMBEDDINGS_FOLDER, f"{student_id}_data.npz")
+    np.savez(data_path,
+             mean_embedding=mean_embedding,
+             threshold=np.array(student_threshold))
+
+    # Save legacy _mean.npy for backward compatibility
+    mean_path = os.path.join(EMBEDDINGS_FOLDER, f"{student_id}_mean.npy")
     np.save(mean_path, mean_embedding)
 
     success = len(embeddings)
     failed  = len(photo_paths) - success
-    print(f"    Mean embedding saved: {mean_path}")
+    print(f"    Data saved:  {data_path}  (threshold={student_threshold:.4f})")
+    print(f"    Legacy file: {mean_path}")
     print(f"    Photos used: {success} | Skipped: {failed}")
 
     return success, failed
@@ -279,12 +321,14 @@ def enroll_student_from_images(face_label, image_files):
 
     Unlike enroll_student() (which reads from disk paths), this function accepts
     file objects whose bytes are decoded in memory via cv2.imdecode — no temp
-    files are written.  Only the mean embedding is persisted; individual per-photo
-    .npy files are not saved (they are not needed for the API enrollment path).
+    files are written.
 
-    Re-enrollment is supported: if a mean embedding already exists for face_label
-    it is silently overwritten, giving admins a clean way to update a student's
-    reference photos.
+    Re-enrollment is fully supported:
+      - Old StudentID_data.npz and StudentID_mean.npy are deleted before
+        the new pipeline runs so stale data can never be read.
+      - After saving the new files, the module-level in-memory embeddings
+        cache in __init__.py is refreshed via reload_embeddings() so the
+        new threshold and embedding are active immediately without a restart.
 
     Photos are processed in parallel (thread pool) to avoid blocking the Flask
     worker for the full serial cost of N × (MTCNN + FaceNet). Each image is also
@@ -310,6 +354,16 @@ def enroll_student_from_images(face_label, image_files):
     MAX_ENROLL_WIDTH = 640
 
     os.makedirs(EMBEDDINGS_FOLDER, exist_ok=True)
+
+    # ── Re-enrollment cleanup: remove stale files before starting ─────
+    # Deleting first ensures a partial failure never leaves a mix of old
+    # and new data on disk.
+    old_data_path = os.path.join(EMBEDDINGS_FOLDER, f"{face_label}_data.npz")
+    old_mean_path = os.path.join(EMBEDDINGS_FOLDER, f"{face_label}_mean.npy")
+    for old_path in (old_data_path, old_mean_path):
+        if os.path.exists(old_path):
+            os.remove(old_path)
+            print(f"    Re-enrollment: removed old file {os.path.basename(old_path)}")
 
     # ── Read all file bytes up-front (FileStorage is not thread-safe) ──
     file_data = []
@@ -366,10 +420,7 @@ def enroll_student_from_images(face_label, image_files):
         print(f"OK (dim={len(embedding)})")
         return embedding, None
 
-    # Cap workers at 3: with 1 gunicorn worker, 4 CPU threads competing on
-    # TensorFlow internals causes more contention than benefit. 3 threads
-    # gives genuine parallelism while staying within a single-core Docker
-    # budget without thrashing.
+    # Cap workers at 3 to avoid TF contention on a single-core Docker budget.
     n_workers = min(len(file_data), 3)
     embeddings   = []
     skip_reasons = []
@@ -391,9 +442,21 @@ def enroll_student_from_images(face_label, image_files):
     mean_embedding  = np.mean(embeddings, axis=0)
     mean_embedding /= (np.linalg.norm(mean_embedding) + 1e-10)
 
+    # ── Per-student adaptive threshold ────────────────────────────────
+    student_threshold = _compute_adaptive_threshold(embeddings)
+
+    # Save .npz (new primary format) — mean embedding + threshold
+    data_path = os.path.join(EMBEDDINGS_FOLDER, f"{face_label}_data.npz")
+    np.savez(data_path,
+             mean_embedding=mean_embedding,
+             threshold=np.array(student_threshold))
+
+    # Save legacy _mean.npy for backward compatibility
     mean_path = os.path.join(EMBEDDINGS_FOLDER, f"{face_label}_mean.npy")
     np.save(mean_path, mean_embedding)
-    print(f"    Mean embedding saved: {mean_path}")
+
+    print(f"    Data saved:  {data_path}  (threshold={student_threshold:.4f})")
+    print(f"    Legacy file: {mean_path}")
     print(f"    Photos used: {len(embeddings)} | Skipped: {len(skip_reasons)}")
 
     # Update labels.json
@@ -411,6 +474,17 @@ def enroll_student_from_images(face_label, image_files):
 
     with open(LABELS_FILE, 'w') as f:
         json.dump(labels_map, f, indent=4)
+
+    # ── Refresh in-memory embeddings cache without a restart ──────────
+    # Import here (not at top) to avoid a circular import — enroll.py is
+    # part of the face_recognition package and __init__.py imports from it.
+    try:
+        from services.face_recognition import reload_embeddings
+        reload_embeddings()
+        print(f"    In-memory cache refreshed for '{face_label}'.")
+    except Exception as exc:
+        print(f"    WARNING: Could not refresh in-memory cache: {exc}")
+        print(f"    The new embedding will be active after the next backend restart.")
 
     return True, "Enrolled successfully", skip_reasons
 

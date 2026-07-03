@@ -1,9 +1,10 @@
-export const BASE_URL = 'http://192.168.1.72:5000';
+export const BASE_URL = 'http://192.168.1.66:5000';
 
 export const API = {
   login: `${BASE_URL}/api/auth/login`,
   register: `${BASE_URL}/api/auth/register`,
   currentUser: `${BASE_URL}/api/auth/me`,
+  updateMe: `${BASE_URL}/api/auth/me`,
   sessionStart: `${BASE_URL}/api/session/start`,
   sessionEnd: `${BASE_URL}/api/session/end`,
   sessionStatus: `${BASE_URL}/api/session/status`,

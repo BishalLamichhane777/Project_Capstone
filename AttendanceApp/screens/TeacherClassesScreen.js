@@ -167,26 +167,29 @@ function ScheduleBadge({ scheduleStatus, scheduledTime, scheduledDate }) {
 }
 
 // ─── Class Card ───────────────────────────────────────────────────────────────
-function ClassCard({ item, navigation }) {
+function ClassCard({ item, navigation, isDarkMode }) {
   const isOngoing = item.status === 'ongoing';
   const schedStatus = item.schedule_status || (item.active_session_id ? 'ongoing' : 'unscheduled');
   const canStart = schedStatus === 'ready' || schedStatus === 'ongoing';
 
+  const cardBg  = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPri = isDarkMode ? '#ffffff' : '#1a1f36';
+  const metaTxt = isDarkMode ? '#8a94b8' : '#6b7280';
+
   return (
     <View style={[
       styles.card,
+      { backgroundColor: cardBg },
       isOngoing && { borderLeftWidth: 4, borderLeftColor: item.accent },
     ]}>
       <View style={styles.cardTop}>
-        <View style={[styles.cardDot, { backgroundColor: item.light }]}>
+        <View style={[styles.cardDot, { backgroundColor: isDarkMode ? '#1e2540' : item.light }]}>
           <BookOpen size={16} color={item.accent} />
         </View>
-
         <View style={styles.cardInfo}>
-          <Text style={styles.cardSubject}>{item.subject}</Text>
-          <Text style={styles.cardCode}>{item.code}</Text>
+          <Text style={[styles.cardSubject, { color: textPri }]}>{item.subject}</Text>
+          <Text style={[styles.cardCode, { color: metaTxt }]}>{item.code}</Text>
         </View>
-
         <ScheduleBadge
           scheduleStatus={schedStatus}
           scheduledTime={item.scheduled_time}
@@ -196,16 +199,16 @@ function ClassCard({ item, navigation }) {
 
       <View style={styles.cardMeta}>
         <View style={styles.metaItem}>
-          <Clock size={12} color="#6b7280" />
-          <Text style={styles.metaText}>{item.time}</Text>
+          <Clock size={12} color={metaTxt} />
+          <Text style={[styles.metaText, { color: metaTxt }]}>{item.time}</Text>
         </View>
         <View style={styles.metaItem}>
-          <MapPin size={12} color="#6b7280" />
-          <Text style={styles.metaText}>{item.room}</Text>
+          <MapPin size={12} color={metaTxt} />
+          <Text style={[styles.metaText, { color: metaTxt }]}>{item.room}</Text>
         </View>
         <View style={styles.metaItem}>
-          <Users size={12} color="#6b7280" />
-          <Text style={styles.metaText}>{item.students} students</Text>
+          <Users size={12} color={metaTxt} />
+          <Text style={[styles.metaText, { color: metaTxt }]}>{item.students} students</Text>
         </View>
       </View>
 
@@ -213,7 +216,7 @@ function ClassCard({ item, navigation }) {
         <TouchableOpacity
           style={[
             styles.actionBtn,
-            { backgroundColor: canStart ? item.light : '#f0f2f8', opacity: canStart ? 1 : 0.55 },
+            { backgroundColor: canStart ? (isDarkMode ? '#1e2540' : item.light) : (isDarkMode ? '#252b3e' : '#f0f2f8'), opacity: canStart ? 1 : 0.55 },
           ]}
           onPress={() => canStart && navigation.navigate('StartClass', { classItem: item })}
           activeOpacity={canStart ? 0.8 : 1}
@@ -237,7 +240,7 @@ function ClassCard({ item, navigation }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function TeacherClassesScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
   const isFocused = useIsFocused();
   const [selectedDay, setSelectedDay] = useState('Today');
   const [classesData, setClassesData] = useState({
@@ -264,6 +267,12 @@ export default function TeacherClassesScreen({ navigation }) {
       });
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 403) {
+          // Role mismatch — silently show empty schedule
+          setClassesData({ Today: [], Sun: [], Mon: [], Tue: [], Wed: [], Thu: [], Fri: [], Sat: [] });
+          setError(null);
+          return;
+        }
         throw new Error(data.error || 'Failed to fetch classes');
       }
 
@@ -354,18 +363,28 @@ export default function TeacherClassesScreen({ navigation }) {
   const classes = classesData[selectedDay] ?? [];
   const totalStudents = classes.reduce((s, c) => s + c.students, 0);
 
+  // ── Theme colours ────────────────────────────────────────────────────────
+  const bg          = isDarkMode ? '#111827' : '#f5f7fa';
+  const headerBg    = isDarkMode ? '#111827' : '#f5f7fa';
+  const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const borderColor = isDarkMode ? '#2a2f42' : '#eef1f5';
+  const dayPillBg   = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const filterBtnBg = isDarkMode ? '#1a1f2e' : '#ffffff';
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={headerBg} />
 
       {/* ── Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: headerBg }]}>
         <View>
-          <Text style={styles.headerTitle}>My Classes</Text>
-          <Text style={styles.headerSub}>Weekly Schedule</Text>
+          <Text style={[styles.headerTitle, { color: textPrimary }]}>My Classes</Text>
+          <Text style={[styles.headerSub, { color: textSub }]}>Weekly Schedule</Text>
         </View>
-        <TouchableOpacity style={styles.filterBtn}>
-          <LayoutDashboard size={18} color="#1a1f36" />
+        <TouchableOpacity style={[styles.filterBtn, { backgroundColor: filterBtnBg }]}>
+          <LayoutDashboard size={18} color={textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -382,14 +401,14 @@ export default function TeacherClassesScreen({ navigation }) {
           return (
             <TouchableOpacity
               key={day.key}
-              style={[styles.dayPill, isActive && styles.dayPillActive]}
+              style={[styles.dayPill, { backgroundColor: dayPillBg }, isActive && styles.dayPillActive]}
               onPress={() => setSelectedDay(day.key)}
               activeOpacity={0.75}
             >
-              <Text style={[styles.dayPillLabel, isActive && styles.dayPillLabelActive]}>
+              <Text style={[styles.dayPillLabel, { color: textSub }, isActive && styles.dayPillLabelActive]}>
                 {day.label}
               </Text>
-              <Text style={[styles.dayPillDate, isActive && styles.dayPillDateActive]}>
+              <Text style={[styles.dayPillDate, { color: textPrimary }, isActive && styles.dayPillDateActive]}>
                 {day.date}
               </Text>
               {hasCls && (
@@ -401,30 +420,30 @@ export default function TeacherClassesScreen({ navigation }) {
       </ScrollView>
 
       {/* ── Summary Bar ── */}
-      <View style={styles.summaryBar}>
-        <Text style={styles.summaryText}>
+      <View style={[styles.summaryBar, { borderBottomColor: borderColor }]}>
+        <Text style={[styles.summaryText, { color: textPrimary }]}>
           {selectedDay === 'Today' ? "Today's Classes" : `${selectedDay}'s Classes`}
           {'  '}
-          <Text style={styles.summaryCount}>{classes.length} classes · {totalStudents} students</Text>
+          <Text style={[styles.summaryCount, { color: textSub }]}>{classes.length} classes · {totalStudents} students</Text>
         </Text>
       </View>
 
       {/* ── Class List ── */}
       <ScrollView
-        style={styles.listScroll}
+        style={[styles.listScroll, { backgroundColor: bg }]}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color={BLUE} />
-            <Text style={styles.loadingText}>Loading schedule...</Text>
+            <Text style={[styles.loadingText, { color: textSub }]}>Loading schedule...</Text>
           </View>
         ) : error ? (
           <View style={styles.emptyState}>
             <AlertCircle size={48} color="#e74c3c" style={{ marginBottom: 14 }} />
-            <Text style={styles.emptyTitle}>Error Loading Classes</Text>
-            <Text style={styles.emptySub}>{error}</Text>
+            <Text style={[styles.emptyTitle, { color: textPrimary }]}>Error Loading Classes</Text>
+            <Text style={[styles.emptySub, { color: textSub }]}>{error}</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={fetchClasses}>
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
@@ -432,12 +451,12 @@ export default function TeacherClassesScreen({ navigation }) {
         ) : classes.length === 0 ? (
           <View style={styles.emptyState}>
             <Umbrella size={48} color="#8a94a6" style={{ marginBottom: 14 }} />
-            <Text style={styles.emptyTitle}>No Classes</Text>
-            <Text style={styles.emptySub}>Enjoy your day off!</Text>
+            <Text style={[styles.emptyTitle, { color: textPrimary }]}>No Classes</Text>
+            <Text style={[styles.emptySub, { color: textSub }]}>Enjoy your day off!</Text>
           </View>
         ) : (
           classes.map((item) => (
-            <ClassCard key={item.id} item={item} navigation={navigation} />
+            <ClassCard key={item.id} item={item} navigation={navigation} isDarkMode={isDarkMode} />
           ))
         )}
         <View style={{ height: 100 }} />

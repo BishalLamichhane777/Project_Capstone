@@ -55,15 +55,20 @@ function formatTime(timeStr) {
 
 // ─── Date Strip ───────────────────────────────────────────────────────────────
 
-function DateStrip({ days, selected, onSelect }) {
+function DateStrip({ days, selected, onSelect, isDarkMode }) {
   const scrollRef = useRef(null);
+  const chipBg    = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const chipBorder = isDarkMode ? '#2a2f42' : '#e6e9f0';
+  const numColor  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const subColor  = isDarkMode ? '#8a94b8' : '#8a94a6';
+
   return (
     <ScrollView
       ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.dateStripContent}
-      style={styles.dateStrip}
+      style={[styles.dateStrip, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}
     >
       {days.map((date, idx) => {
         const dateStr  = toLocalDateStr(date);
@@ -72,17 +77,17 @@ function DateStrip({ days, selected, onSelect }) {
         return (
           <TouchableOpacity
             key={dateStr}
-            style={[styles.dateChip, isActive && styles.dateChipActive]}
+            style={[styles.dateChip, { backgroundColor: chipBg, borderColor: chipBorder }, isActive && styles.dateChipActive]}
             onPress={() => onSelect(dateStr)}
             activeOpacity={0.75}
           >
-            <Text style={[styles.dateChipDay, isActive && styles.dateChipTextActive]}>
+            <Text style={[styles.dateChipDay, { color: subColor }, isActive && styles.dateChipTextActive]}>
               {isToday ? 'Today' : DAY_NAMES[date.getDay()]}
             </Text>
-            <Text style={[styles.dateChipNum, isActive && styles.dateChipTextActive]}>
+            <Text style={[styles.dateChipNum, { color: numColor }, isActive && styles.dateChipTextActive]}>
               {date.getDate()}
             </Text>
-            <Text style={[styles.dateChipMon, isActive && styles.dateChipTextActive]}>
+            <Text style={[styles.dateChipMon, { color: subColor }, isActive && styles.dateChipTextActive]}>
               {MON_NAMES[date.getMonth()]}
             </Text>
           </TouchableOpacity>
@@ -94,10 +99,18 @@ function DateStrip({ days, selected, onSelect }) {
 
 // ─── Class Card ───────────────────────────────────────────────────────────────
 
-function ClassCard({ item, token, onStatusChange }) {
+function ClassCard({ item, token, onStatusChange, isDarkMode }) {
   const isOngoing = !!item.active_session_id;
   const [loading, setLoading]   = useState(false);
   const [status,  setStatus]    = useState('not_joined');
+
+  const cardBg    = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPri   = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub   = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const metaColor = isDarkMode ? '#8a94b8' : '#6b7280';
+  const iconBg    = isDarkMode ? '#1e2540' : '#eef2ff';
+  const durationBg = isDarkMode ? '#252b3e' : '#f0f2f8';
+  const actionBorder = isDarkMode ? '#252b3e' : '#eef1f5';
 
   useEffect(() => {
     if (isOngoing && token) fetchStatus();
@@ -143,7 +156,7 @@ function ClassCard({ item, token, onStatusChange }) {
     : 'TBA';
 
   return (
-    <View style={[styles.classCard, isOngoing && styles.classCardOngoing]}>
+    <View style={[styles.classCard, { backgroundColor: cardBg }, isOngoing && styles.classCardOngoing]}>
       {isOngoing && (
         <View style={styles.ongoingBanner}>
           <View style={styles.ongoingDot} />
@@ -152,47 +165,43 @@ function ClassCard({ item, token, onStatusChange }) {
       )}
 
       <View style={styles.cardRow}>
-        {/* Icon */}
-        <View style={[styles.classIcon, { backgroundColor: '#eef2ff' }]}>
+        <View style={[styles.classIcon, { backgroundColor: iconBg }]}>
           <BookOpen size={18} color={BLUE} />
         </View>
 
-        {/* Info */}
         <View style={styles.classInfo}>
-          <Text style={styles.className}>{item.subject}</Text>
-          <Text style={styles.classCode}>{item.class_name}</Text>
+          <Text style={[styles.className, { color: textPri }]}>{item.subject}</Text>
+          <Text style={[styles.classCode, { color: textSub }]}>{item.class_name}</Text>
           <View style={styles.detailsRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <MapPin size={11} color="#6b7280" style={{ marginRight: 2 }} />
-              <Text style={styles.detailItem}>{item.room || 'TBD'}</Text>
+              <MapPin size={11} color={metaColor} style={{ marginRight: 2 }} />
+              <Text style={[styles.detailItem, { color: metaColor }]}>{item.room || 'TBD'}</Text>
             </View>
-            <Text style={styles.detailDot}>·</Text>
+            <Text style={[styles.detailDot, { color: textSub }]}>·</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <User size={11} color="#6b7280" style={{ marginRight: 2 }} />
-              <Text style={styles.detailItem}>{item.teacher_name || 'TBA'}</Text>
+              <User size={11} color={metaColor} style={{ marginRight: 2 }} />
+              <Text style={[styles.detailItem, { color: metaColor }]}>{item.teacher_name || 'TBA'}</Text>
             </View>
           </View>
         </View>
 
-        {/* Time block */}
         <View style={styles.timeBlock}>
-          <Text style={[styles.timeText, isOngoing && styles.timeTextActive]}>
+          <Text style={[styles.timeText, { color: textPri }, isOngoing && styles.timeTextActive]}>
             {startFmt || 'TBA'}
           </Text>
           {endFmt && (
-            <Text style={styles.timeEndText}>{endFmt}</Text>
+            <Text style={[styles.timeEndText, { color: textSub }]}>{endFmt}</Text>
           )}
           {item.duration_minutes > 0 && (
-            <View style={styles.durationPill}>
-              <Text style={styles.durationText}>{item.duration_minutes}m</Text>
+            <View style={[styles.durationPill, { backgroundColor: durationBg }]}>
+              <Text style={[styles.durationText, { color: textSub }]}>{item.duration_minutes}m</Text>
             </View>
           )}
         </View>
       </View>
 
-      {/* Join / Leave for ongoing sessions */}
       {isOngoing && (
-        <View style={styles.actionContainer}>
+        <View style={[styles.actionContainer, { borderTopColor: actionBorder }]}>
           {loading ? (
             <ActivityIndicator size="small" color={BLUE} style={{ padding: 10 }} />
           ) : status === 'not_joined' || status === 'left' ? (
@@ -200,7 +209,7 @@ function ClassCard({ item, token, onStatusChange }) {
               <Text style={styles.joinBtnText}>Join Session</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.leaveBtn} onPress={() => handleAction('EXIT')}>
+            <TouchableOpacity style={[styles.leaveBtn, { backgroundColor: isDarkMode ? '#2e1a1a' : '#fff0f0' }]} onPress={() => handleAction('EXIT')}>
               <Text style={styles.leaveBtnText}>Leave Session</Text>
             </TouchableOpacity>
           )}
@@ -213,7 +222,7 @@ function ClassCard({ item, token, onStatusChange }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ClassesScreen({ navigation }) {
-  const { token }                   = useAuth();
+  const { token, isDarkMode }           = useAuth();
   const [classes,   setClasses]     = useState([]);
   const [loading,   setLoading]     = useState(true);
   const days                        = useRef(getNext7Days()).current;
@@ -259,74 +268,67 @@ export default function ClassesScreen({ navigation }) {
   const scheduledFiltered = filtered.filter(c => !c.active_session_id);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#111827' : '#f5f7fa'} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
         <View>
-          <Text style={styles.headerTitle}>My Classes</Text>
-          <Text style={styles.headerSub}>
+          <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>My Classes</Text>
+          <Text style={[styles.headerSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
             {classes.length} enrolled · tap a date to filter
           </Text>
         </View>
-        <View style={styles.totalBadge}>
+        <View style={[styles.totalBadge, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
           <Text style={styles.totalText}>{classes.length} total</Text>
         </View>
       </View>
 
       {/* Date strip */}
-      <DateStrip days={days} selected={selected} onSelect={setSelected} />
+      <DateStrip days={days} selected={selected} onSelect={setSelected} isDarkMode={isDarkMode} />
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {loading ? (
           <ActivityIndicator size="large" color={BLUE} style={{ marginTop: 40 }} />
         ) : classes.length === 0 ? (
-          /* No enrollments at all */
           <View style={styles.emptyBox}>
             <Calendar size={40} color="#c7cdd8" style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyTitle}>No Enrollments Yet</Text>
-            <Text style={styles.emptySub}>
+            <Text style={[styles.emptyTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>No Enrollments Yet</Text>
+            <Text style={[styles.emptySub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
               You are not enrolled in any classes yet.
             </Text>
           </View>
         ) : filtered.length === 0 ? (
-          /* Enrolled but nothing on this date */
           <View style={styles.emptyBox}>
             <Calendar size={40} color="#c7cdd8" style={{ marginBottom: 12 }} />
-            <Text style={styles.emptyTitle}>No Classes on This Day</Text>
-            <Text style={styles.emptySub}>
+            <Text style={[styles.emptyTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>No Classes on This Day</Text>
+            <Text style={[styles.emptySub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
               No classes are scheduled for this date.
             </Text>
           </View>
         ) : (
           <>
-            {/* Ongoing sessions */}
             {ongoingFiltered.length > 0 && (
               <>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionDot} />
-                  <Text style={styles.sectionTitle}>Ongoing Now</Text>
-                  <Text style={styles.sectionCount}>{ongoingFiltered.length} active</Text>
+                  <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Ongoing Now</Text>
+                  <Text style={[styles.sectionCount, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{ongoingFiltered.length} active</Text>
                 </View>
                 {ongoingFiltered.map(item => (
-                  <ClassCard key={item.class_id} item={item} token={token} />
+                  <ClassCard key={item.class_id} item={item} token={token} isDarkMode={isDarkMode} />
                 ))}
               </>
             )}
 
-            {/* Scheduled classes for this date */}
             {scheduledFiltered.length > 0 && (
               <>
-                <View style={[
-                  styles.sectionHeader,
-                  ongoingFiltered.length > 0 && { marginTop: 20 },
-                ]}>
+                <View style={[styles.sectionHeader, ongoingFiltered.length > 0 && { marginTop: 20 }]}>
                   <View style={[styles.sectionDot, { backgroundColor: '#8a94a6' }]} />
-                  <Text style={styles.sectionTitle}>Scheduled</Text>
+                  <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Scheduled</Text>
                 </View>
                 {scheduledFiltered.map(item => (
-                  <ClassCard key={item.class_id} item={item} token={token} />
+                  <ClassCard key={item.class_id} item={item} token={token} isDarkMode={isDarkMode} />
                 ))}
               </>
             )}

@@ -151,7 +151,7 @@ def my_attendance_history():
 
 
 @attendance_bp.route("/history/<int:student_id>", methods=["GET"])
-@require_role("student", "admin")
+@require_role("student", "admin", "teacher")
 def attendance_history(student_id):
     """Return all attendance records for a student with entry/exit logs.
 
@@ -411,21 +411,28 @@ def attendance_analytics():
 @attendance_bp.route("/scan", methods=["POST"])
 @require_role("teacher", "admin")
 def scan_attendance():
-    """Scan a student's face from a camera frame and log attendance.
+    """Scan a camera frame for faces and log attendance for every recognized student.
 
     Accepts multipart/form-data with:
       - session_id (str, required)
       - image     (file, required) — single JPEG/PNG frame from the camera
 
-    Response shape (all outcomes):
-      {
-        "status"       : "recognized" | "unknown" | "no_face" | "cooldown" | "error",
-        "student_id"   : int | null,
-        "student_name" : str | null,
-        "event"        : "ENTRY" | "EXIT" | null,
-        "confidence"   : float | null,
-        "message"      : str
-      }
+    Response shapes:
+      No face detected:
+        {"status": "no_face", "results": []}
+
+      Single recognized student:
+        {"status": "recognized", "student_id": 42, "student_name": "Jane",
+         "event": "ENTRY", "confidence": 87.3, "message": "..."}
+
+      Multiple recognized students:
+        {"status": "multiple_recognized", "results": [
+          {"student_id": 42, "student_name": "Jane", "event": "ENTRY", "confidence": 87.3},
+          {"student_id": 17, "student_name": "Mark", "event": "ENTRY", "confidence": 91.2}
+        ]}
+
+      Non-recognition outcomes (cooldown, not_enrolled, error):
+        {"status": "<reason>", "student_id": ..., "message": "..."}
     """
     from flask import current_app
 
@@ -454,157 +461,167 @@ def scan_attendance():
         logger.error("Failed to read scan image: %s", e)
         return jsonify({"error": f"Failed to read image: {str(e)}", "status": 400}), 400
 
-    # ── 3. Face recognition ───────────────────────────────────────────
-    rec_result = recognize_student(image_bytes)
+    # ── 3. Face recognition — returns list of recognized hits ─────────
+    rec_results = recognize_student(image_bytes)
 
-    rec_status = rec_result.get("status")
-    student_id = rec_result.get("student_id")
-    confidence = rec_result.get("confidence")
-
-    # No face detected or recognition failed — return immediately with
-    # the standard response shape so the frontend can update its UI.
-    if rec_status != "recognized" or student_id is None:
+    # Hard error from the recognition service
+    if (
+        len(rec_results) == 1
+        and rec_results[0].get("status") == "error"
+    ):
         return jsonify({
-            "status"       : rec_status if rec_status else "unknown",
-            "student_id"   : None,
-            "student_name" : None,
-            "event"        : None,
-            "confidence"   : confidence,
-            "message"      : rec_result.get("message", "No face recognized"),
+            "status"      : "error",
+            "student_id"  : None,
+            "student_name": None,
+            "event"       : None,
+            "confidence"  : None,
+            "message"     : rec_results[0].get("message", "Recognition error"),
         }), 200
 
-    # ── 4. Resolve student record ─────────────────────────────────────
-    student = Student.query.get(student_id)
-    if not student:
-        logger.warning(
-            "recognize_student returned student_id=%s but no DB row found", student_id
-        )
+    # No face detected at all
+    if not rec_results:
         return jsonify({
-            "status"       : "unknown",
-            "student_id"   : None,
-            "student_name" : None,
-            "event"        : None,
-            "confidence"   : confidence,
-            "message"      : "Recognized face not linked to any student record",
+            "status" : "no_face",
+            "results": [],
+            "message": "No face detected",
         }), 200
 
-    student_name = student.user.fullname if student.user else "Unknown"
-
-    # ── 4b. Enrollment check ──────────────────────────────────────────
-    # Only students enrolled in THIS class may have attendance logged.
-    # A face recognized globally (e.g. a student from another class who
-    # happens to walk past the camera) must NOT receive an attendance mark.
-    enrollment = Enrollment.query.filter_by(
-        student_id=student_id,
-        class_id=session.class_id,
-    ).first()
-    if not enrollment:
-        logger.warning(
-            "Recognized student_id=%s (%s) is NOT enrolled in class_id=%s "
-            "(session=%s) — attendance NOT logged.",
-            student_id, student_name, session.class_id, session_id,
-        )
-        return jsonify({
-            "status"       : "not_enrolled",
-            "student_id"   : student_id,
-            "student_name" : student_name,
-            "event"        : None,
-            "confidence"   : confidence,
-            "message"      : (
-                f"{student_name} is not enrolled in this class — "
-                "attendance not recorded"
-            ),
-        }), 200
-
-    # ── 5. Cooldown check ─────────────────────────────────────────────
-    # Prevents a single physical pass from generating multiple rapid logs.
-    # Threshold comes from config so it can be tuned via env var without
-    # a code change.
+    # ── 4. Process each recognized face ───────────────────────────────
     cooldown_seconds = current_app.config.get("SCAN_COOLDOWN_SECONDS", 15)
     now = datetime.now(timezone.utc)
+    logged_results = []
 
-    latest_log = (
-        AttendanceLog.query
-        .filter_by(student_id=student_id, session_id=session_id)
-        .order_by(AttendanceLog.timestamp.desc())
-        .first()
-    )
+    for hit in rec_results:
+        student_id = hit.get("student_id")
+        confidence = hit.get("confidence")
 
-    if latest_log:
-        log_time = latest_log.timestamp
-        # SQLite stores naive datetimes; normalise to UTC-aware for comparison.
-        if log_time.tzinfo is None:
-            log_time = log_time.replace(tzinfo=timezone.utc)
-        elapsed = (now - log_time).total_seconds()
-        if elapsed < cooldown_seconds:
-            return jsonify({
-                "status"       : "cooldown",
-                "student_id"   : student_id,
-                "student_name" : student_name,
-                "event"        : None,
-                "confidence"   : confidence,
-                "message"      : (
-                    f"Already logged {int(elapsed)}s ago — "
-                    f"wait {int(cooldown_seconds - elapsed)}s"
-                ),
-            }), 200
+        if student_id is None:
+            continue
 
-    # ── 6. Toggle ENTRY / EXIT ────────────────────────────────────────
-    # None or last=EXIT → ENTRY (student arriving / re-entering)
-    # last=ENTRY        → EXIT  (student leaving)
-    if latest_log is None or latest_log.event_type == "EXIT":
-        event_type = "ENTRY"
-    else:
-        event_type = "EXIT"
+        # ── 4a. Resolve student record ────────────────────────────────
+        student = Student.query.get(student_id)
+        if not student:
+            logger.warning(
+                "recognize_student returned student_id=%s but no DB row found",
+                student_id,
+            )
+            continue
 
-    # ── 7. Persist attendance log ─────────────────────────────────────
-    log_entry = AttendanceLog(
-        student_id=student_id,
-        session_id=session_id,
-        event_type=event_type,
-        timestamp=now,
-        confidence_score=confidence,
-    )
-    db.session.add(log_entry)
+        student_name = student.user.fullname if student.user else "Unknown"
 
-    # Ensure a summary record exists (created on session start for enrolled
-    # students, but a recognised face might not be formally enrolled yet).
-    record = AttendanceRecord.query.filter_by(
-        student_id=student_id, session_id=session_id
-    ).first()
-    if not record:
-        record = AttendanceRecord(
+        # ── 4b. Enrollment check ──────────────────────────────────────
+        enrollment = Enrollment.query.filter_by(
+            student_id=student_id,
+            class_id=session.class_id,
+        ).first()
+        if not enrollment:
+            logger.warning(
+                "Recognized student_id=%s (%s) is NOT enrolled in class_id=%s "
+                "(session=%s) — attendance NOT logged.",
+                student_id, student_name, session.class_id, session_id,
+            )
+            continue
+
+        # ── 4c. Cooldown check ────────────────────────────────────────
+        latest_log = (
+            AttendanceLog.query
+            .filter_by(student_id=student_id, session_id=session_id)
+            .order_by(AttendanceLog.timestamp.desc())
+            .first()
+        )
+
+        if latest_log:
+            log_time = latest_log.timestamp
+            if log_time.tzinfo is None:
+                log_time = log_time.replace(tzinfo=timezone.utc)
+            elapsed = (now - log_time).total_seconds()
+            if elapsed < cooldown_seconds:
+                # Still in cooldown — skip this student silently
+                continue
+
+        # ── 4d. Toggle ENTRY / EXIT ───────────────────────────────────
+        if latest_log is None or latest_log.event_type == "EXIT":
+            event_type = "ENTRY"
+        else:
+            event_type = "EXIT"
+
+        # ── 4e. Persist attendance log ────────────────────────────────
+        log_entry = AttendanceLog(
             student_id=student_id,
             session_id=session_id,
-            total_duration_seconds=0,
-            status="Absent",
+            event_type=event_type,
+            timestamp=now,
+            confidence_score=confidence,
         )
-        db.session.add(record)
+        db.session.add(log_entry)
 
-    db.session.commit()
-
-    # ── 8. Firebase real-time sync (best-effort, non-blocking) ───────
-    # Run in a daemon thread so Firebase latency doesn't delay the
-    # response. SQLite is the source of truth — a Firebase failure
-    # never needs to roll back the already-committed log entry.
-    def _firebase_sync():
-        try:
-            firebase_sync.sync_attendance_log(student_id, session_id, event_type)
-        except Exception as fb_exc:
-            logger.warning(
-                "Firebase sync_attendance_log failed for student=%s session=%s: %s",
-                student_id, session_id, fb_exc,
+        record = AttendanceRecord.query.filter_by(
+            student_id=student_id, session_id=session_id
+        ).first()
+        if not record:
+            record = AttendanceRecord(
+                student_id=student_id,
+                session_id=session_id,
+                total_duration_seconds=0,
+                status="Absent",
             )
+            db.session.add(record)
 
-    threading.Thread(target=_firebase_sync, daemon=True).start()
+        logged_results.append({
+            "student_id"  : student_id,
+            "student_name": student_name,
+            "event"       : event_type,
+            "confidence"  : confidence,
+        })
 
-    # ── 9. Response ───────────────────────────────────────────────────
+    # Commit all logged entries in one shot
+    if logged_results:
+        db.session.commit()
+
+        # ── 5. Firebase real-time sync (best-effort, non-blocking) ────
+        def _firebase_sync_all(items, sid):
+            for item in items:
+                try:
+                    firebase_sync.sync_attendance_log(
+                        item["student_id"], sid, item["event"]
+                    )
+                except Exception as fb_exc:
+                    logger.warning(
+                        "Firebase sync failed for student=%s session=%s: %s",
+                        item["student_id"], sid, fb_exc,
+                    )
+
+        threading.Thread(
+            target=_firebase_sync_all,
+            args=(list(logged_results), session_id),
+            daemon=True,
+        ).start()
+
+    # ── 6. Response ───────────────────────────────────────────────────
+    if not logged_results:
+        # Faces were detected but all failed enrollment / cooldown checks
+        return jsonify({
+            "status" : "no_face",
+            "results": [],
+            "message": "No eligible students logged",
+        }), 200
+
+    if len(logged_results) == 1:
+        # Preserve the original single-result shape so the frontend
+        # doesn't need to change for the common one-person case.
+        r = logged_results[0]
+        return jsonify({
+            "status"      : "recognized",
+            "student_id"  : r["student_id"],
+            "student_name": r["student_name"],
+            "event"       : r["event"],
+            "confidence"  : r["confidence"],
+            "message"     : f"{r['student_name']} — {r['event']} logged",
+        }), 200
+
+    # Multiple students recognized in the same frame
     return jsonify({
-        "status"       : "recognized",
-        "student_id"   : student_id,
-        "student_name" : student_name,
-        "event"        : event_type,
-        "confidence"   : confidence,
-        "message"      : f"{student_name} — {event_type} logged",
+        "status" : "multiple_recognized",
+        "results": logged_results,
     }), 200
 

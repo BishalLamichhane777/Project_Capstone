@@ -51,18 +51,18 @@ function RiskBadge({ risk }) {
   );
 }
 
-function WeeklyChart() {
+function WeeklyChart({ isDarkMode, barBg }) {
   return (
     <View style={styles.chartRow}>
       {weekData.map((d, i) => {
         const pct = Math.round((d.present / d.total) * 100);
         return (
           <View key={i} style={styles.chartCol}>
-            <Text style={styles.chartPct}>{pct}%</Text>
-            <View style={styles.chartBarBg}>
+            <Text style={[styles.chartPct, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{pct}%</Text>
+            <View style={[styles.chartBarBg, { backgroundColor: barBg || '#eef1f5' }]}>
               <View style={[styles.chartBarFill, { height: `${pct}%` }]} />
             </View>
-            <Text style={styles.chartDay}>{d.day}</Text>
+            <Text style={[styles.chartDay, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{d.day}</Text>
           </View>
         );
       })}
@@ -71,7 +71,7 @@ function WeeklyChart() {
 }
 
 export default function AdminDashboardScreen({ navigation }) {
-  const { logoutState, user, token } = useAuth();
+  const { logoutState, user, token, isDarkMode } = useAuth();
   const [dashboardStats, setDashboardStats] = useState(null);
   const [recentSessions, setRecentSessions] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -106,7 +106,7 @@ export default function AdminDashboardScreen({ navigation }) {
       }
     } catch (err) {
       console.error(err);
-      Alert.alert('Error', 'Failed to fetch dashboard data.');
+      // Silently fail — don't show alert on dashboard load errors
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -143,14 +143,24 @@ export default function AdminDashboardScreen({ navigation }) {
 
   const displayName = user?.fullname || 'Admin';
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+  // ── Theme colours ────────────────────────────────────────────────────────
+  const bg          = isDarkMode ? '#111827' : '#f5f7fa';
+  const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const headerBg    = isDarkMode ? '#1a1f2e' : '#f5f7fa';
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const rowBorder   = isDarkMode ? '#252b3e' : '#f0f2f5';
+  const overviewBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const barBg       = isDarkMode ? '#252b3e' : '#eef1f5';
 
-      <View style={styles.header}>
+  return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={headerBg} />
+
+      <View style={[styles.header, { backgroundColor: headerBg }]}>
         <View>
-          <Text style={styles.headerTitle}>Admin Dashboard</Text>
-          <Text style={styles.headerSub}>Hello, {displayName}</Text>
+          <Text style={[styles.headerTitle, { color: textPrimary }]}>Admin Dashboard</Text>
+          <Text style={[styles.headerSub, { color: textSub }]}>Hello, {displayName}</Text>
         </View>
         <View style={styles.headerRight}>
           <View style={[styles.adminBadge, { flexDirection: 'row', alignItems: 'center' }]}>
@@ -201,25 +211,25 @@ export default function AdminDashboardScreen({ navigation }) {
                     <Icon size={22} color={s.textColor} />
                   </View>
                   <Text style={[styles.statValue, { color: s.textColor }]}>{s.value}</Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
+                  <Text style={[styles.statLabel, { color: textSub }]}>{s.label}</Text>
                 </View>
                 );
               })}
             </View>
 
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
               <View style={styles.cardTitleRow}>
-                <Text style={styles.cardTitle}>Weekly Attendance</Text>
-                <Text style={styles.cardSub}>This Week</Text>
+                <Text style={[styles.cardTitle, { color: textPrimary }]}>Weekly Attendance</Text>
+                <Text style={[styles.cardSub, { color: textSub }]}>This Week</Text>
               </View>
-              <WeeklyChart />
+              <WeeklyChart isDarkMode={isDarkMode} barBg={barBg} />
               <View style={styles.chartLegend}>
                 <View style={styles.legendDot} />
-                <Text style={styles.legendText}>% of students present per day</Text>
+                <Text style={[styles.legendText, { color: textSub }]}>% of students present per day</Text>
               </View>
             </View>
 
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <Text style={[styles.sectionTitle, { color: textPrimary }]}>Quick Actions</Text>
             <View style={styles.actionsGrid}>
               {quickActions.map((action, i) => {
                 const Icon = action.icon;
@@ -239,27 +249,27 @@ export default function AdminDashboardScreen({ navigation }) {
               })}
             </View>
 
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
               <View style={styles.cardTitleRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <AlertTriangle size={18} color="#e74c3c" style={{ marginRight: 6 }} />
-                  <Text style={styles.cardTitle}>At Risk Students</Text>
+                  <Text style={[styles.cardTitle, { color: textPrimary }]}>At Risk Students</Text>
                 </View>
                 <TouchableOpacity onPress={() => navigation.navigate('StudentAnalytics')}>
                   <Text style={styles.viewAll}>View All</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={styles.cardSubText}>Students with attendance below 70%</Text>
+              <Text style={[styles.cardSubText, { color: textSub }]}>Students with attendance below 70%</Text>
               {atRiskStudents.map((student, i) => (
-                <View key={i} style={[styles.studentRow, i !== atRiskStudents.length - 1 && styles.studentBorder]}>
-                  <View style={styles.studentAvatar}>
+                <View key={i} style={[styles.studentRow, i !== atRiskStudents.length - 1 && [styles.studentBorder, { borderBottomColor: rowBorder }]]}>
+                  <View style={[styles.studentAvatar, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
                     <Text style={styles.studentAvatarText}>
                       {student.name.split(' ').map(n => n[0]).join('')}
                     </Text>
                   </View>
                   <View style={styles.studentInfo}>
-                    <Text style={styles.studentName}>{student.name}</Text>
-                    <Text style={styles.studentMeta}>{student.id} · {student.subject}</Text>
+                    <Text style={[styles.studentName, { color: textPrimary }]}>{student.name}</Text>
+                    <Text style={[styles.studentMeta, { color: textSub }]}>{student.id} · {student.subject}</Text>
                   </View>
                   <View style={styles.studentRight}>
                     <Text style={[styles.attendancePct, { color: student.risk === 'High' ? '#e74c3c' : '#f39c12' }]}>
@@ -271,12 +281,12 @@ export default function AdminDashboardScreen({ navigation }) {
               ))}
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Today's Overview</Text>
-              <Text style={styles.cardSubText}>
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <Text style={[styles.cardTitle, { color: textPrimary }]}>Today's Overview</Text>
+              <Text style={[styles.cardSubText, { color: textSub }]}>
                 {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {dashboardStats?.sessions_today ?? 0} classes scheduled
               </Text>
-              <View style={styles.overviewBar}>
+              <View style={[styles.overviewBar, { backgroundColor: isDarkMode ? '#2e1a1a' : '#fee' }]}>
                 <View style={[styles.overviewFill, { width: `${dashboardStats?.attendance_rate ?? 0}%` }]} />
               </View>
               <View style={styles.overviewLabels}>
@@ -289,34 +299,34 @@ export default function AdminDashboardScreen({ navigation }) {
                   <Text style={styles.overviewAbsent}>{dashboardStats?.absent_today ?? 0} Absent</Text>
                 </View>
               </View>
-              <View style={styles.overviewStats}>
+              <View style={[styles.overviewStats, { backgroundColor: overviewBg }]}>
                 <View style={styles.overviewItem}>
-                  <Text style={styles.overviewValue}>{dashboardStats?.attendance_rate ?? 0}%</Text>
-                  <Text style={styles.overviewLabel}>Attendance Rate</Text>
+                  <Text style={[styles.overviewValue, { color: textPrimary }]}>{dashboardStats?.attendance_rate ?? 0}%</Text>
+                  <Text style={[styles.overviewLabel, { color: textSub }]}>Attendance Rate</Text>
                 </View>
-                <View style={styles.overviewDivider} />
+                <View style={[styles.overviewDivider, { backgroundColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]} />
                 <View style={styles.overviewItem}>
-                  <Text style={styles.overviewValue}>{dashboardStats?.sessions_today ?? 0}</Text>
-                  <Text style={styles.overviewLabel}>Classes Today</Text>
+                  <Text style={[styles.overviewValue, { color: textPrimary }]}>{dashboardStats?.sessions_today ?? 0}</Text>
+                  <Text style={[styles.overviewLabel, { color: textSub }]}>Classes Today</Text>
                 </View>
-                <View style={styles.overviewDivider} />
+                <View style={[styles.overviewDivider, { backgroundColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]} />
                 <View style={styles.overviewItem}>
-                  <Text style={styles.overviewValue}>{dashboardStats?.waivers_pending ?? 0}</Text>
-                  <Text style={styles.overviewLabel}>Waivers Pending</Text>
+                  <Text style={[styles.overviewValue, { color: textPrimary }]}>{dashboardStats?.waivers_pending ?? 0}</Text>
+                  <Text style={[styles.overviewLabel, { color: textSub }]}>Waivers Pending</Text>
                 </View>
               </View>
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Recent Sessions</Text>
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <Text style={[styles.cardTitle, { color: textPrimary }]}>Recent Sessions</Text>
               {recentSessions.length === 0 ? (
-                <Text style={styles.cardSubText}>No recent sessions found.</Text>
+                <Text style={[styles.cardSubText, { color: textSub }]}>No recent sessions found.</Text>
               ) : (
                 recentSessions.map((session, i) => (
-                  <View key={i} style={[styles.studentRow, i !== recentSessions.length - 1 && styles.studentBorder]}>
+                  <View key={i} style={[styles.studentRow, i !== recentSessions.length - 1 && [styles.studentBorder, { borderBottomColor: rowBorder }]]}>
                     <View style={styles.studentInfo}>
-                      <Text style={styles.studentName}>{session.class_name}</Text>
-                      <Text style={styles.studentMeta}>{session.subject} · {new Date(session.start_time).toLocaleString()}</Text>
+                      <Text style={[styles.studentName, { color: textPrimary }]}>{session.class_name}</Text>
+                      <Text style={[styles.studentMeta, { color: textSub }]}>{session.subject} · {new Date(session.start_time).toLocaleString()}</Text>
                     </View>
                     <View style={styles.studentRight}>
                       <Text style={[styles.attendancePct, { color: '#27ae60', fontSize: 13 }]}>

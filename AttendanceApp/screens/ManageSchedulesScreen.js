@@ -17,7 +17,7 @@ const pad2 = n => String(n).padStart(2, '0');
 // ─── DatePickerModal ──────────────────────────────────────────────────────────
 // Pure RN modal — no external package needed.
 // Outputs date as "YYYY-MM-DD" on confirm.
-function DatePickerModal({ visible, value, onConfirm, onCancel }) {
+function DatePickerModal({ visible, value, onConfirm, onCancel, isDarkMode }) {
   const today = new Date();
   const initDate = value ? new Date(value + 'T00:00:00') : today;
 
@@ -39,71 +39,80 @@ function DatePickerModal({ visible, value, onConfirm, onCancel }) {
 
   const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+  // Theme colours
+  const sheetBg   = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const titleClr  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const labelClr  = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const scrollBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const scrollBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
+  const itemClr   = isDarkMode ? '#ffffff' : '#1a1f36';
+  const cancelBg  = isDarkMode ? '#252b3e' : '#f0f2f8';
+  const cancelClr = isDarkMode ? '#8a94b8' : '#8a94a6';
+
   const handleConfirm = () => {
     const safeDay = Math.min(day, daysInMonth);
     onConfirm(`${year}-${pad2(month)}-${pad2(safeDay)}`);
   };
 
+  if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={pickerStyles.overlay}>
-        <View style={pickerStyles.sheet}>
-          <Text style={pickerStyles.title}>Select Date</Text>
+    <View style={[pickerStyles.overlay, { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 1000, elevation: 1000 }]}>
+      <View style={[pickerStyles.sheet, { backgroundColor: sheetBg }]}>
+          <Text style={[pickerStyles.title, { color: titleClr }]}>Select Date</Text>
           <View style={pickerStyles.columnsRow}>
             {/* Year */}
             <View style={pickerStyles.col}>
-              <Text style={pickerStyles.colLabel}>Year</Text>
-              <ScrollView style={pickerStyles.colScroll} showsVerticalScrollIndicator={false}>
+              <Text style={[pickerStyles.colLabel, { color: labelClr }]}>Year</Text>
+              <ScrollView style={[pickerStyles.colScroll, { backgroundColor: scrollBg, borderColor: scrollBdr }]} showsVerticalScrollIndicator={false}>
                 {years.map(y => (
                   <TouchableOpacity key={y} style={[pickerStyles.item, y === year && pickerStyles.itemActive]}
                     onPress={() => setYear(y)}>
-                    <Text style={[pickerStyles.itemText, y === year && pickerStyles.itemTextActive]}>{y}</Text>
+                    <Text style={[pickerStyles.itemText, { color: itemClr }, y === year && pickerStyles.itemTextActive]}>{y}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
             {/* Month */}
             <View style={pickerStyles.col}>
-              <Text style={pickerStyles.colLabel}>Month</Text>
-              <ScrollView style={pickerStyles.colScroll} showsVerticalScrollIndicator={false}>
+              <Text style={[pickerStyles.colLabel, { color: labelClr }]}>Month</Text>
+              <ScrollView style={[pickerStyles.colScroll, { backgroundColor: scrollBg, borderColor: scrollBdr }]} showsVerticalScrollIndicator={false}>
                 {months.map(m => (
                   <TouchableOpacity key={m} style={[pickerStyles.item, m === month && pickerStyles.itemActive]}
                     onPress={() => setMonth(m)}>
-                    <Text style={[pickerStyles.itemText, m === month && pickerStyles.itemTextActive]}>{MON[m-1]}</Text>
+                    <Text style={[pickerStyles.itemText, { color: itemClr }, m === month && pickerStyles.itemTextActive]}>{MON[m-1]}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
             {/* Day */}
             <View style={pickerStyles.col}>
-              <Text style={pickerStyles.colLabel}>Day</Text>
-              <ScrollView style={pickerStyles.colScroll} showsVerticalScrollIndicator={false}>
+              <Text style={[pickerStyles.colLabel, { color: labelClr }]}>Day</Text>
+              <ScrollView style={[pickerStyles.colScroll, { backgroundColor: scrollBg, borderColor: scrollBdr }]} showsVerticalScrollIndicator={false}>
                 {days.map(d => (
                   <TouchableOpacity key={d} style={[pickerStyles.item, d === day && pickerStyles.itemActive]}
                     onPress={() => setDay(d)}>
-                    <Text style={[pickerStyles.itemText, d === day && pickerStyles.itemTextActive]}>{pad2(d)}</Text>
+                    <Text style={[pickerStyles.itemText, { color: itemClr }, d === day && pickerStyles.itemTextActive]}>{pad2(d)}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
           </View>
           <View style={pickerStyles.btnRow}>
-            <TouchableOpacity style={pickerStyles.cancelBtn} onPress={onCancel}>
-              <Text style={pickerStyles.cancelText}>Cancel</Text>
+            <TouchableOpacity style={[pickerStyles.cancelBtn, { backgroundColor: cancelBg }]} onPress={onCancel}>
+              <Text style={[pickerStyles.cancelText, { color: cancelClr }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={pickerStyles.confirmBtn} onPress={handleConfirm}>
               <Text style={pickerStyles.confirmText}>Confirm</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </Modal>
+    </View>
   );
 }
 
 // ─── TimePickerModal ──────────────────────────────────────────────────────────
 // Outputs time as "HH:MM".
-function TimePickerModal({ visible, value, onConfirm, onCancel }) {
+function TimePickerModal({ visible, value, onConfirm, onCancel, isDarkMode }) {
   const parseTime = (v) => {
     if (v && /^\d{2}:\d{2}/.test(v)) {
       const [h, m] = v.split(':').map(Number);
@@ -120,43 +129,53 @@ function TimePickerModal({ visible, value, onConfirm, onCancel }) {
   }, [visible, value]);
 
   const hours   = Array.from({ length: 24 }, (_, i) => i);
-  // Minutes in 5-minute steps
-  const minutes = Array.from({ length: 12 }, (_, i) => i * 5);
+  // All 60 minutes
+  const minutes = Array.from({ length: 60 }, (_, i) => i);
 
+  // Theme colours
+  const sheetBg   = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const titleClr  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const labelClr  = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const scrollBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const scrollBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
+  const itemClr   = isDarkMode ? '#ffffff' : '#1a1f36';
+  const cancelBg  = isDarkMode ? '#252b3e' : '#f0f2f8';
+  const cancelClr = isDarkMode ? '#8a94b8' : '#8a94a6';
+
+  if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={pickerStyles.overlay}>
-        <View style={[pickerStyles.sheet, { maxWidth: 280 }]}>
-          <Text style={pickerStyles.title}>Select Time</Text>
+    <View style={[pickerStyles.overlay, { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 1000, elevation: 1000 }]}>
+      <View style={[pickerStyles.sheet, { maxWidth: 280, backgroundColor: sheetBg }]}>
+          <Text style={[pickerStyles.title, { color: titleClr }]}>Select Time</Text>
           <View style={pickerStyles.columnsRow}>
             {/* Hour */}
             <View style={pickerStyles.col}>
-              <Text style={pickerStyles.colLabel}>Hour</Text>
-              <ScrollView style={pickerStyles.colScroll} showsVerticalScrollIndicator={false}>
+              <Text style={[pickerStyles.colLabel, { color: labelClr }]}>Hour</Text>
+              <ScrollView style={[pickerStyles.colScroll, { backgroundColor: scrollBg, borderColor: scrollBdr }]} showsVerticalScrollIndicator={false}>
                 {hours.map(h => (
                   <TouchableOpacity key={h} style={[pickerStyles.item, h === hour && pickerStyles.itemActive]}
                     onPress={() => setHour(h)}>
-                    <Text style={[pickerStyles.itemText, h === hour && pickerStyles.itemTextActive]}>{pad2(h)}</Text>
+                    <Text style={[pickerStyles.itemText, { color: itemClr }, h === hour && pickerStyles.itemTextActive]}>{pad2(h)}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
             {/* Minute */}
             <View style={pickerStyles.col}>
-              <Text style={pickerStyles.colLabel}>Minute</Text>
-              <ScrollView style={pickerStyles.colScroll} showsVerticalScrollIndicator={false}>
+              <Text style={[pickerStyles.colLabel, { color: labelClr }]}>Minute</Text>
+              <ScrollView style={[pickerStyles.colScroll, { backgroundColor: scrollBg, borderColor: scrollBdr }]} showsVerticalScrollIndicator={false}>
                 {minutes.map(m => (
                   <TouchableOpacity key={m} style={[pickerStyles.item, m === minute && pickerStyles.itemActive]}
                     onPress={() => setMinute(m)}>
-                    <Text style={[pickerStyles.itemText, m === minute && pickerStyles.itemTextActive]}>{pad2(m)}</Text>
+                    <Text style={[pickerStyles.itemText, { color: itemClr }, m === minute && pickerStyles.itemTextActive]}>{pad2(m)}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
           </View>
           <View style={pickerStyles.btnRow}>
-            <TouchableOpacity style={pickerStyles.cancelBtn} onPress={onCancel}>
-              <Text style={pickerStyles.cancelText}>Cancel</Text>
+            <TouchableOpacity style={[pickerStyles.cancelBtn, { backgroundColor: cancelBg }]} onPress={onCancel}>
+              <Text style={[pickerStyles.cancelText, { color: cancelClr }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={pickerStyles.confirmBtn}
               onPress={() => onConfirm(`${pad2(hour)}:${pad2(minute)}`)}>
@@ -164,8 +183,7 @@ function TimePickerModal({ visible, value, onConfirm, onCancel }) {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </Modal>
+    </View>
   );
 }
 
@@ -195,31 +213,36 @@ const pickerStyles = StyleSheet.create({
   confirmText: { fontSize: 14, color: '#ffffff', fontWeight: '700' },
 });
 
-function ClassCard({ item, onDelete, onSetSchedule }) {
+function ClassCard({ item, onDelete, onSetSchedule, isDarkMode }) {
+  const cardBg   = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub  = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const metaClr  = isDarkMode ? '#8a94b8' : '#6b7280';
+  const iconBg   = isDarkMode ? '#1e2540' : '#eef2ff';
   const hasSchedule = item.scheduled_date || item.scheduled_time;
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: cardBg }]}>
       <View style={styles.cardRow}>
-        <View style={[styles.iconBox, { backgroundColor: '#eef2ff' }]}>
+        <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
           <BookOpen size={18} color={BLUE} />
         </View>
         <View style={styles.cardInfo}>
-          <Text style={styles.subjectText}>{item.subject}</Text>
-          <Text style={styles.codeText}>{item.class_name}</Text>
+          <Text style={[styles.subjectText, { color: textPri }]}>{item.subject}</Text>
+          <Text style={[styles.codeText, { color: textSub }]}>{item.class_name}</Text>
           <View style={styles.detailRow}>
-            <Clock size={11} color="#6b7280" />
-            <Text style={styles.detailText}>{item.schedule_time ? new Date(item.schedule_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBA'}</Text>
-            <Text style={styles.dot}>·</Text>
-            <MapPin size={11} color="#6b7280" />
-            <Text style={styles.detailText}>{item.room || 'TBD'}</Text>
+            <Clock size={11} color={metaClr} />
+            <Text style={[styles.detailText, { color: metaClr }]}>{item.schedule_time ? new Date(item.schedule_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBA'}</Text>
+            <Text style={[styles.dot, { color: textSub }]}>·</Text>
+            <MapPin size={11} color={metaClr} />
+            <Text style={[styles.detailText, { color: metaClr }]}>{item.room || 'TBD'}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-            <User size={11} color="#6b7280" />
-            <Text style={[styles.teacherText, { marginLeft: 4 }]}>{item.teacher_name || 'Unassigned'}</Text>
+            <User size={11} color={metaClr} />
+            <Text style={[styles.teacherText, { marginLeft: 4, color: metaClr }]}>{item.teacher_name || 'Unassigned'}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-            <Timer size={11} color="#6b7280" />
-            <Text style={[styles.detailText, { marginLeft: 4 }]}>{item.duration_minutes}min · {item.enrolled_count || 0} students</Text>
+            <Timer size={11} color={metaClr} />
+            <Text style={[styles.detailText, { marginLeft: 4, color: metaClr }]}>{item.duration_minutes}min · {item.enrolled_count || 0} students</Text>
           </View>
           {hasSchedule && (
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
@@ -245,11 +268,10 @@ function ClassCard({ item, onDelete, onSetSchedule }) {
   );
 }
 
-function FormModal({ visible, onClose, onSave, teachers, batches, saving }) {
+function FormModal({ visible, onClose, onSave, teachers, batches, saving, isDarkMode }) {
   const [className, setClassName] = useState('');
   const [subject, setSubject] = useState('');
   const [room, setRoom] = useState('');
-  const [duration, setDuration] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [teacherId, setTeacherId] = useState(null);
   const [teacherOpen, setTeacherOpen] = useState(false);
@@ -265,7 +287,7 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving }) {
 
   useEffect(() => {
     if (visible) {
-      setClassName(''); setSubject(''); setRoom(''); setDuration('');
+      setClassName(''); setSubject(''); setRoom('');
       setScheduleTime(''); setTeacherId(null); setTeacherOpen(false);
       setSelectedBatch(null); setBatchOpen(false);
       setScheduledDate(''); setScheduledTime(''); setScheduledEndTime('');
@@ -275,20 +297,14 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving }) {
   const selectedTeacher = teachers.find(t => t.id === teacherId);
 
   const handleSave = () => {
-    if (!className.trim() || !subject.trim() || !duration.trim()) {
-      Alert.alert('Missing Fields', 'Class name, subject, and duration are required.');
-      return;
-    }
-    const dur = parseInt(duration, 10);
-    if (isNaN(dur) || dur <= 0) {
-      Alert.alert('Invalid Duration', 'Duration must be a positive number (minutes).');
+    if (!className.trim() || !subject.trim()) {
+      Alert.alert('Missing Fields', 'Class name and subject are required.');
       return;
     }
     onSave({
       class_name:         className.trim(),
       subject:            subject.trim(),
       room:               room.trim() || null,
-      duration_minutes:   dur,
       teacher_id:         teacherId,
       schedule_time:      scheduleTime.trim() || null,
       batch_id:           selectedBatch?.batch_id || null,
@@ -299,95 +315,67 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving }) {
   };
 
   return (
-    <>
-      <DatePickerModal
-        visible={showDatePicker}
-        value={scheduledDate}
-        onConfirm={v => { setScheduledDate(v); setShowDatePicker(false); }}
-        onCancel={() => setShowDatePicker(false)}
-      />
-      <TimePickerModal
-        visible={showStartPicker}
-        value={scheduledTime}
-        onConfirm={v => { setScheduledTime(v); setShowStartPicker(false); }}
-        onCancel={() => setShowStartPicker(false)}
-      />
-      <TimePickerModal
-        visible={showEndPicker}
-        value={scheduledEndTime}
-        onConfirm={v => { setScheduledEndTime(v); setShowEndPicker(false); }}
-        onCancel={() => setShowEndPicker(false)}
-      />
-
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add New Class</Text>
-            <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
+            <Text style={[styles.modalTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Add New Class</Text>
+            <TouchableOpacity onPress={onClose} style={[styles.modalCloseBtn, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
               <X size={13} color="#8a94a6" />
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>CLASS NAME</Text>
-              <TextInput style={styles.fieldInput} placeholder="e.g. CS-301 Morning Batch" placeholderTextColor="#aab0be" value={className} onChangeText={setClassName} />
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>CLASS NAME</Text>
+              <TextInput style={[styles.fieldInput, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]} placeholder="e.g. CS-301 Morning Batch" placeholderTextColor="#aab0be" value={className} onChangeText={setClassName} />
             </View>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>SUBJECT</Text>
-              <TextInput style={styles.fieldInput} placeholder="e.g. Database Systems" placeholderTextColor="#aab0be" value={subject} onChangeText={setSubject} />
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>SUBJECT</Text>
+              <TextInput style={[styles.fieldInput, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]} placeholder="e.g. Database Systems" placeholderTextColor="#aab0be" value={subject} onChangeText={setSubject} />
             </View>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>ROOM</Text>
-              <TextInput style={styles.fieldInput} placeholder="e.g. Room 205" placeholderTextColor="#aab0be" value={room} onChangeText={setRoom} />
-            </View>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>DURATION (MINUTES)</Text>
-              <TextInput style={styles.fieldInput} placeholder="e.g. 90" placeholderTextColor="#aab0be" value={duration} onChangeText={setDuration} keyboardType="numeric" />
-            </View>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>LEGACY DATETIME (ISO 8601, optional)</Text>
-              <TextInput style={styles.fieldInput} placeholder="e.g. 2026-06-02T10:00:00" placeholderTextColor="#aab0be" value={scheduleTime} onChangeText={setScheduleTime} />
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>ROOM</Text>
+              <TextInput style={[styles.fieldInput, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]} placeholder="e.g. Room 205" placeholderTextColor="#aab0be" value={room} onChangeText={setRoom} />
             </View>
 
             {/* Fine-grained schedule — picker buttons */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>SCHEDULE DATE (optional)</Text>
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>SCHEDULE DATE (optional)</Text>
               <TouchableOpacity
-                style={styles.pickerRow}
+                style={[styles.pickerRow, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
                 onPress={() => setShowDatePicker(true)}
                 activeOpacity={0.7}
               >
                 <Calendar size={16} color="#8a94a6" style={{ marginRight: 8 }} />
-                <Text style={[styles.pickerRowText, !scheduledDate && { color: '#aab0be' }]}>
+                <Text style={[styles.pickerRowText, !scheduledDate && { color: '#aab0be' }, { color: isDarkMode ? (scheduledDate ? '#ffffff' : '#aab0be') : (scheduledDate ? '#1a1f36' : '#aab0be') }]}>
                   {scheduledDate || 'Tap to select date'}
                 </Text>
                 <ChevronDown size={14} color="#aab0be" />
               </TouchableOpacity>
             </View>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>START TIME (optional)</Text>
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>START TIME (optional)</Text>
               <TouchableOpacity
-                style={styles.pickerRow}
+                style={[styles.pickerRow, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
                 onPress={() => setShowStartPicker(true)}
                 activeOpacity={0.7}
               >
                 <Clock size={16} color="#8a94a6" style={{ marginRight: 8 }} />
-                <Text style={[styles.pickerRowText, !scheduledTime && { color: '#aab0be' }]}>
+                <Text style={[styles.pickerRowText, { color: isDarkMode ? (scheduledTime ? '#ffffff' : '#aab0be') : (scheduledTime ? '#1a1f36' : '#aab0be') }]}>
                   {scheduledTime || 'Tap to select time'}
                 </Text>
                 <ChevronDown size={14} color="#aab0be" />
               </TouchableOpacity>
             </View>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>END TIME (optional)</Text>
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>END TIME (optional)</Text>
               <TouchableOpacity
-                style={styles.pickerRow}
+                style={[styles.pickerRow, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
                 onPress={() => setShowEndPicker(true)}
                 activeOpacity={0.7}
               >
                 <Clock size={16} color="#8a94a6" style={{ marginRight: 8 }} />
-                <Text style={[styles.pickerRowText, !scheduledEndTime && { color: '#aab0be' }]}>
+                <Text style={[styles.pickerRowText, { color: isDarkMode ? (scheduledEndTime ? '#ffffff' : '#aab0be') : (scheduledEndTime ? '#1a1f36' : '#aab0be') }]}>
                   {scheduledEndTime || 'Tap to select time'}
                 </Text>
                 <ChevronDown size={14} color="#aab0be" />
@@ -396,30 +384,30 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving }) {
 
             {/* Teacher Picker */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>TEACHER</Text>
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>TEACHER</Text>
               <TouchableOpacity
-                style={[styles.fieldInput, styles.dropdownTrigger]}
+                style={[styles.fieldInput, styles.dropdownTrigger, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
                 onPress={() => setTeacherOpen(!teacherOpen)}
               >
-                <Text style={[styles.dropdownValue, !selectedTeacher && { color: '#aab0be' }]}>
+                <Text style={[styles.dropdownValue, { color: isDarkMode ? '#ffffff' : '#1a1f36' }, !selectedTeacher && { color: '#aab0be' }]}>
                   {selectedTeacher ? selectedTeacher.fullname : 'Select a teacher'}
                 </Text>
                 <Text style={styles.dropdownArrow}>{teacherOpen ? '▲' : '▼'}</Text>
               </TouchableOpacity>
               {teacherOpen && (
-                <View style={styles.dropdownMenu}>
+                <View style={[styles.dropdownMenu, { backgroundColor: isDarkMode ? '#1e2540' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}>
                   {teachers.length === 0 ? (
                     <View style={styles.dropdownItem}>
-                      <Text style={styles.dropdownItemText}>No teachers found</Text>
+                      <Text style={[styles.dropdownItemText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>No teachers found</Text>
                     </View>
                   ) : (
                     teachers.map(t => (
                       <TouchableOpacity
                         key={t.id}
-                        style={styles.dropdownItem}
+                        style={[styles.dropdownItem, { borderBottomColor: isDarkMode ? '#252b3e' : '#f0f2f5' }]}
                         onPress={() => { setTeacherId(t.id); setTeacherOpen(false); }}
                       >
-                        <Text style={[styles.dropdownItemText, teacherId === t.id && styles.dropdownItemActive]}>
+                        <Text style={[styles.dropdownItemText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }, teacherId === t.id && styles.dropdownItemActive]}>
                           {t.fullname} ({t.email})
                         </Text>
                       </TouchableOpacity>
@@ -431,25 +419,25 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving }) {
 
             {/* Batch Picker */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>ENROLL BATCH (OPTIONAL)</Text>
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>ENROLL BATCH (OPTIONAL)</Text>
               <TouchableOpacity
-                style={[styles.fieldInput, styles.dropdownTrigger]}
+                style={[styles.fieldInput, styles.dropdownTrigger, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
                 onPress={() => setBatchOpen(!batchOpen)}
               >
-                <Text style={[styles.dropdownValue, !selectedBatch && { color: '#aab0be' }]}>
+                <Text style={[styles.dropdownValue, { color: isDarkMode ? '#ffffff' : '#1a1f36' }, !selectedBatch && { color: '#aab0be' }]}>
                   {selectedBatch ? `${selectedBatch.batch_name} (${selectedBatch.student_count} students)` : 'None — enroll students manually'}
                 </Text>
                 <Text style={styles.dropdownArrow}>{batchOpen ? '▲' : '▼'}</Text>
               </TouchableOpacity>
               {batchOpen && (
-                <View style={styles.dropdownMenu}>
-                  <TouchableOpacity style={styles.dropdownItem} onPress={() => { setSelectedBatch(null); setBatchOpen(false); }}>
-                    <Text style={styles.dropdownItemText}>None</Text>
+                <View style={[styles.dropdownMenu, { backgroundColor: isDarkMode ? '#1e2540' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}>
+                  <TouchableOpacity style={[styles.dropdownItem, { borderBottomColor: isDarkMode ? '#252b3e' : '#f0f2f5' }]} onPress={() => { setSelectedBatch(null); setBatchOpen(false); }}>
+                    <Text style={[styles.dropdownItemText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>None</Text>
                   </TouchableOpacity>
                   {batches.map(b => (
-                    <TouchableOpacity key={b.batch_id} style={styles.dropdownItem}
+                    <TouchableOpacity key={b.batch_id} style={[styles.dropdownItem, { borderBottomColor: isDarkMode ? '#252b3e' : '#f0f2f5' }]}
                       onPress={() => { setSelectedBatch(b); setBatchOpen(false); }}>
-                      <Text style={[styles.dropdownItemText, selectedBatch?.batch_id === b.batch_id && styles.dropdownItemActive]}>
+                      <Text style={[styles.dropdownItemText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }, selectedBatch?.batch_id === b.batch_id && styles.dropdownItemActive]}>
                         {b.batch_name} — {b.student_count} students
                       </Text>
                     </TouchableOpacity>
@@ -457,7 +445,7 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving }) {
                 </View>
               )}
               {selectedBatch && (
-                <View style={{ marginTop: 6, backgroundColor: '#eef2ff', borderRadius: 10, padding: 10 }}>
+                <View style={{ marginTop: 6, backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff', borderRadius: 10, padding: 10 }}>
                   <Text style={{ fontSize: 12, color: '#3b5bdb' }}>
                     ✓ {selectedBatch.student_count} students will be enrolled automatically
                   </Text>
@@ -475,13 +463,33 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving }) {
           </ScrollView>
         </View>
       </View>
+      <DatePickerModal
+        visible={showDatePicker}
+        value={scheduledDate}
+        onConfirm={v => { setScheduledDate(v); setShowDatePicker(false); }}
+        onCancel={() => setShowDatePicker(false)}
+        isDarkMode={isDarkMode}
+      />
+      <TimePickerModal
+        visible={showStartPicker}
+        value={scheduledTime}
+        onConfirm={v => { setScheduledTime(v); setShowStartPicker(false); }}
+        onCancel={() => setShowStartPicker(false)}
+        isDarkMode={isDarkMode}
+      />
+      <TimePickerModal
+        visible={showEndPicker}
+        value={scheduledEndTime}
+        onConfirm={v => { setScheduledEndTime(v); setShowEndPicker(false); }}
+        onCancel={() => setShowEndPicker(false)}
+        isDarkMode={isDarkMode}
+      />
     </Modal>
-    </>
   );
 }
 
 // ─── Schedule Modal (set/update schedule on existing class) ───────────────────
-function ScheduleModal({ visible, onClose, onSave, item, saving }) {
+function ScheduleModal({ visible, onClose, onSave, item, saving, isDarkMode }) {
   const [scheduledDate,    setScheduledDate]    = useState('');
   const [scheduledTime,    setScheduledTime]    = useState('');
   const [scheduledEndTime, setScheduledEndTime] = useState('');
@@ -507,32 +515,12 @@ function ScheduleModal({ visible, onClose, onSave, item, saving }) {
   };
 
   return (
-    <>
-      <DatePickerModal
-        visible={showDatePicker}
-        value={scheduledDate}
-        onConfirm={v => { setScheduledDate(v); setShowDatePicker(false); }}
-        onCancel={() => setShowDatePicker(false)}
-      />
-      <TimePickerModal
-        visible={showStartPicker}
-        value={scheduledTime}
-        onConfirm={v => { setScheduledTime(v); setShowStartPicker(false); }}
-        onCancel={() => setShowStartPicker(false)}
-      />
-      <TimePickerModal
-        visible={showEndPicker}
-        value={scheduledEndTime}
-        onConfirm={v => { setScheduledEndTime(v); setShowEndPicker(false); }}
-        onCancel={() => setShowEndPicker(false)}
-      />
-
       <Modal visible={visible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Set Schedule</Text>
-              <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
+              <Text style={[styles.modalTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Set Schedule</Text>
+              <TouchableOpacity onPress={onClose} style={[styles.modalCloseBtn, { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }]}>
                 <X size={13} color="#8a94a6" />
               </TouchableOpacity>
             </View>
@@ -544,14 +532,14 @@ function ScheduleModal({ visible, onClose, onSave, item, saving }) {
 
             {/* DATE */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>DATE</Text>
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>DATE</Text>
               <TouchableOpacity
-                style={styles.pickerRow}
+                style={[styles.pickerRow, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
                 onPress={() => setShowDatePicker(true)}
                 activeOpacity={0.7}
               >
                 <Calendar size={16} color="#8a94a6" style={{ marginRight: 8 }} />
-                <Text style={[styles.pickerRowText, !scheduledDate && { color: '#aab0be' }]}>
+                <Text style={[styles.pickerRowText, { color: isDarkMode ? (scheduledDate ? '#ffffff' : '#aab0be') : (scheduledDate ? '#1a1f36' : '#aab0be') }]}>
                   {scheduledDate || 'Tap to select date'}
                 </Text>
                 <ChevronDown size={14} color="#aab0be" />
@@ -560,14 +548,14 @@ function ScheduleModal({ visible, onClose, onSave, item, saving }) {
 
             {/* START TIME */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>START TIME</Text>
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>START TIME</Text>
               <TouchableOpacity
-                style={styles.pickerRow}
+                style={[styles.pickerRow, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
                 onPress={() => setShowStartPicker(true)}
                 activeOpacity={0.7}
               >
                 <Clock size={16} color="#8a94a6" style={{ marginRight: 8 }} />
-                <Text style={[styles.pickerRowText, !scheduledTime && { color: '#aab0be' }]}>
+                <Text style={[styles.pickerRowText, { color: isDarkMode ? (scheduledTime ? '#ffffff' : '#aab0be') : (scheduledTime ? '#1a1f36' : '#aab0be') }]}>
                   {scheduledTime || 'Tap to select time'}
                 </Text>
                 <ChevronDown size={14} color="#aab0be" />
@@ -576,14 +564,14 @@ function ScheduleModal({ visible, onClose, onSave, item, saving }) {
 
             {/* END TIME */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>END TIME</Text>
+              <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>END TIME</Text>
               <TouchableOpacity
-                style={styles.pickerRow}
+                style={[styles.pickerRow, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]}
                 onPress={() => setShowEndPicker(true)}
                 activeOpacity={0.7}
               >
                 <Clock size={16} color="#8a94a6" style={{ marginRight: 8 }} />
-                <Text style={[styles.pickerRowText, !scheduledEndTime && { color: '#aab0be' }]}>
+                <Text style={[styles.pickerRowText, { color: isDarkMode ? (scheduledEndTime ? '#ffffff' : '#aab0be') : (scheduledEndTime ? '#1a1f36' : '#aab0be') }]}>
                   {scheduledEndTime || 'Tap to select time'}
                 </Text>
                 <ChevronDown size={14} color="#aab0be" />
@@ -604,13 +592,33 @@ function ScheduleModal({ visible, onClose, onSave, item, saving }) {
             </TouchableOpacity>
           </View>
         </View>
+        <DatePickerModal
+          visible={showDatePicker}
+          value={scheduledDate}
+          onConfirm={v => { setScheduledDate(v); setShowDatePicker(false); }}
+          onCancel={() => setShowDatePicker(false)}
+          isDarkMode={isDarkMode}
+        />
+        <TimePickerModal
+          visible={showStartPicker}
+          value={scheduledTime}
+          onConfirm={v => { setScheduledTime(v); setShowStartPicker(false); }}
+          onCancel={() => setShowStartPicker(false)}
+          isDarkMode={isDarkMode}
+        />
+        <TimePickerModal
+          visible={showEndPicker}
+          value={scheduledEndTime}
+          onConfirm={v => { setScheduledEndTime(v); setShowEndPicker(false); }}
+          onCancel={() => setShowEndPicker(false)}
+          isDarkMode={isDarkMode}
+        />
       </Modal>
-    </>
   );
 }
 
 export default function ManageSchedulesScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [batches, setBatches] = useState([]);
@@ -728,15 +736,15 @@ export default function ManageSchedulesScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#1a1f2e' : '#ffffff'} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderBottomColor: isDarkMode ? '#2a2f42' : '#eef1f5' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Manage Schedules</Text>
+        <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Manage Schedules</Text>
         <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
           <Text style={styles.addBtnText}>+ Add</Text>
         </TouchableOpacity>
@@ -747,7 +755,7 @@ export default function ManageSchedulesScreen({ navigation }) {
           <ActivityIndicator size="large" color={BLUE} style={{ marginTop: 60 }} />
         ) : (
           <>
-            <Text style={styles.countText}>
+            <Text style={[styles.countText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
               {classes.length} class{classes.length !== 1 ? 'es' : ''} total
             </Text>
 
@@ -757,6 +765,7 @@ export default function ManageSchedulesScreen({ navigation }) {
                 item={item}
                 onDelete={handleDelete}
                 onSetSchedule={(cls) => setScheduleModalItem(cls)}
+                isDarkMode={isDarkMode}
               />
             ))}
 
@@ -781,6 +790,7 @@ export default function ManageSchedulesScreen({ navigation }) {
         teachers={teachers}
         batches={batches}
         saving={saving}
+        isDarkMode={isDarkMode}
       />
 
       <ScheduleModal
@@ -789,6 +799,7 @@ export default function ManageSchedulesScreen({ navigation }) {
         onSave={handleSetSchedule}
         item={scheduleModalItem}
         saving={saving}
+        isDarkMode={isDarkMode}
       />
 
       <AdminBottomNav navigation={navigation} active="Home" />
@@ -873,5 +884,11 @@ const styles = StyleSheet.create({
     borderColor: '#e6e9f0',
     paddingHorizontal: 14,
     paddingVertical: 4,
+  },
+  pickerRowText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1a1f36',
+    paddingVertical: 10,
   },
 });

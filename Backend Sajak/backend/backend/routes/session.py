@@ -83,12 +83,17 @@ def _compute_schedule_status(cls, active_session=None):
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 @session_bp.route("/classes", methods=["GET"])
-@require_role("teacher")
+@require_role("student", "teacher", "admin")
 def get_teacher_classes():
-    """Return all classes assigned to the current teacher."""
+    """Return all classes assigned to the current teacher (or all classes for admin)."""
     try:
-        teacher_id = g.current_user["user_id"]
-        classes = Class.query.filter_by(teacher_id=teacher_id).all()
+        user_id = g.current_user["user_id"]
+        role = g.current_user.get("role", "")
+        # Admins see all classes; teachers see only their own
+        if role == "admin":
+            classes = Class.query.all()
+        else:
+            classes = Class.query.filter_by(teacher_id=user_id).all()
 
         results = []
         for cls in classes:
@@ -427,11 +432,16 @@ def sessions_by_class(class_id):
 
 
 @session_bp.route("/my-sessions", methods=["GET"])
-@require_role("teacher")
+@require_role("student", "teacher", "admin")
 def my_sessions():
-    """Return active or upcoming classes for the current teacher."""
-    teacher_id = g.current_user["user_id"]
-    classes = Class.query.filter_by(teacher_id=teacher_id).all()
+    """Return active or upcoming classes for the current teacher (or all classes for admin)."""
+    user_id = g.current_user["user_id"]
+    role = g.current_user.get("role", "")
+    # Admins see all classes; teachers see only their assigned classes
+    if role == "admin":
+        classes = Class.query.all()
+    else:
+        classes = Class.query.filter_by(teacher_id=user_id).all()
     results = []
 
     for cls in classes:

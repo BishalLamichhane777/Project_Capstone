@@ -19,35 +19,42 @@ function getInitials(name) {
     : parts[0].substring(0, 2).toUpperCase();
 }
 
-function WaiverCard({ waiver, onApprove, onReject }) {
+function WaiverCard({ waiver, onApprove, onReject, isDarkMode }) {
   const dateStr = waiver.session_date 
     ? new Date(waiver.session_date).toLocaleDateString()
     : 'Unknown Date';
 
+  const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const badgeBg     = isDarkMode ? '#252b3e' : '#f0f2f8';
+  const reasonBg    = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const reasonText  = isDarkMode ? '#c0c8e8' : '#3a4a6a';
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: cardBg }]}>
       {/* Top Row */}
       <View style={styles.cardTop}>
-        <View style={styles.avatarCircle}>
+        <View style={[styles.avatarCircle, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
           <Text style={styles.avatarText}>{getInitials(waiver.student_name)}</Text>
         </View>
         <View style={styles.cardTopInfo}>
-          <Text style={styles.studentName}>{waiver.student_name || 'Unknown Student'}</Text>
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeText}>Request #{waiver.request_id}</Text>
+          <Text style={[styles.studentName, { color: textPrimary }]}>{waiver.student_name || 'Unknown Student'}</Text>
+          <View style={[styles.typeBadge, { backgroundColor: badgeBg }]}>
+            <Text style={[styles.typeText, { color: textSub }]}>Request #{waiver.request_id}</Text>
           </View>
-          <Text style={styles.subjectText}>{waiver.class_name}</Text>
+          <Text style={[styles.subjectText, { color: textSub }]}>{waiver.class_name}</Text>
         </View>
-        <Text style={styles.timeText}>{dateStr}</Text>
+        <Text style={[styles.timeText, { color: textSub }]}>{dateStr}</Text>
       </View>
 
       {/* Reason */}
-      <Text style={styles.reasonText}>"{waiver.reason}"</Text>
+      <Text style={[styles.reasonText, { backgroundColor: reasonBg, color: reasonText }]}>"{waiver.reason}"</Text>
 
       {/* Action Buttons */}
       <View style={styles.actionRow}>
         <TouchableOpacity
-          style={styles.rejectBtn}
+          style={[styles.rejectBtn, { backgroundColor: isDarkMode ? '#2e1a1a' : '#fff0f0' }]}
           onPress={() => onReject(waiver)}
           activeOpacity={0.8}
         >
@@ -68,7 +75,7 @@ function WaiverCard({ waiver, onApprove, onReject }) {
 }
 
 export default function AdminWaiversScreen({ navigation }) {
-  const { token } = useAuth();
+  const { token, isDarkMode } = useAuth();
   const [waivers, setWaivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -152,16 +159,23 @@ export default function AdminWaiversScreen({ navigation }) {
     );
   };
 
+  // ── Theme colours ────────────────────────────────────────────────────────
+  const bg          = isDarkMode ? '#111827' : '#f5f7fa';
+  const headerBg    = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const borderColor = isDarkMode ? '#2a2f42' : '#eef1f5';
+  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={headerBg} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: headerBg, borderBottomColor: borderColor }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <ChevronLeft size={22} color="#1a1f36" />
+          <ChevronLeft size={22} color={textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Waiver Review Panel</Text>
+        <Text style={[styles.headerTitle, { color: textPrimary }]}>Waiver Review Panel</Text>
         <View style={styles.pendingBadge}>
           <Text style={styles.pendingText}>{waivers.length}</Text>
         </View>
@@ -181,7 +195,7 @@ export default function AdminWaiversScreen({ navigation }) {
             <View style={{ marginBottom: 12 }}>
               <PartyPopper size={40} color="#8a94a6" />
             </View>
-            <Text style={styles.emptyText}>No pending waivers!</Text>
+            <Text style={[styles.emptyText, { color: textSub }]}>No pending waivers!</Text>
           </View>
         ) : (
           waivers.map((waiver) => (
@@ -190,6 +204,7 @@ export default function AdminWaiversScreen({ navigation }) {
               waiver={waiver}
               onApprove={handleApprove}
               onReject={handleReject}
+              isDarkMode={isDarkMode}
             />
           ))
         )}

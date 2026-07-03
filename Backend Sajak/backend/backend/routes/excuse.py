@@ -192,7 +192,7 @@ def my_excuses():
 
 
 @excuse_bp.route("/history/<int:student_id>", methods=["GET"])
-@require_role("student", "admin")
+@require_role("student", "admin", "teacher")
 def excuse_history(student_id):
     """Return all waiver requests for a student.
 

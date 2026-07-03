@@ -16,13 +16,13 @@ import { API } from '../api';
 
 
 // Simple circular progress using border trick
-function CircularProgress({ percentage }) {
+function CircularProgress({ percentage, isDarkMode }) {
   return (
     <View style={styles.circleWrapper}>
-      <View style={styles.circleOuter}>
+      <View style={[styles.circleOuter, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
         <View style={styles.circleInner}>
-          <Text style={styles.circlePercent}>{percentage}%</Text>
-          <Text style={styles.circleLabel}>OVERALL</Text>
+          <Text style={[styles.circlePercent, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{percentage}%</Text>
+          <Text style={[styles.circleLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>OVERALL</Text>
         </View>
       </View>
     </View>
@@ -30,18 +30,20 @@ function CircularProgress({ percentage }) {
 }
 
 // Simple bar chart
-function WeeklyTrendChart() {
+function WeeklyTrendChart({ isDarkMode }) {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  const values = [60, 80, 50, 90, 70]; // percentage heights
+  const values = [60, 80, 50, 90, 70];
+  const barBg = isDarkMode ? '#252b3e' : '#eef1ff';
+  const labelColor = isDarkMode ? '#8a94b8' : '#8a94a6';
   return (
     <View style={styles.chartContainer}>
       <View style={styles.barsRow}>
         {values.map((val, i) => (
           <View key={i} style={styles.barColumn}>
-            <View style={styles.barBackground}>
+            <View style={[styles.barBackground, { backgroundColor: barBg }]}>
               <View style={[styles.barFill, { height: `${val}%` }]} />
             </View>
-            <Text style={styles.barLabel}>{days[i]}</Text>
+            <Text style={[styles.barLabel, { color: labelColor }]}>{days[i]}</Text>
           </View>
         ))}
       </View>
@@ -50,7 +52,7 @@ function WeeklyTrendChart() {
 }
 
 export default function HomeScreen({ navigation }) {
-  const { user, token } = useAuth();
+  const { user, token, isDarkMode } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -86,41 +88,38 @@ export default function HomeScreen({ navigation }) {
   ];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#111827' : '#f5f7fa'} />
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.avatar}>
+            <View style={[styles.avatar, { backgroundColor: isDarkMode ? '#1e2540' : '#d0d7f5' }]}>
               <Text style={styles.avatarText}>{displayInitials}</Text>
             </View>
             <View>
-              <Text style={styles.welcomeText}>Welcome back,</Text>
-              <Text style={styles.nameText}>{displayName}</Text>
+              <Text style={[styles.welcomeText, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>Welcome back,</Text>
+              <Text style={[styles.nameText, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{displayName}</Text>
             </View>
           </View>
           <TouchableOpacity
-            style={styles.bellButton}
+            style={[styles.bellButton, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderColor: isDarkMode ? '#2a2f42' : 'transparent' }]}
             onPress={() => navigation.navigate('Notifications')}
           >
-            <Bell size={17} color="#1a1f36" />
+            <Bell size={17} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
             {unreadCount > 0 && (
-              <View style={styles.bellBadge}>
-                <Text style={styles.bellBadgeText}>
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </Text>
+              <View style={[styles.bellBadge, { borderColor: isDarkMode ? '#111827' : '#f5f7fa' }]}>
+                <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
               </View>
             )}
           </TouchableOpacity>
         </View>
 
-
         {/* Attendance Card */}
-        <View style={styles.card}>
-          <CircularProgress percentage={82} />
+        <View style={[styles.card, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
+          <CircularProgress percentage={82} isDarkMode={isDarkMode} />
           <View style={styles.standingBadge}>
             <CheckCircle2 size={14} color="#27ae60" />
             <Text style={styles.standingText}>Good Standing</Text>
@@ -128,11 +127,11 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* Submit Absence Waiver */}
-        <TouchableOpacity 
-            style={styles.actionButtonBlue} 
-            onPress={() => navigation.navigate('SubmitWaiver')}
-            activeOpacity={0.85}
-            >
+        <TouchableOpacity
+          style={styles.actionButtonBlue}
+          onPress={() => navigation.navigate('SubmitWaiver')}
+          activeOpacity={0.85}
+        >
           <View style={styles.actionButtonIcon}>
             <ClipboardList size={18} color="#ffffff" />
           </View>
@@ -148,7 +147,7 @@ export default function HomeScreen({ navigation }) {
           style={styles.actionButtonBlue}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('WaiverStatus')}
->
+        >
           <View style={styles.actionButtonIcon}>
             <FileText size={18} color="#ffffff" />
           </View>
@@ -159,27 +158,27 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* Weekly Trend */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
           <View style={styles.trendHeader}>
-            <Text style={styles.sectionTitle}>Weekly Trend</Text>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Weekly Trend</Text>
             <Text style={styles.trendBadge}>+2.4%</Text>
           </View>
-          <WeeklyTrendChart />
+          <WeeklyTrendChart isDarkMode={isDarkMode} />
         </View>
 
-          {/* Recent Status */}
+        {/* Recent Status */}
         <View style={styles.recentHeader}>
-        <Text style={styles.sectionTitle}>Recent Status</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('AttendanceHistory')}>
-          <Text style={styles.viewAll}>View All</Text>
-        </TouchableOpacity>
+          <Text style={[styles.sectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Recent Status</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('AttendanceHistory')}>
+            <Text style={styles.viewAll}>View All</Text>
+          </TouchableOpacity>
         </View>
 
         {recentStatus.map((item, index) => (
-          <View key={index} style={styles.statusCard}>
+          <View key={index} style={[styles.statusCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
             <View>
-              <Text style={styles.statusSubject}>{item.subject}</Text>
-              <Text style={styles.statusDate}>{item.date}</Text>
+              <Text style={[styles.statusSubject, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>{item.subject}</Text>
+              <Text style={[styles.statusDate, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{item.date}</Text>
             </View>
             <View style={styles.absentBadge}>
               <View style={styles.absentDot} />
@@ -191,7 +190,7 @@ export default function HomeScreen({ navigation }) {
         <View style={{ height: 80 }} />
       </ScrollView>
 
-    <BottomNav navigation={navigation} active="Home" />
+      <BottomNav navigation={navigation} active="Home" />
     </SafeAreaView>
   );
 }

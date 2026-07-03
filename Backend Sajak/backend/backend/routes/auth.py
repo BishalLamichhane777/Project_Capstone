@@ -228,6 +228,54 @@ def me():
     return jsonify(result), 200
 
 
+@auth_bp.route("/me", methods=["PUT"])
+def update_me():
+    """Allow any authenticated user to update their own profile.
+
+    Accepted fields (all optional):
+      - fullname  (str)
+      - phone     (str | null)
+      - password  (str) — plain text; will be hashed before saving
+
+    This endpoint is role-agnostic so students, teachers, and admins can
+    all update their own credentials without needing admin privileges.
+    """
+    auth_error = authenticate()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required", "status": 400}), 400
+
+    user_id = g.current_user["user_id"]
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found", "status": 404}), 404
+
+    if "fullname" in data:
+        fullname = data["fullname"].strip() if data["fullname"] else ""
+        if not fullname:
+            return jsonify({"error": "fullname cannot be empty", "status": 400}), 400
+        user.fullname = fullname
+
+    if "phone" in data:
+        user.phone = data["phone"].strip() if data["phone"] else None
+
+    if "password" in data:
+        new_password = data["password"]
+        if not new_password or len(new_password) < 6:
+            return jsonify({"error": "Password must be at least 6 characters", "status": 400}), 400
+        salt = bcrypt.gensalt()
+        user.password_hash = bcrypt.hashpw(
+            new_password.encode("utf-8"), salt
+        ).decode("utf-8")
+
+    db.session.commit()
+    logger.info("User user_id=%s updated their own profile", user_id)
+    return jsonify({"message": "Profile updated successfully"}), 200
+
+
 @auth_bp.route("/device-token", methods=["POST"])
 def register_device_token():
     """Save the caller's Expo push token to their user record.
