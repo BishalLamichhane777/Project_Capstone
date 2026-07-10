@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Alert, TextInput, Modal,
-  ActivityIndicator, Platform, FlatList,
+  ActivityIndicator, Platform, FlatList, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AdminBottomNav from '../components/AdminBottomNav';
@@ -316,7 +316,8 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving, isDark
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose} />
         <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Add New Class</Text>
@@ -324,18 +325,18 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving, isDark
               <X size={13} color="#8a94a6" />
             </TouchableOpacity>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>CLASS NAME</Text>
-              <TextInput style={[styles.fieldInput, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]} placeholder="e.g. CS-301 Morning Batch" placeholderTextColor="#aab0be" value={className} onChangeText={setClassName} />
+              <TextInput style={[styles.fieldInput, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]} placeholder="e.g. CS-301 Morning Batch" placeholderTextColor="#aab0be" value={className} onChangeText={setClassName} returnKeyType="next" />
             </View>
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>SUBJECT</Text>
-              <TextInput style={[styles.fieldInput, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]} placeholder="e.g. Database Systems" placeholderTextColor="#aab0be" value={subject} onChangeText={setSubject} />
+              <TextInput style={[styles.fieldInput, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]} placeholder="e.g. Database Systems" placeholderTextColor="#aab0be" value={subject} onChangeText={setSubject} returnKeyType="next" />
             </View>
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>ROOM</Text>
-              <TextInput style={[styles.fieldInput, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]} placeholder="e.g. Room 205" placeholderTextColor="#aab0be" value={room} onChangeText={setRoom} />
+              <TextInput style={[styles.fieldInput, { backgroundColor: isDarkMode ? '#252b3e' : '#f8f9ff', borderColor: isDarkMode ? '#2a2f42' : '#e6e9f0', color: isDarkMode ? '#ffffff' : '#1a1f36' }]} placeholder="e.g. Room 205" placeholderTextColor="#aab0be" value={room} onChangeText={setRoom} returnKeyType="done" />
             </View>
 
             {/* Fine-grained schedule — picker buttons */}
@@ -462,7 +463,7 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving, isDark
             </TouchableOpacity>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
       <DatePickerModal
         visible={showDatePicker}
         value={scheduledDate}
@@ -516,7 +517,8 @@ function ScheduleModal({ visible, onClose, onSave, item, saving, isDarkMode }) {
 
   return (
       <Modal visible={visible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose} />
           <View style={[styles.modalCard, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff' }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Set Schedule</Text>
@@ -591,7 +593,7 @@ function ScheduleModal({ visible, onClose, onSave, item, saving, isDarkMode }) {
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
         <DatePickerModal
           visible={showDatePicker}
           value={scheduledDate}
@@ -850,7 +852,7 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontSize: 14, color: '#8a94a6' },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   modalCard: {
     backgroundColor: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, maxHeight: '88%',

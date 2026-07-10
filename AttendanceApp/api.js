@@ -1,4 +1,4 @@
-export const BASE_URL = 'http://192.168.1.66:5000';
+export const BASE_URL = 'http://192.168.1.67:5000';
 
 export const API = {
   login: `${BASE_URL}/api/auth/login`,
@@ -36,9 +36,13 @@ export const API = {
   adminClassSchedule:     `${BASE_URL}/api/admin/class`,         // append /{id}/schedule
   adminRegisterStudent:   `${BASE_URL}/api/admin/register-student`,
   adminStudentsList:      `${BASE_URL}/api/student/list`,
+  adminStudentDetail:     `${BASE_URL}/api/student`,          // append /:id  GET
+  adminStudentUpdate:     `${BASE_URL}/api/student`,          // append /:id  PUT
+  adminStudentDelete:     `${BASE_URL}/api/student`,          // append /:id  DELETE
   adminTeachers:          `${BASE_URL}/api/admin/users?role=teacher`,
   adminSendNotification:  `${BASE_URL}/api/admin/send-notification`,
   adminNotifications:     `${BASE_URL}/api/admin/notifications`,
+  adminExportReport:      `${BASE_URL}/api/admin/export-report`,
   myNotifications:        `${BASE_URL}/api/notifications/my-notifications`,
   markNotificationsRead:  `${BASE_URL}/api/notifications/mark-read`,
   notificationUnreadCount:`${BASE_URL}/api/notifications/unread-count`,

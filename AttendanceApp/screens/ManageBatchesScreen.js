@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Alert, TextInput, Modal,
-  ActivityIndicator,
+  ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AdminBottomNav from '../components/AdminBottomNav';
@@ -88,7 +88,8 @@ function FormModal({ visible, onClose, onSave, saving, isDarkMode }) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose} />
         <View style={[styles.modalCard, { backgroundColor: modalBg }]}>
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: textPri }]}>Create Batch</Text>
@@ -96,7 +97,7 @@ function FormModal({ visible, onClose, onSave, saving, isDarkMode }) {
               <X size={13} color="#8a94a6" />
             </TouchableOpacity>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: labelClr }]}>BATCH NAME</Text>
               <TextInput
@@ -105,6 +106,7 @@ function FormModal({ visible, onClose, onSave, saving, isDarkMode }) {
                 placeholderTextColor="#aab0be"
                 value={batchName}
                 onChangeText={setBatchName}
+                returnKeyType="next"
               />
             </View>
             <View style={styles.fieldGroup}>
@@ -133,7 +135,7 @@ function FormModal({ visible, onClose, onSave, saving, isDarkMode }) {
             </TouchableOpacity>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -346,7 +348,7 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontSize: 14, color: '#8a94a6' },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   modalCard: {
     backgroundColor: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, maxHeight: '80%',

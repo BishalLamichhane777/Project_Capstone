@@ -5,6 +5,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AdminBottomNav from '../components/AdminBottomNav';
 import { useAuth } from '../context/AuthContext';
+import { API } from '../api';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import {
   BarChart3, AlertTriangle, GraduationCap, ClipboardList, Calendar, CalendarDays,
   FileText, FileSpreadsheet, FileJson, ChevronLeft, Upload, Hourglass, Download, Check
@@ -37,7 +40,7 @@ const recentExports = [
 ];
 
 export default function ExportReportsScreen({ navigation }) {
-  const { isDarkMode } = useAuth();
+  const { isDarkMode, token } = useAuth();
   const [selectedReport, setSelectedReport] = useState('full');
   const [selectedFormat, setSelectedFormat] = useState('pdf');
   const [selectedPeriod, setSelectedPeriod] = useState('This Month');
@@ -53,17 +56,76 @@ export default function ExportReportsScreen({ navigation }) {
   const chipBg      = isDarkMode ? '#1a1f2e' : '#f0f2f8';
   const rowBorder   = isDarkMode ? '#252b3e' : '#f0f2f5';
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const report = reportTypes.find(r => r.key === selectedReport);
     const format = formats.find(f => f.key === selectedFormat);
+
+    const extMap   = { pdf: 'pdf', excel: 'xlsx', csv: 'csv' };
+    const mimeMap  = {
+      pdf:   'application/pdf',
+      excel: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      csv:   'text/csv',
+    };
+    const ext      = extMap[selectedFormat]  || 'csv';
+    const mimeType = mimeMap[selectedFormat] || 'text/csv';
+
+    const periodSlug = selectedPeriod.replace(/ /g, '_');
+    const fileName   = `${report.label.replace(/ /g, '_')}_${periodSlug}.${ext}`;
+    const fileUri    = FileSystem.cacheDirectory + fileName;
+
     setExporting(true);
-    setTimeout(() => {
+    try {
+      // Step 1: POST to backend, get raw bytes as arrayBuffer
+      const res = await fetch(API.adminExportReport, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          report_type: selectedReport,
+          format:      selectedFormat,
+          period:      selectedPeriod,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Server error ${res.status}`);
+      }
+
+      // Step 2: Convert response to base64 via ArrayBuffer
+      // This works reliably in React Native without FileReader
+      const arrayBuffer = await res.arrayBuffer();
+      const bytes       = new Uint8Array(arrayBuffer);
+      let   binary      = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+
+      // Step 3: Write base64 to device cache
+      await FileSystem.writeAsStringAsync(fileUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Step 4: Open OS share sheet — user picks where to save
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType,
+          dialogTitle: `Save ${format.label} Report`,
+          UTI: ext === 'pdf' ? 'com.adobe.pdf' : 'public.data',
+        });
+      } else {
+        Alert.alert('✅ Export Complete', `File saved:\n${fileName}`);
+      }
+
+    } catch (err) {
+      Alert.alert('Export Failed', err.message || 'Something went wrong. Please try again.');
+    } finally {
       setExporting(false);
-      Alert.alert(
-        '✅ Export Complete',
-        `${report.label} exported as ${format.label} successfully.`,
-      );
-    }, 1500);
+    }
   };
 
   return (

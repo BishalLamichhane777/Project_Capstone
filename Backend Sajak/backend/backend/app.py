@@ -88,6 +88,9 @@ def create_app(config_class=Config) -> Flask:
     from routes.notifications import notifications_bp
     app.register_blueprint(notifications_bp, url_prefix="/api/notifications")
 
+    from routes.export import export_bp
+    app.register_blueprint(export_bp, url_prefix="/api/admin")
+
     # Keep legacy health check if it exists
     try:
         from health import health_bp

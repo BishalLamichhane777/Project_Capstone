@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TeacherBottomNav from '../components/TeacherBottomNav';
 import { useAuth } from '../context/AuthContext';
-import { CheckCircle2, AlertTriangle, ClipboardList, Trophy, Upload, ChevronRight } from 'lucide-react-native';
+import { CheckCircle2, AlertTriangle, ClipboardList, Trophy, ChevronRight } from 'lucide-react-native';
 
 const BLUE = '#2952e3';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -22,18 +22,12 @@ const ATTENDANCE_WEEKLY = [
   { day: 'Sun', pct: 60 },
 ];
 
-const GRADE_DATA = [
-  { grade: 'A', count: 14, color: '#27ae60' },
-  { grade: 'B', count: 22, color: BLUE },
-  { grade: 'C', count: 18, color: '#f39c12' },
-  { grade: 'D', count: 8,  color: '#e67e22' },
-  { grade: 'F', count: 4,  color: '#e74c3c' },
-];
-
-const CLASS_SUMMARIES = [
-  { name: 'Intro to Comp Sci',    code: 'CS101-A', attendance: 91, trend: '+3%', trendUp: true  },
-  { name: 'Advanced Algorithms',  code: 'CS302-B', attendance: 85, trend: '-2%', trendUp: false },
-  { name: 'Database Systems',     code: 'CS210',   attendance: 78, trend: '+1%', trendUp: true  },
+const CLASS_DISTRIBUTION = [
+  { label: 'Java',       count: 18, color: '#e67e22' },
+  { label: 'JavaScript', count: 22, color: BLUE      },
+  { label: 'React',      count: 14, color: '#27ae60' },
+  { label: 'Node JS',    count: 16, color: '#7c3aed' },
+  { label: 'Database',   count: 12, color: '#e74c3c' },
 ];
 
 const SUMMARY_STATS = [
@@ -130,8 +124,9 @@ function BarChart({ data, isDarkMode }) {
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: BAR_H, gap: 10 }}>
         {data.map((d) => {
           const h = Math.max(8, (d.count / maxCount) * BAR_H);
+          const key = d.label || d.grade;
           return (
-            <View key={d.grade} style={{ flex: 1, alignItems: 'center' }}>
+            <View key={key} style={{ flex: 1, alignItems: 'center' }}>
               <Text style={[styles.barCount, { color: labelColor }]}>{d.count}</Text>
               <View style={{
                 width: '70%', height: h,
@@ -144,11 +139,18 @@ function BarChart({ data, isDarkMode }) {
         })}
       </View>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-        {data.map((d) => (
-          <View key={d.grade} style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={[styles.barLabel, { color: d.color }]}>{d.grade}</Text>
-          </View>
-        ))}
+        {data.map((d) => {
+          const key = d.label || d.grade;
+          // Shorten long labels so they fit in the bar column
+          const short = d.label
+            ? (d.label.length > 5 ? d.label.slice(0, 4) + '…' : d.label)
+            : d.grade;
+          return (
+            <View key={key} style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={[styles.barLabel, { color: d.color }]}>{short}</Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -168,7 +170,6 @@ export default function TeacherReportsScreen({ navigation }) {
   const rowBorder   = isDarkMode ? '#252b3e' : '#f5f7fa';
   const periodRowBg = isDarkMode ? '#1a1f2e' : '#f0f2f8';
   const periodActiveBg = isDarkMode ? '#252b3e' : '#ffffff';
-  const progressBgColor = isDarkMode ? '#252b3e' : '#f0f2f8';
   const gridLineColor = isDarkMode ? '#252b3e' : '#f0f2f8';
 
   return (
@@ -183,10 +184,6 @@ export default function TeacherReportsScreen({ navigation }) {
             <Text style={[styles.headerTitle, { color: textPrimary }]}>Reports</Text>
             <Text style={[styles.headerSub, { color: textSub }]}>Attendance & Performance</Text>
           </View>
-          <TouchableOpacity style={styles.exportBtn}>
-            <Upload size={12} color="#fff" />
-            <Text style={styles.exportText}>Export</Text>
-          </TouchableOpacity>
         </View>
 
         {/* ── Period Toggle ── */}
@@ -229,50 +226,26 @@ export default function TeacherReportsScreen({ navigation }) {
           <LineChart data={ATTENDANCE_WEEKLY} isDarkMode={isDarkMode} gridLineColor={gridLineColor} />
         </View>
 
-        {/* ── Grade Distribution Bar Chart ── */}
+        {/* ── Student Distribution Bar Chart ── */}
         <View style={[styles.card, { backgroundColor: cardBg }]}>
           <View style={styles.cardHeader}>
             <View>
-              <Text style={[styles.cardTitle, { color: textPrimary }]}>Grade Distribution</Text>
-              <Text style={[styles.cardSub, { color: textSub }]}>All students across classes</Text>
+              <Text style={[styles.cardTitle, { color: textPrimary }]}>Student Distribution</Text>
+              <Text style={[styles.cardSub, { color: textSub }]}>Students enrolled per class</Text>
             </View>
-            <Text style={[styles.totalStudents, { color: textSub }]}>66 total</Text>
+            <Text style={[styles.totalStudents, { color: textSub }]}>
+              {CLASS_DISTRIBUTION.reduce((s, d) => s + d.count, 0)} total
+            </Text>
           </View>
-          <BarChart data={GRADE_DATA} isDarkMode={isDarkMode} />
+          <BarChart data={CLASS_DISTRIBUTION} isDarkMode={isDarkMode} />
           <View style={styles.legend}>
-            {GRADE_DATA.map((d) => (
-              <View key={d.grade} style={styles.legendItem}>
+            {CLASS_DISTRIBUTION.map((d) => (
+              <View key={d.label} style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: d.color }]} />
-                <Text style={[styles.legendText, { color: textSub }]}>Grade {d.grade} ({d.count})</Text>
+                <Text style={[styles.legendText, { color: textSub }]}>{d.label} ({d.count})</Text>
               </View>
             ))}
           </View>
-        </View>
-
-        {/* ── Per-Class Attendance ── */}
-        <View style={[styles.card, { backgroundColor: cardBg }]}>
-          <Text style={[styles.cardTitle, { marginBottom: 14, color: textPrimary }]}>Per-Class Summary</Text>
-          {CLASS_SUMMARIES.map((cls, i) => (
-            <View key={i} style={styles.classRow}>
-              <View style={styles.classInfo}>
-                <Text style={[styles.className, { color: textPrimary }]}>{cls.name}</Text>
-                <Text style={[styles.classCode, { color: textSub }]}>{cls.code}</Text>
-              </View>
-              <View style={styles.classRight}>
-                <Text style={[styles.classAttendance, { color: textPrimary }]}>{cls.attendance}%</Text>
-                <Text style={[styles.classTrend, { color: cls.trendUp ? '#27ae60' : '#e74c3c' }]}>
-                  {cls.trend}
-                </Text>
-              </View>
-              <View style={[styles.progressBg, { backgroundColor: progressBgColor }]}>
-                <View style={[styles.progressFill, {
-                  width: `${cls.attendance}%`,
-                  backgroundColor: cls.attendance >= 90 ? '#27ae60'
-                    : cls.attendance >= 75 ? BLUE : '#e74c3c',
-                }]} />
-              </View>
-            </View>
-          ))}
         </View>
 
         {/* ── At-Risk Students ── */}
@@ -322,15 +295,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 24, fontWeight: '800', color: '#1a1f36' },
   headerSub: { fontSize: 13, color: '#8a94a6', marginTop: 2 },
-  exportBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: BLUE, paddingHorizontal: 14, paddingVertical: 9,
-    borderRadius: 12,
-    shadowColor: BLUE, shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
-  },
-  exportIcon: { fontSize: 12, color: '#fff' },
-  exportText: { fontSize: 13, color: '#fff', fontWeight: '700' },
 
   // Period Toggle
   periodRow: {

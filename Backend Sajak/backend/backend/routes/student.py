@@ -129,8 +129,72 @@ def unenrol_student():
     return jsonify({"message": "Student unenrolled"}), 200
 
 
-@student_bp.route("/<int:student_id>", methods=["DELETE"])
+@student_bp.route("/<int:student_id>", methods=["PUT"])
 @require_role("admin")
+def update_student(student_id):
+    """Admin: update a student's user info and/or student profile fields."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required", "status": 400}), 400
+
+    student = Student.query.get(student_id)
+    if not student:
+        return jsonify({"error": "Student not found", "status": 404}), 404
+
+    user = User.query.get(student.user_id)
+    if not user:
+        return jsonify({"error": "Associated user not found", "status": 404}), 404
+
+    # ── User fields ──────────────────────────────────────────────────────────
+    if "fullname" in data:
+        fullname = (data["fullname"] or "").strip()
+        if not fullname:
+            return jsonify({"error": "fullname cannot be empty", "status": 400}), 400
+        user.fullname = fullname
+
+    if "phone" in data:
+        user.phone = data["phone"].strip() if data["phone"] else None
+
+    if "email" in data:
+        new_email = (data["email"] or "").strip().lower()
+        if not new_email:
+            return jsonify({"error": "email cannot be empty", "status": 400}), 400
+        # Check uniqueness (ignore current user)
+        existing = User.query.filter(User.email == new_email, User.id != user.id).first()
+        if existing:
+            return jsonify({"error": "Email already in use", "status": 409}), 409
+        user.email = new_email
+
+    # ── Student profile fields ───────────────────────────────────────────────
+    if "roll_number" in data:
+        rn = (data["roll_number"] or "").strip().upper()
+        if not rn:
+            return jsonify({"error": "roll_number cannot be empty", "status": 400}), 400
+        # Check uniqueness (ignore current student)
+        existing_rn = Student.query.filter(
+            Student.roll_number == rn, Student.student_id != student_id
+        ).first()
+        if existing_rn:
+            return jsonify({"error": "Roll number already in use", "status": 409}), 409
+        student.roll_number = rn
+
+    if "program" in data:
+        student.program = (data["program"] or "").strip() or None
+
+    if "year_of_study" in data:
+        yos = data["year_of_study"]
+        student.year_of_study = int(yos) if yos is not None else None
+
+    db.session.commit()
+    logger.info("Admin updated student_id=%s", student_id)
+
+    result = student.to_dict()
+    result["email"] = user.email
+    result["phone"] = user.phone
+    return jsonify(result), 200
+
+
+
 def delete_student(student_id):
     """Delete a student and all associated data.
 

@@ -34,6 +34,7 @@ const quickActions = [
   { icon: Calendar, label: 'Manage\nSchedules', route: 'ManageSchedules', color: '#eef2ff', iconColor: BLUE },
   { icon: BarChart2, label: 'Student\nAnalytics', route: 'StudentAnalytics', color: '#edfaf3', iconColor: '#27ae60' },
   { icon: UserPlus, label: 'Add Student\nFace', route: 'AddStudentFace', color: '#fff8e6', iconColor: GOLD },
+  { icon: Users, label: 'Manage\nStudents', route: 'ManageStudents', color: '#edfaf3', iconColor: '#27ae60' },
   { icon: ClipboardList, label: 'Review\nWaivers', route: 'AdminWaivers', color: '#fff0f0', iconColor: '#e74c3c' },
   { icon: Download, label: 'Export\nReports', route: 'AdminReports', color: '#f3eeff', iconColor: '#7c3aed' },
   { icon: Bell, label: 'Send\nAlerts', route: 'SendAlerts', color: '#e8f4ff', iconColor: '#2980b9' },

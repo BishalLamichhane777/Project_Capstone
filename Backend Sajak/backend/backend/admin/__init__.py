@@ -44,6 +44,14 @@ def init_admin(app):
     from routes.batch import batch_bp
     csrf.exempt(batch_bp)
 
+    # Exempt notifications blueprint
+    from routes.notifications import notifications_bp
+    csrf.exempt(notifications_bp)
+
+    # Exempt export blueprint
+    from routes.export import export_bp
+    csrf.exempt(export_bp)
+
     try:
         from health import health_bp
         csrf.exempt(health_bp)

@@ -29,7 +29,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { Eye, EyeOff, ChevronLeft } from 'lucide-react-native';
 
 // ── Design tokens (matches AdminDashboardScreen) ──────────────────────────
 const BLUE    = '#2952e3';
@@ -66,11 +66,6 @@ export default function AddStudentFaceScreen({ navigation }) {
   const inputBg = isDarkMode ? '#252b3e' : '#f8f9ff';
   const inputBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
   const pageBg  = isDarkMode ? '#111827' : '#f5f7fa';
-
-  // Set the navigation header title
-  useEffect(() => {
-    navigation.setOptions({ title: 'Add New Student' });
-  }, [navigation]);
 
   // ── Derived flags ────────────────────────────────────────────────────
   const hasRequiredFields =
@@ -237,6 +232,15 @@ export default function AddStudentFaceScreen({ navigation }) {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: pageBg }]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBg} />
+
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: isDarkMode ? '#1a1f2e' : '#ffffff', borderBottomColor: isDarkMode ? '#2a2f42' : '#eef1f5' }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <ChevronLeft size={22} color={isDarkMode ? '#ffffff' : '#1a1f36'} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>Add New Student</Text>
+        <View style={{ width: 38 }} />
+      </View>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -425,6 +429,27 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: BG,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef1f5',
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1a1f36',
   },
   scroll: {
     flex: 1,

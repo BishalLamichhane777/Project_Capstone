@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar,
   Alert, Switch, Modal, TextInput, ActivityIndicator,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AdminBottomNav from '../components/AdminBottomNav';
 import { useAuth } from '../context/AuthContext';
 import {
-  User, Lock, Shield, Bell, Mail, AlertTriangle, Calendar,
+  User, Lock, Shield, Bell, Calendar,
   Upload, Trash2, RefreshCw, ChevronLeft, LogOut, ChevronRight,
   Moon, Sun, X, Eye, EyeOff, BookOpen, GraduationCap,
 } from 'lucide-react-native';
@@ -161,39 +162,69 @@ function EditProfileModal({ visible, onClose, isDarkMode, token, currentData, on
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: overlay }} />
-      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: bg,
-        borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: textPri }}>Edit Profile</Text>
-          <TouchableOpacity onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16,
-            backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8', justifyContent: 'center', alignItems: 'center' }}>
-            <X size={20} color={textSub} />
-          </TouchableOpacity>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: overlay }} activeOpacity={1} onPress={onClose} />
+        <View style={{ backgroundColor: bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: textPri }}>Edit Profile</Text>
+            <TouchableOpacity onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16,
+              backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8', justifyContent: 'center', alignItems: 'center' }}>
+              <X size={20} color={textSub} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: textSub, marginBottom: 6 }}>EMAIL (cannot be changed)</Text>
+            <View style={{ borderRadius: 12, borderWidth: 1.5, borderColor: inputBdr, paddingHorizontal: 14,
+              paddingVertical: 13, marginBottom: 14, backgroundColor: isDarkMode ? '#1a1f2e' : '#f0f2f8', opacity: 0.6 }}>
+              <Text style={{ fontSize: 14, color: textSub }}>{currentData?.email || '—'}</Text>
+            </View>
+            <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: textSub, marginBottom: 6 }}>FULL NAME</Text>
+            <TextInput style={{ borderRadius: 12, borderWidth: 1.5, borderColor: inputBdr, paddingHorizontal: 14,
+              paddingVertical: 13, fontSize: 14, marginBottom: 14, backgroundColor: inputBg, color: textPri }}
+              value={fullname} onChangeText={setFullname}
+              placeholder="Full name" placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
+              returnKeyType="next" />
+            <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: textSub, marginBottom: 6 }}>PHONE (optional)</Text>
+            <TextInput style={{ borderRadius: 12, borderWidth: 1.5, borderColor: inputBdr, paddingHorizontal: 14,
+              paddingVertical: 13, fontSize: 14, marginBottom: 20, backgroundColor: inputBg, color: textPri }}
+              value={phone} onChangeText={setPhone}
+              placeholder="+977 XXXXXXXXXX" placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
+              keyboardType="phone-pad" returnKeyType="done" />
+            <TouchableOpacity style={{ backgroundColor: BLUE, borderRadius: 14, paddingVertical: 15,
+              alignItems: 'center', opacity: saving ? 0.7 : 1 }}
+              onPress={handleSave} disabled={saving} activeOpacity={0.85}>
+              {saving ? <ActivityIndicator color="#ffffff" /> : <Text style={{ fontSize: 15, color: '#ffffff', fontWeight: '700' }}>Save Changes</Text>}
+            </TouchableOpacity>
+          </ScrollView>
         </View>
-        <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: textSub, marginBottom: 6 }}>EMAIL (cannot be changed)</Text>
-        <View style={{ borderRadius: 12, borderWidth: 1.5, borderColor: inputBdr, paddingHorizontal: 14,
-          paddingVertical: 13, marginBottom: 14, backgroundColor: isDarkMode ? '#1a1f2e' : '#f0f2f8', opacity: 0.6 }}>
-          <Text style={{ fontSize: 14, color: textSub }}>{currentData?.email || '—'}</Text>
-        </View>
-        <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: textSub, marginBottom: 6 }}>FULL NAME</Text>
-        <TextInput style={{ borderRadius: 12, borderWidth: 1.5, borderColor: inputBdr, paddingHorizontal: 14,
-          paddingVertical: 13, fontSize: 14, marginBottom: 14, backgroundColor: inputBg, color: textPri }}
-          value={fullname} onChangeText={setFullname}
-          placeholder="Full name" placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'} />
-        <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: textSub, marginBottom: 6 }}>PHONE (optional)</Text>
-        <TextInput style={{ borderRadius: 12, borderWidth: 1.5, borderColor: inputBdr, paddingHorizontal: 14,
-          paddingVertical: 13, fontSize: 14, marginBottom: 20, backgroundColor: inputBg, color: textPri }}
-          value={phone} onChangeText={setPhone}
-          placeholder="+977 XXXXXXXXXX" placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
-          keyboardType="phone-pad" />
-        <TouchableOpacity style={{ backgroundColor: BLUE, borderRadius: 14, paddingVertical: 15,
-          alignItems: 'center', opacity: saving ? 0.7 : 1 }}
-          onPress={handleSave} disabled={saving} activeOpacity={0.85}>
-          {saving ? <ActivityIndicator color="#ffffff" /> : <Text style={{ fontSize: 15, color: '#ffffff', fontWeight: '700' }}>Save Changes</Text>}
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Admin password field — defined OUTSIDE modal to prevent remount on state change ──
+function AdminPwField({ label, value, onChange, show, toggle, textSub, inputBg, inputBdr, textPri }) {
+  return (
+    <>
+      <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: textSub, marginBottom: 6 }}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1.5,
+        borderColor: inputBdr, paddingHorizontal: 14, marginBottom: 14, backgroundColor: inputBg }}>
+        <TextInput
+          style={{ flex: 1, fontSize: 14, paddingVertical: 13, color: textPri }}
+          value={value}
+          onChangeText={onChange}
+          secureTextEntry={!show}
+          placeholder="••••••••"
+          placeholderTextColor="#aab0be"
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="next"
+        />
+        <TouchableOpacity onPress={toggle} style={{ padding: 6 }}>
+          {show ? <EyeOff size={18} color={textSub} /> : <Eye size={18} color={textSub} />}
         </TouchableOpacity>
       </View>
-    </Modal>
+    </>
   );
 }
 
@@ -248,43 +279,33 @@ function ChangePasswordModal({ visible, onClose, isDarkMode, token }) {
     finally { setSaving(false); }
   };
 
-  const PwField = ({ label, value, onChange, show, toggle }) => (
-    <>
-      <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: textSub, marginBottom: 6 }}>{label}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1.5,
-        borderColor: inputBdr, paddingHorizontal: 14, marginBottom: 14, backgroundColor: inputBg }}>
-        <TextInput style={{ flex: 1, fontSize: 14, paddingVertical: 13, color: textPri }}
-          value={value} onChangeText={onChange} secureTextEntry={!show}
-          placeholder="••••••••" placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'} />
-        <TouchableOpacity onPress={toggle} style={{ padding: 6 }}>
-          {show ? <EyeOff size={18} color={textSub} /> : <Eye size={18} color={textSub} />}
-        </TouchableOpacity>
-      </View>
-    </>
-  );
+  const PwFieldProps = { textSub, inputBg, inputBdr, textPri };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: overlay }} />
-      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: bg,
-        borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: textPri }}>Change Password</Text>
-          <TouchableOpacity onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16,
-            backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8', justifyContent: 'center', alignItems: 'center' }}>
-            <X size={20} color={textSub} />
-          </TouchableOpacity>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: overlay }} activeOpacity={1} onPress={onClose} />
+        <View style={{ backgroundColor: bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: textPri }}>Change Password</Text>
+            <TouchableOpacity onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16,
+              backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8', justifyContent: 'center', alignItems: 'center' }}>
+              <X size={20} color={textSub} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
+            <AdminPwField label="CURRENT PASSWORD"    value={currentPw} onChange={setCurrentPw} show={showCur} toggle={() => setShowCur(v => !v)} {...PwFieldProps} />
+            <AdminPwField label="NEW PASSWORD"        value={newPw}     onChange={setNewPw}     show={showNew} toggle={() => setShowNew(v => !v)} {...PwFieldProps} />
+            <AdminPwField label="RETYPE NEW PASSWORD" value={confirmPw} onChange={setConfirmPw} show={showConf} toggle={() => setShowConf(v => !v)} {...PwFieldProps} />
+            <Text style={{ fontSize: 12, color: textSub, marginBottom: 18, marginTop: -6 }}>Minimum 6 characters</Text>
+            <TouchableOpacity style={{ backgroundColor: BLUE, borderRadius: 14, paddingVertical: 15,
+              alignItems: 'center', opacity: saving ? 0.7 : 1 }}
+              onPress={handleSave} disabled={saving} activeOpacity={0.85}>
+              {saving ? <ActivityIndicator color="#ffffff" /> : <Text style={{ fontSize: 15, color: '#ffffff', fontWeight: '700' }}>Update Password</Text>}
+            </TouchableOpacity>
+          </ScrollView>
         </View>
-        <PwField label="CURRENT PASSWORD" value={currentPw} onChange={setCurrentPw} show={showCur} toggle={() => setShowCur(v => !v)} />
-        <PwField label="NEW PASSWORD"     value={newPw}     onChange={setNewPw}     show={showNew} toggle={() => setShowNew(v => !v)} />
-        <PwField label="RETYPE NEW PASSWORD" value={confirmPw} onChange={setConfirmPw} show={showConf} toggle={() => setShowConf(v => !v)} />
-        <Text style={{ fontSize: 12, color: textSub, marginBottom: 18, marginTop: -6 }}>Minimum 6 characters</Text>
-        <TouchableOpacity style={{ backgroundColor: BLUE, borderRadius: 14, paddingVertical: 15,
-          alignItems: 'center', opacity: saving ? 0.7 : 1 }}
-          onPress={handleSave} disabled={saving} activeOpacity={0.85}>
-          {saving ? <ActivityIndicator color="#ffffff" /> : <Text style={{ fontSize: 15, color: '#ffffff', fontWeight: '700' }}>Update Password</Text>}
-        </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -292,7 +313,7 @@ function ChangePasswordModal({ visible, onClose, isDarkMode, token }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function AdminSettingsScreen({ navigation }) {
   const { isDarkMode, toggleDarkMode, token, user } = useAuth();
-  const [toggles, setToggles] = useState({ push: true, email: true, risk: false });
+  const [toggles, setToggles] = useState({ push: true });
   const [subPage,  setSubPage]  = useState(null); // 'calendar'
   const [editProfileVisible,    setEditProfileVisible]    = useState(false);
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
@@ -414,9 +435,7 @@ export default function AdminSettingsScreen({ navigation }) {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: textSub }]}>NOTIFICATIONS</Text>
           <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
-            <SettingRow icon={Bell}          label="Push Notifications" sub="Alerts on your device"               type="toggle" toggleKey="push"  isDarkMode={isDarkMode} />
-            <SettingRow icon={Mail}          label="Email Alerts"       sub="Receive reports via email"           type="toggle" toggleKey="email" isDarkMode={isDarkMode} />
-            <SettingRow icon={AlertTriangle} label="At-Risk Alerts"     sub="Notify when student drops below 60%" type="toggle" toggleKey="risk"  isDarkMode={isDarkMode} isLast />
+            <SettingRow icon={Bell} label="Push Notifications" sub="Alerts on your device" type="toggle" toggleKey="push" isDarkMode={isDarkMode} isLast />
           </View>
         </View>
 

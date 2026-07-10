@@ -136,7 +136,7 @@ export default function NotificationsScreen({ navigation }) {
     'Content-Type': 'application/json',
   };
 
-  // Fetch notifications — does NOT auto-mark-read
+  // Fetch notifications, then immediately mark all as read (clears the badge)
   const fetchNotifications = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     setError(null);
@@ -144,7 +144,23 @@ export default function NotificationsScreen({ navigation }) {
       const res = await fetch(API.myNotifications, { headers: authHeaders });
       if (!res.ok) throw new Error('Failed to load');
       const data = await res.json();
-      setNotifications(Array.isArray(data) ? data : []);
+      const notifs = Array.isArray(data) ? data : [];
+      setNotifications(notifs);
+
+      // Mark all unread as read as soon as the user opens this screen.
+      // Optimistic update — flip is_read locally right away so the badge
+      // in the header disappears immediately without waiting for the API.
+      const hasUnread = notifs.some(n => !n.is_read);
+      if (hasUnread) {
+        setNotifications(notifs.map(n => ({ ...n, is_read: true })));
+        // Fire-and-forget — persists the change on the backend so the
+        // badge stays cleared after a page refresh too.
+        fetch(API.markNotificationsRead, {
+          method:  'PUT',
+          headers: authHeaders,
+          body:    JSON.stringify({}),
+        }).catch(() => { /* non-blocking */ });
+      }
     } catch {
       setError('Could not load notifications. Pull down to retry.');
     } finally {
@@ -157,21 +173,16 @@ export default function NotificationsScreen({ navigation }) {
 
   const onRefresh = () => { setRefreshing(true); fetchNotifications(true); };
 
-  // Mark a single notification as read, update local state immediately
-  const markOneRead = useCallback(async (notif) => {
+  // Mark a single notification as read in local state only.
+  // The bulk mark-all-read already ran when the screen opened, so we
+  // just need to flip the local dot/highlight for any stale is_read=false
+  // entries that may appear during the same session.
+  const markOneRead = useCallback((notif) => {
     if (notif.is_read) return;
-    try {
-      await fetch(API.markNotificationsRead, {
-        method:  'PUT',
-        headers: authHeaders,
-        body:    JSON.stringify({ notification_id: notif.notif_id }),
-      });
-      // Optimistic local update — no need to re-fetch the full list
-      setNotifications(prev =>
-        prev.map(n => n.notif_id === notif.notif_id ? { ...n, is_read: true } : n)
-      );
-    } catch { /* non-blocking */ }
-  }, [token]);
+    setNotifications(prev =>
+      prev.map(n => n.notif_id === notif.notif_id ? { ...n, is_read: true } : n)
+    );
+  }, []);
 
   // Open modal + mark read
   const handleView = useCallback((notif) => {

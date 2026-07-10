@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar,
   Alert, Switch, Modal, TextInput, ActivityIndicator,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API } from '../api';
@@ -83,56 +84,109 @@ function EditProfileModal({ visible, onClose, currentData, token, isDarkMode, on
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={[mStyles.overlay, { backgroundColor: overlay }]} />
-      <View style={[mStyles.sheet, { backgroundColor: bg }]}>
-        {/* Header */}
-        <View style={mStyles.sheetHeader}>
-          <Text style={[mStyles.sheetTitle, { color: textPri }]}>Edit Profile</Text>
-          <TouchableOpacity onPress={onClose} style={mStyles.closeBtn}>
-            <X size={20} color={textSub} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Email (read-only) */}
-        <Text style={[mStyles.fieldLabel, { color: textSub }]}>EMAIL (cannot be changed)</Text>
-        <View style={[mStyles.fieldInput, { backgroundColor: isDarkMode ? '#1a1f2e' : '#f0f2f8', borderColor: inputBdr, opacity: 0.6 }]}>
-          <Text style={[mStyles.fieldInputText, { color: textSub }]}>{currentData?.email || '—'}</Text>
-        </View>
-
-        {/* Full Name */}
-        <Text style={[mStyles.fieldLabel, { color: textSub }]}>FULL NAME</Text>
-        <TextInput
-          style={[mStyles.fieldInput, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
-          value={fullname}
-          onChangeText={setFullname}
-          placeholder="Enter your full name"
-          placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
-        />
-
-        {/* Phone */}
-        <Text style={[mStyles.fieldLabel, { color: textSub }]}>PHONE (optional)</Text>
-        <TextInput
-          style={[mStyles.fieldInput, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="e.g. +977 98XXXXXXXX"
-          placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
-          keyboardType="phone-pad"
-        />
-
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Tappable backdrop */}
         <TouchableOpacity
-          style={[mStyles.saveBtn, saving && { opacity: 0.7 }]}
-          onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.85}
-        >
-          {saving
-            ? <ActivityIndicator color="#ffffff" />
-            : <Text style={mStyles.saveBtnText}>Save Changes</Text>
+          style={{ flex: 1, backgroundColor: overlay }}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        {/* Sheet sits at the bottom via flex, not position:absolute */}
+        <View style={[mStyles.sheet, { backgroundColor: bg }]}>
+          <View style={mStyles.sheetHeader}>
+            <Text style={[mStyles.sheetTitle, { color: textPri }]}>Edit Profile</Text>
+            <TouchableOpacity onPress={onClose} style={mStyles.closeBtn}>
+              <X size={20} color={textSub} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 20 }}
+          >
+            {/* Email (read-only) */}
+            <Text style={[mStyles.fieldLabel, { color: textSub }]}>EMAIL (cannot be changed)</Text>
+            <View style={[mStyles.fieldInput, { backgroundColor: isDarkMode ? '#1a1f2e' : '#f0f2f8', borderColor: inputBdr, opacity: 0.6 }]}>
+              <Text style={[mStyles.fieldInputText, { color: textSub }]}>{currentData?.email || '—'}</Text>
+            </View>
+
+            {/* Full Name */}
+            <Text style={[mStyles.fieldLabel, { color: textSub }]}>FULL NAME</Text>
+            <TextInput
+              style={[mStyles.fieldInput, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
+              value={fullname}
+              onChangeText={setFullname}
+              placeholder="Enter your full name"
+              placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
+              returnKeyType="next"
+            />
+
+            {/* Phone */}
+            <Text style={[mStyles.fieldLabel, { color: textSub }]}>PHONE (optional)</Text>
+            <TextInput
+              style={[mStyles.fieldInput, { backgroundColor: inputBg, borderColor: inputBdr, color: textPri }]}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="e.g. +977 98XXXXXXXX"
+              placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
+              keyboardType="phone-pad"
+              returnKeyType="done"
+            />
+
+            <TouchableOpacity
+              style={[mStyles.saveBtn, saving && { opacity: 0.7 }]}
+              onPress={handleSave}
+              disabled={saving}
+              activeOpacity={0.85}
+            >
+              {saving
+                ? <ActivityIndicator color="#ffffff" />
+                : <Text style={mStyles.saveBtnText}>Save Changes</Text>
+              }
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Reusable password input row — defined OUTSIDE the modal so React
+//     never unmounts/remounts it on state changes, which would kill focus.
+function PasswordField({ label, value, onChangeText, show, toggleShow, errorMsg, textPri, textSub, inputBg, inputBdr }) {
+  return (
+    <>
+      <Text style={[mStyles.fieldLabel, { color: textSub }]}>{label}</Text>
+      <View style={[
+        mStyles.passwordRow,
+        { backgroundColor: inputBg, borderColor: errorMsg ? '#e74c3c' : inputBdr },
+      ]}>
+        <TextInput
+          style={[mStyles.passwordInput, { color: textPri }]}
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={!show}
+          placeholder="••••••••"
+          placeholderTextColor="#aab0be"
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="next"
+        />
+        <TouchableOpacity onPress={toggleShow} style={mStyles.eyeBtn}>
+          {show
+            ? <EyeOff size={18} color={textSub} />
+            : <Eye    size={18} color={textSub} />
           }
         </TouchableOpacity>
       </View>
-    </Modal>
+      {!!errorMsg && (
+        <Text style={mStyles.inlineError}>{errorMsg}</Text>
+      )}
+    </>
   );
 }
 
@@ -145,10 +199,14 @@ function ChangePasswordModal({ visible, onClose, token, isDarkMode }) {
   const [showCur,    setShowCur]    = useState(false);
   const [showNew,    setShowNew]    = useState(false);
   const [showConf,   setShowConf]   = useState(false);
+  // Inline validation errors
+  const [newPwError,  setNewPwError]  = useState('');
+  const [confPwError, setConfPwError] = useState('');
 
   useEffect(() => {
     if (visible) {
       setCurrentPw(''); setNewPw(''); setConfirmPw('');
+      setNewPwError(''); setConfPwError('');
     }
   }, [visible]);
 
@@ -159,17 +217,41 @@ function ChangePasswordModal({ visible, onClose, token, isDarkMode }) {
   const inputBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
   const inputBdr = isDarkMode ? '#2a2f42' : '#e6e9f0';
 
+  // Validate new password length live
+  const handleNewPwChange = (val) => {
+    setNewPw(val);
+    if (val.length > 0 && val.length < 6) {
+      setNewPwError('Password must be at least 6 characters.');
+    } else {
+      setNewPwError('');
+    }
+    // Re-check confirm match if already typed
+    if (confirmPw.length > 0) {
+      setConfPwError(val !== confirmPw ? 'Passwords do not match.' : '');
+    }
+  };
+
+  // Validate confirm password match live
+  const handleConfirmPwChange = (val) => {
+    setConfirmPw(val);
+    if (val.length > 0 && val !== newPw) {
+      setConfPwError('Passwords do not match.');
+    } else {
+      setConfPwError('');
+    }
+  };
+
   const handleSave = async () => {
     if (!currentPw || !newPw || !confirmPw) {
       Alert.alert('Validation', 'Please fill in all fields.');
       return;
     }
     if (newPw.length < 6) {
-      Alert.alert('Validation', 'New password must be at least 6 characters.');
+      setNewPwError('Password must be at least 6 characters.');
       return;
     }
     if (newPw !== confirmPw) {
-      Alert.alert('Validation', 'New password and confirmation do not match.');
+      setConfPwError('Passwords do not match.');
       return;
     }
     if (newPw === currentPw) {
@@ -178,7 +260,6 @@ function ChangePasswordModal({ visible, onClose, token, isDarkMode }) {
     }
     setSaving(true);
     try {
-      // Verify current password by attempting login
       const meRes = await fetch(API.currentUser, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -195,7 +276,6 @@ function ChangePasswordModal({ visible, onClose, token, isDarkMode }) {
         return;
       }
 
-      // Update password via self-update endpoint (works for all roles)
       const patchRes = await fetch(API.updateMe, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -214,78 +294,78 @@ function ChangePasswordModal({ visible, onClose, token, isDarkMode }) {
     }
   };
 
-  const PasswordField = ({ label, value, onChangeText, show, toggleShow }) => (
-    <>
-      <Text style={[mStyles.fieldLabel, { color: textSub }]}>{label}</Text>
-      <View style={[mStyles.passwordRow, { backgroundColor: inputBg, borderColor: inputBdr }]}>
-        <TextInput
-          style={[mStyles.passwordInput, { color: textPri }]}
-          value={value}
-          onChangeText={onChangeText}
-          secureTextEntry={!show}
-          placeholder="••••••••"
-          placeholderTextColor={isDarkMode ? '#5a6080' : '#aab0be'}
-        />
-        <TouchableOpacity onPress={toggleShow} style={mStyles.eyeBtn}>
-          {show
-            ? <EyeOff size={18} color={textSub} />
-            : <Eye    size={18} color={textSub} />
-          }
-        </TouchableOpacity>
-      </View>
-    </>
-  );
-
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={[mStyles.overlay, { backgroundColor: overlay }]} />
-      <View style={[mStyles.sheet, { backgroundColor: bg }]}>
-        {/* Header */}
-        <View style={mStyles.sheetHeader}>
-          <Text style={[mStyles.sheetTitle, { color: textPri }]}>Change Password</Text>
-          <TouchableOpacity onPress={onClose} style={mStyles.closeBtn}>
-            <X size={20} color={textSub} />
-          </TouchableOpacity>
-        </View>
-
-        <PasswordField
-          label="CURRENT PASSWORD"
-          value={currentPw}
-          onChangeText={setCurrentPw}
-          show={showCur}
-          toggleShow={() => setShowCur(v => !v)}
-        />
-        <PasswordField
-          label="NEW PASSWORD"
-          value={newPw}
-          onChangeText={setNewPw}
-          show={showNew}
-          toggleShow={() => setShowNew(v => !v)}
-        />
-        <PasswordField
-          label="RETYPE NEW PASSWORD"
-          value={confirmPw}
-          onChangeText={setConfirmPw}
-          show={showConf}
-          toggleShow={() => setShowConf(v => !v)}
-        />
-
-        <Text style={[mStyles.passwordHint, { color: textSub }]}>
-          Minimum 6 characters
-        </Text>
-
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Tappable backdrop */}
         <TouchableOpacity
-          style={[mStyles.saveBtn, saving && { opacity: 0.7 }]}
-          onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.85}
-        >
-          {saving
-            ? <ActivityIndicator color="#ffffff" />
-            : <Text style={mStyles.saveBtnText}>Update Password</Text>
-          }
-        </TouchableOpacity>
-      </View>
+          style={{ flex: 1, backgroundColor: overlay }}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        {/* Sheet sits at the bottom via flex, not position:absolute */}
+        <View style={[mStyles.sheet, { backgroundColor: bg }]}>
+          <View style={mStyles.sheetHeader}>
+            <Text style={[mStyles.sheetTitle, { color: textPri }]}>Change Password</Text>
+            <TouchableOpacity onPress={onClose} style={mStyles.closeBtn}>
+              <X size={20} color={textSub} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 20 }}
+          >
+            <PasswordField
+              label="CURRENT PASSWORD"
+              value={currentPw}
+              onChangeText={setCurrentPw}
+              show={showCur}
+              toggleShow={() => setShowCur(v => !v)}
+              errorMsg=""
+              textPri={textPri} textSub={textSub} inputBg={inputBg} inputBdr={inputBdr}
+            />
+            <PasswordField
+              label="NEW PASSWORD"
+              value={newPw}
+              onChangeText={handleNewPwChange}
+              show={showNew}
+              toggleShow={() => setShowNew(v => !v)}
+              errorMsg={newPwError}
+              textPri={textPri} textSub={textSub} inputBg={inputBg} inputBdr={inputBdr}
+            />
+            <PasswordField
+              label="RETYPE NEW PASSWORD"
+              value={confirmPw}
+              onChangeText={handleConfirmPwChange}
+              show={showConf}
+              toggleShow={() => setShowConf(v => !v)}
+              errorMsg={confPwError}
+              textPri={textPri} textSub={textSub} inputBg={inputBg} inputBdr={inputBdr}
+            />
+
+            <Text style={[mStyles.passwordHint, { color: textSub }]}>
+              Minimum 6 characters
+            </Text>
+
+            <TouchableOpacity
+              style={[mStyles.saveBtn, saving && { opacity: 0.7 }]}
+              onPress={handleSave}
+              disabled={saving}
+              activeOpacity={0.85}
+            >
+              {saving
+                ? <ActivityIndicator color="#ffffff" />
+                : <Text style={mStyles.saveBtnText}>Update Password</Text>
+              }
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1104,12 +1184,12 @@ const styles = StyleSheet.create({
 // ─── Modal styles ─────────────────────────────────────────────────────────────
 const mStyles = StyleSheet.create({
   overlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    // kept for any legacy reference, but no longer used directly
   },
   sheet: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: 36,
+    maxHeight: '90%',
   },
   sheetHeader: {
     flexDirection: 'row', alignItems: 'center',
@@ -1148,6 +1228,13 @@ const mStyles = StyleSheet.create({
   },
   passwordHint: {
     fontSize: 12, marginBottom: 18, marginTop: -6,
+  },
+  inlineError: {
+    fontSize: 12,
+    color: '#e74c3c',
+    marginTop: -8,
+    marginBottom: 10,
+    marginLeft: 2,
   },
   saveBtn: {
     backgroundColor: BLUE, borderRadius: 14,

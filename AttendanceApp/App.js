@@ -23,6 +23,7 @@ import TeacherReportsScreen from './screens/TeacherReportsScreen';
 import TeacherProfileScreen from './screens/TeacherProfileScreen';
 import ManageBatchesScreen from './screens/ManageBatchesScreen';
 import ManageBatchDetailScreen from './screens/ManageBatchDetailScreen';
+import ManageStudentsScreen from './screens/ManageStudentsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 
 import { AuthProvider } from './context/AuthContext';
@@ -60,6 +61,7 @@ export default function App() {
           {/* ── Batch Management ── */}
           <Stack.Screen name="ManageBatches"     component={ManageBatchesScreen} />
           <Stack.Screen name="ManageBatchDetail" component={ManageBatchDetailScreen} />
+          <Stack.Screen name="ManageStudents"    component={ManageStudentsScreen} />
 
           {/* ── Teacher ── */}
           <Stack.Screen name="TeacherDashboard"   component={TeacherDashboardScreen} />
