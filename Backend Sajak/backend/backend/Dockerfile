@@ -74,4 +74,4 @@ EXPOSE 5000
 
 HEALTHCHECK CMD curl -f http://localhost:5000/health/ || exit 1
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "180", "app:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "180", "--reload", "app:create_app()"]

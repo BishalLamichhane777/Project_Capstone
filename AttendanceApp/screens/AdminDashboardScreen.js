@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Alert, RefreshControl, ActivityIndicator
+  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  StatusBar, Alert, RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AdminBottomNav from '../components/AdminBottomNav';
@@ -8,37 +9,23 @@ import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
 import {
   Calendar, BarChart2, UserPlus, ClipboardList, Download, Bell,
-  Shield, LogOut, Users, CheckCircle, XCircle, AlertTriangle
+  Shield, LogOut, Users, CheckCircle, XCircle, AlertTriangle, TrendingUp,
 } from 'lucide-react-native';
-
 
 const GOLD = '#b07d00';
 const BLUE = '#2952e3';
 
-const atRiskStudents = [
-  { name: 'Aarav Thapa', id: '2024-1023', attendance: 54, subject: 'CS-301', risk: 'High' },
-  { name: 'Priya Shrestha', id: '2024-1087', attendance: 61, subject: 'MA-201', risk: 'Mid' },
-  { name: 'Rohan Basnet', id: '2024-1145', attendance: 58, subject: 'CS-302', risk: 'High' },
-  { name: 'Sita Maharjan', id: '2024-1201', attendance: 67, subject: 'CS-401', risk: 'Mid' },
-];
-
-const weekData = [
-  { day: 'Mon', present: 210, total: 248 },
-  { day: 'Tue', present: 198, total: 248 },
-  { day: 'Wed', present: 225, total: 248 },
-  { day: 'Thu', present: 190, total: 248 },
-  { day: 'Fri', present: 201, total: 248 },
-];
-
 const quickActions = [
-  { icon: Calendar, label: 'Manage\nSchedules', route: 'ManageSchedules', color: '#eef2ff', iconColor: BLUE },
-  { icon: BarChart2, label: 'Student\nAnalytics', route: 'StudentAnalytics', color: '#edfaf3', iconColor: '#27ae60' },
-  { icon: UserPlus, label: 'Add Student\nFace', route: 'AddStudentFace', color: '#fff8e6', iconColor: GOLD },
-  { icon: Users, label: 'Manage\nStudents', route: 'ManageStudents', color: '#edfaf3', iconColor: '#27ae60' },
-  { icon: ClipboardList, label: 'Review\nWaivers', route: 'AdminWaivers', color: '#fff0f0', iconColor: '#e74c3c' },
-  { icon: Download, label: 'Export\nReports', route: 'AdminReports', color: '#f3eeff', iconColor: '#7c3aed' },
-  { icon: Bell, label: 'Send\nAlerts', route: 'SendAlerts', color: '#e8f4ff', iconColor: '#2980b9' },
-  { icon: Users, label: 'Manage\nBatches', route: 'ManageBatches', color: '#f3eeff', iconColor: '#7c3aed' },
+  { icon: Calendar,      label: 'Manage\nSchedules',  route: 'ManageSchedules',  color: '#eef2ff', iconColor: BLUE },
+  { icon: BarChart2,     label: 'Student\nAnalytics', route: 'StudentAnalytics', color: '#edfaf3', iconColor: '#27ae60' },
+  { icon: TrendingUp,    label: 'Batch\nAnalytics',   route: 'BatchOverview',    color: '#f3eeff', iconColor: '#7c3aed' },
+  { icon: UserPlus,      label: 'Add Student\nFace',  route: 'AddStudentFace',   color: '#fff8e6', iconColor: GOLD },
+  { icon: Users,         label: 'Manage\nStudents',   route: 'ManageStudents',   color: '#edfaf3', iconColor: '#27ae60' },
+  { icon: Users,         label: 'Manage\nTeachers',   route: 'ManageTeachers',   color: '#e8f4ff', iconColor: '#2980b9' },
+  { icon: ClipboardList, label: 'Review\nWaivers',    route: 'AdminWaivers',     color: '#fff0f0', iconColor: '#e74c3c' },
+  { icon: Download,      label: 'Export\nReports',    route: 'AdminReports',     color: '#f3eeff', iconColor: '#7c3aed' },
+  { icon: Bell,          label: 'Send\nAlerts',       route: 'SendAlerts',       color: '#e8f4ff', iconColor: '#2980b9' },
+  { icon: Users,         label: 'Manage\nBatches',    route: 'ManageBatches',    color: '#f3eeff', iconColor: '#7c3aed' },
 ];
 
 function RiskBadge({ risk }) {
@@ -52,116 +39,85 @@ function RiskBadge({ risk }) {
   );
 }
 
-function WeeklyChart({ isDarkMode, barBg }) {
-  return (
-    <View style={styles.chartRow}>
-      {weekData.map((d, i) => {
-        const pct = Math.round((d.present / d.total) * 100);
-        return (
-          <View key={i} style={styles.chartCol}>
-            <Text style={[styles.chartPct, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{pct}%</Text>
-            <View style={[styles.chartBarBg, { backgroundColor: barBg || '#eef1f5' }]}>
-              <View style={[styles.chartBarFill, { height: `${pct}%` }]} />
-            </View>
-            <Text style={[styles.chartDay, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>{d.day}</Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 export default function AdminDashboardScreen({ navigation }) {
   const { logoutState, user, token, isDarkMode } = useAuth();
-  const [dashboardStats, setDashboardStats] = useState(null);
-  const [recentSessions, setRecentSessions] = useState([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [dashboardStats, setDashboardStats]   = useState(null);
+  const [recentSessions, setRecentSessions]   = useState([]);
+  const [atRiskStudents, setAtRiskStudents]   = useState([]);
+  const [refreshing, setRefreshing]           = useState(false);
+  const [loading, setLoading]                 = useState(true);
+  const [unreadCount, setUnreadCount]         = useState(0);
 
   const fetchData = async () => {
     try {
-      const statsRes = await fetch(API.adminStats, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setDashboardStats(statsData);
-      }
+      const headers = { Authorization: `Bearer ${token}` };
 
-      const sessionsRes = await fetch(API.adminRecentSessions, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (sessionsRes.ok) {
-        const sessionsData = await sessionsRes.json();
-        setRecentSessions(sessionsData);
-      }
+      const [statsRes, sessionsRes, notifRes, atRiskRes] = await Promise.all([
+        fetch(API.adminStats,              { headers }),
+        fetch(API.adminRecentSessions,     { headers }),
+        fetch(API.notificationUnreadCount, { headers }),
+        fetch(API.adminDashboardAtRisk,    { headers }),
+      ]);
 
-      // Fetch unread notification count for badge
-      const notifRes = await fetch(API.notificationUnreadCount, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      if (statsRes.ok)    setDashboardStats(await statsRes.json());
+      if (sessionsRes.ok) setRecentSessions(await sessionsRes.json());
       if (notifRes.ok) {
-        const notifData = await notifRes.json();
-        setUnreadCount(notifData.unread_count ?? 0);
+        const nd = await notifRes.json();
+        setUnreadCount(nd.unread_count ?? 0);
+      }
+      if (atRiskRes.ok) {
+        const ard = await atRiskRes.json();
+        setAtRiskStudents(ard.students ?? []);
       }
     } catch (err) {
-      console.error(err);
-      // Silently fail — don't show alert on dashboard load errors
+      console.error('Dashboard fetch error:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   useEffect(() => {
     const unsub = navigation.addListener('focus', fetchData);
     return unsub;
   }, [navigation]);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchData();
-  };
+  const onRefresh = () => { setRefreshing(true); fetchData(); };
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: () => {
-          logoutState();
-          navigation.replace('Login');
-        }
+        text: 'Logout', style: 'destructive',
+        onPress: () => { logoutState(); navigation.replace('Login'); },
       },
     ]);
   };
 
   const displayName = user?.fullname || 'Admin';
 
-  // ── Theme colours ────────────────────────────────────────────────────────
+  // ── Theme ────────────────────────────────────────────────────────────────
   const bg          = isDarkMode ? '#111827' : '#f5f7fa';
   const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
   const headerBg    = isDarkMode ? '#1a1f2e' : '#f5f7fa';
   const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
   const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
   const rowBorder   = isDarkMode ? '#252b3e' : '#f0f2f5';
-  const overviewBg  = isDarkMode ? '#252b3e' : '#f8f9ff';
-  const barBg       = isDarkMode ? '#252b3e' : '#eef1f5';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={headerBg} />
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={headerBg}
+      />
 
+      {/* ── Header ── */}
       <View style={[styles.header, { backgroundColor: headerBg }]}>
         <View>
           <Text style={[styles.headerTitle, { color: textPrimary }]}>Admin Dashboard</Text>
-          <Text style={[styles.headerSub, { color: textSub }]}>Hello, {displayName}</Text>
+          <Text style={[styles.headerSub,   { color: textSub }]}>Hello, {displayName}</Text>
         </View>
         <View style={styles.headerRight}>
           <View style={[styles.adminBadge, { flexDirection: 'row', alignItems: 'center' }]}>
@@ -187,69 +143,60 @@ export default function AdminDashboardScreen({ navigation }) {
         </View>
       </View>
 
-
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {loading ? (
-          <ActivityIndicator size="large" color={BLUE} style={{ marginTop: 20 }} />
+          <ActivityIndicator size="large" color={BLUE} style={{ marginTop: 40 }} />
         ) : (
           <>
-
+            {/* ── Stat Cards ── */}
             <View style={styles.statsGrid}>
               {[
-                { label: 'Total Students', value: dashboardStats?.total_students ?? '-', icon: Users, color: '#eef2ff', textColor: BLUE },
-                { label: 'Present Today', value: dashboardStats?.present_today ?? '-', icon: CheckCircle, color: '#edfaf3', textColor: '#27ae60' },
-                { label: 'Absent Today', value: dashboardStats?.absent_today ?? '-', icon: XCircle, color: '#fff0f0', textColor: '#e74c3c' },
-                { label: 'Waivers Pending', value: dashboardStats?.waivers_pending ?? '-', icon: ClipboardList, color: '#fff8e6', textColor: GOLD },
+                { label: 'Total Students', value: dashboardStats?.total_students  ?? '-', icon: Users,         color: '#eef2ff', textColor: BLUE        },
+                { label: 'Present Today',  value: dashboardStats?.present_today   ?? '-', icon: CheckCircle,   color: '#edfaf3', textColor: '#27ae60'   },
+                { label: 'Absent Today',   value: dashboardStats?.absent_today    ?? '-', icon: XCircle,       color: '#fff0f0', textColor: '#e74c3c'   },
+                { label: 'Waivers Pending',value: dashboardStats?.waivers_pending ?? '-', icon: ClipboardList, color: '#fff8e6', textColor: GOLD        },
               ].map((s, i) => {
                 const Icon = s.icon;
                 return (
-                <View key={i} style={[styles.statCard, { backgroundColor: s.color }]}>
-                  <View style={{ marginBottom: 8 }}>
-                    <Icon size={22} color={s.textColor} />
+                  <View key={i} style={[styles.statCard, { backgroundColor: s.color }]}>
+                    <View style={{ marginBottom: 8 }}>
+                      <Icon size={22} color={s.textColor} />
+                    </View>
+                    <Text style={[styles.statValue, { color: s.textColor }]}>{s.value}</Text>
+                    <Text style={[styles.statLabel,  { color: textSub }]}>{s.label}</Text>
                   </View>
-                  <Text style={[styles.statValue, { color: s.textColor }]}>{s.value}</Text>
-                  <Text style={[styles.statLabel, { color: textSub }]}>{s.label}</Text>
-                </View>
                 );
               })}
             </View>
 
-            <View style={[styles.card, { backgroundColor: cardBg }]}>
-              <View style={styles.cardTitleRow}>
-                <Text style={[styles.cardTitle, { color: textPrimary }]}>Weekly Attendance</Text>
-                <Text style={[styles.cardSub, { color: textSub }]}>This Week</Text>
-              </View>
-              <WeeklyChart isDarkMode={isDarkMode} barBg={barBg} />
-              <View style={styles.chartLegend}>
-                <View style={styles.legendDot} />
-                <Text style={[styles.legendText, { color: textSub }]}>% of students present per day</Text>
-              </View>
-            </View>
-
+            {/* ── Quick Actions ── */}
             <Text style={[styles.sectionTitle, { color: textPrimary }]}>Quick Actions</Text>
             <View style={styles.actionsGrid}>
               {quickActions.map((action, i) => {
                 const Icon = action.icon;
                 return (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.actionCard, { backgroundColor: action.color }]}
-                  onPress={() => navigation.navigate(action.route)}
-                  activeOpacity={0.8}
-                >
-                  <View style={{ marginBottom: 6 }}>
-                    <Icon size={24} color={action.iconColor} />
-                  </View>
-                  <Text style={[styles.actionLabel, { color: action.iconColor }]}>{action.label}</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.actionCard, { backgroundColor: action.color }]}
+                    onPress={() => navigation.navigate(action.route)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ marginBottom: 6 }}>
+                      <Icon size={24} color={action.iconColor} />
+                    </View>
+                    <Text style={[styles.actionLabel, { color: action.iconColor }]}>
+                      {action.label}
+                    </Text>
+                  </TouchableOpacity>
                 );
               })}
             </View>
 
+            {/* ── At Risk Students (live data) ── */}
             <View style={[styles.card, { backgroundColor: cardBg }]}>
               <View style={styles.cardTitleRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -260,80 +207,87 @@ export default function AdminDashboardScreen({ navigation }) {
                   <Text style={styles.viewAll}>View All</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={[styles.cardSubText, { color: textSub }]}>Students with attendance below 70%</Text>
-              {atRiskStudents.map((student, i) => (
-                <View key={i} style={[styles.studentRow, i !== atRiskStudents.length - 1 && [styles.studentBorder, { borderBottomColor: rowBorder }]]}>
-                  <View style={[styles.studentAvatar, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
-                    <Text style={styles.studentAvatarText}>
-                      {student.name.split(' ').map(n => n[0]).join('')}
-                    </Text>
-                  </View>
-                  <View style={styles.studentInfo}>
-                    <Text style={[styles.studentName, { color: textPrimary }]}>{student.name}</Text>
-                    <Text style={[styles.studentMeta, { color: textSub }]}>{student.id} · {student.subject}</Text>
-                  </View>
-                  <View style={styles.studentRight}>
-                    <Text style={[styles.attendancePct, { color: student.risk === 'High' ? '#e74c3c' : '#f39c12' }]}>
-                      {student.attendance}%
-                    </Text>
-                    <RiskBadge risk={student.risk} />
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <View style={[styles.card, { backgroundColor: cardBg }]}>
-              <Text style={[styles.cardTitle, { color: textPrimary }]}>Today's Overview</Text>
               <Text style={[styles.cardSubText, { color: textSub }]}>
-                {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {dashboardStats?.sessions_today ?? 0} classes scheduled
+                Students with attendance below 75%
               </Text>
-              <View style={[styles.overviewBar, { backgroundColor: isDarkMode ? '#2e1a1a' : '#fee' }]}>
-                <View style={[styles.overviewFill, { width: `${dashboardStats?.attendance_rate ?? 0}%` }]} />
-              </View>
-              <View style={styles.overviewLabels}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <CheckCircle size={14} color="#27ae60" style={{ marginRight: 4 }} />
-                  <Text style={styles.overviewPresent}>{dashboardStats?.present_today ?? 0} Present</Text>
+
+              {atRiskStudents.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <CheckCircle size={28} color="#27ae60" style={{ marginBottom: 8 }} />
+                  <Text style={[styles.emptyStateText, { color: textSub }]}>
+                    No at-risk students right now
+                  </Text>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <XCircle size={14} color="#e74c3c" style={{ marginRight: 4 }} />
-                  <Text style={styles.overviewAbsent}>{dashboardStats?.absent_today ?? 0} Absent</Text>
-                </View>
-              </View>
-              <View style={[styles.overviewStats, { backgroundColor: overviewBg }]}>
-                <View style={styles.overviewItem}>
-                  <Text style={[styles.overviewValue, { color: textPrimary }]}>{dashboardStats?.attendance_rate ?? 0}%</Text>
-                  <Text style={[styles.overviewLabel, { color: textSub }]}>Attendance Rate</Text>
-                </View>
-                <View style={[styles.overviewDivider, { backgroundColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]} />
-                <View style={styles.overviewItem}>
-                  <Text style={[styles.overviewValue, { color: textPrimary }]}>{dashboardStats?.sessions_today ?? 0}</Text>
-                  <Text style={[styles.overviewLabel, { color: textSub }]}>Classes Today</Text>
-                </View>
-                <View style={[styles.overviewDivider, { backgroundColor: isDarkMode ? '#2a2f42' : '#e6e9f0' }]} />
-                <View style={styles.overviewItem}>
-                  <Text style={[styles.overviewValue, { color: textPrimary }]}>{dashboardStats?.waivers_pending ?? 0}</Text>
-                  <Text style={[styles.overviewLabel, { color: textSub }]}>Waivers Pending</Text>
-                </View>
-              </View>
+              ) : (
+                atRiskStudents.map((student, i) => {
+                  const risk = student.attendance_percent < 60 ? 'High' : 'Mid';
+                  return (
+                    <View
+                      key={student.student_id}
+                      style={[
+                        styles.studentRow,
+                        i !== atRiskStudents.length - 1 && [
+                          styles.studentBorder, { borderBottomColor: rowBorder },
+                        ],
+                      ]}
+                    >
+                      <View style={[styles.studentAvatar, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
+                        <Text style={styles.studentAvatarText}>
+                          {student.fullname.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </Text>
+                      </View>
+                      <View style={styles.studentInfo}>
+                        <Text style={[styles.studentName, { color: textPrimary }]}>
+                          {student.fullname}
+                        </Text>
+                        <Text style={[styles.studentMeta, { color: textSub }]}>
+                          {student.roll_number} · {student.class_name}
+                        </Text>
+                      </View>
+                      <View style={styles.studentRight}>
+                        <Text style={[
+                          styles.attendancePct,
+                          { color: risk === 'High' ? '#e74c3c' : '#f39c12' },
+                        ]}>
+                          {student.attendance_percent}%
+                        </Text>
+                        <RiskBadge risk={risk} />
+                      </View>
+                    </View>
+                  );
+                })
+              )}
             </View>
 
+            {/* ── Recent Sessions ── */}
             <View style={[styles.card, { backgroundColor: cardBg }]}>
               <Text style={[styles.cardTitle, { color: textPrimary }]}>Recent Sessions</Text>
               {recentSessions.length === 0 ? (
                 <Text style={[styles.cardSubText, { color: textSub }]}>No recent sessions found.</Text>
               ) : (
                 recentSessions.map((session, i) => (
-                  <View key={i} style={[styles.studentRow, i !== recentSessions.length - 1 && [styles.studentBorder, { borderBottomColor: rowBorder }]]}>
+                  <View
+                    key={session.session_id ?? i}
+                    style={[
+                      styles.studentRow,
+                      i !== recentSessions.length - 1 && [
+                        styles.studentBorder, { borderBottomColor: rowBorder },
+                      ],
+                    ]}
+                  >
                     <View style={styles.studentInfo}>
-                      <Text style={[styles.studentName, { color: textPrimary }]}>{session.class_name}</Text>
-                      <Text style={[styles.studentMeta, { color: textSub }]}>{session.subject} · {new Date(session.start_time).toLocaleString()}</Text>
+                      <Text style={[styles.studentName, { color: textPrimary }]}>
+                        {session.class_name}
+                      </Text>
+                      <Text style={[styles.studentMeta, { color: textSub }]}>
+                        {session.subject} · {new Date(session.start_time).toLocaleString()}
+                      </Text>
                     </View>
                     <View style={styles.studentRight}>
-                      <Text style={[styles.attendancePct, { color: '#27ae60', fontSize: 13 }]}>
+                      <Text style={[styles.sessionCount, { color: '#27ae60' }]}>
                         {session.present_count} P
                       </Text>
-                      <Text style={[styles.attendancePct, { color: '#e74c3c', fontSize: 13 }]}>
+                      <Text style={[styles.sessionCount, { color: '#e74c3c' }]}>
                         {session.absent_count} A
                       </Text>
                     </View>
@@ -353,13 +307,15 @@ export default function AdminDashboardScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f5f7fa' },
+  safeArea:    { flex: 1, backgroundColor: '#f5f7fa' },
+
+  // Header
   header: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14,
   },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#1a1f36' },
-  headerSub: { fontSize: 12, color: '#8a94a6', marginTop: 2 },
+  headerSub:   { fontSize: 12, color: '#8a94a6', marginTop: 2 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   adminBadge: {
     backgroundColor: '#fff8e6', borderRadius: 20,
@@ -387,17 +343,33 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: '#fff0f0', justifyContent: 'center', alignItems: 'center',
   },
-  logoutBtnText: { fontSize: 16 },
+
+  // Scroll
   scroll: { flex: 1, paddingHorizontal: 18 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
+
+  // Stat cards
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16, marginTop: 8 },
   statCard: {
     width: '47%', borderRadius: 16, padding: 16, alignItems: 'flex-start',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
   },
-  statIcon: { fontSize: 22, marginBottom: 8 },
   statValue: { fontSize: 28, fontWeight: '800', marginBottom: 2 },
-  statLabel: { fontSize: 11, color: '#8a94a6', fontWeight: '600' },
+  statLabel: { fontSize: 11, fontWeight: '600' },
+
+  // Section title
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1a1f36', marginBottom: 12 },
+
+  // Quick actions
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
+  actionCard: {
+    width: '30%', borderRadius: 14, padding: 14, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 5, elevation: 2,
+  },
+  actionLabel: { fontSize: 11, fontWeight: '700', textAlign: 'center', lineHeight: 15 },
+
+  // Generic card
   card: {
     backgroundColor: '#ffffff', borderRadius: 16, padding: 18, marginBottom: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
@@ -407,60 +379,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 4,
   },
-  cardTitle: { fontSize: 16, fontWeight: '800', color: '#1a1f36' },
-  cardSub: { fontSize: 12, color: '#8a94a6' },
+  cardTitle:   { fontSize: 16, fontWeight: '800', color: '#1a1f36' },
   cardSubText: { fontSize: 12, color: '#8a94a6', marginBottom: 14 },
-  viewAll: { fontSize: 13, color: BLUE, fontWeight: '600' },
-  chartRow: {
-    flexDirection: 'row', justifyContent: 'space-around',
-    alignItems: 'flex-end', height: 110, marginVertical: 10,
-  },
-  chartCol: { alignItems: 'center', flex: 1, gap: 4 },
-  chartPct: { fontSize: 9, color: '#8a94a6', fontWeight: '600' },
-  chartBarBg: {
-    width: 32, height: 75, backgroundColor: '#eef1f5',
-    borderRadius: 8, justifyContent: 'flex-end', overflow: 'hidden',
-  },
-  chartBarFill: { width: '100%', backgroundColor: BLUE, borderRadius: 8 },
-  chartDay: { fontSize: 11, color: '#8a94a6', fontWeight: '600' },
-  chartLegend: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' },
-  legendDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: BLUE },
-  legendText: { fontSize: 11, color: '#8a94a6' },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1a1f36', marginBottom: 12 },
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
-  actionCard: {
-    width: '30%', borderRadius: 14, padding: 14, alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 5, elevation: 2,
-  },
-  actionIcon: { fontSize: 24, marginBottom: 6 },
-  actionLabel: { fontSize: 11, fontWeight: '700', textAlign: 'center', lineHeight: 15 },
-  studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
-  studentBorder: { borderBottomWidth: 1, borderBottomColor: '#f0f2f5' },
+  viewAll:     { fontSize: 13, color: BLUE, fontWeight: '600' },
+
+  // Student rows (at-risk + recent sessions)
+  studentRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
+  studentBorder:{ borderBottomWidth: 1, borderBottomColor: '#f0f2f5' },
   studentAvatar: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: '#eef2ff',
     justifyContent: 'center', alignItems: 'center', marginRight: 12,
   },
   studentAvatarText: { fontSize: 13, fontWeight: '700', color: BLUE },
-  studentInfo: { flex: 1 },
-  studentName: { fontSize: 14, fontWeight: '700', color: '#1a1f36', marginBottom: 2 },
-  studentMeta: { fontSize: 11, color: '#8a94a6' },
+  studentInfo:  { flex: 1 },
+  studentName:  { fontSize: 14, fontWeight: '700', color: '#1a1f36', marginBottom: 2 },
+  studentMeta:  { fontSize: 11, color: '#8a94a6' },
   studentRight: { alignItems: 'flex-end', gap: 4 },
-  attendancePct: { fontSize: 16, fontWeight: '800' },
-  riskBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
-  riskHigh: { backgroundColor: '#fff0f0' },
-  riskMid: { backgroundColor: '#fff8e6' },
+  attendancePct:{ fontSize: 16, fontWeight: '800' },
+  sessionCount: { fontSize: 13, fontWeight: '700' },
+
+  // Risk badges
+  riskBadge:     { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
+  riskHigh:      { backgroundColor: '#fff0f0' },
+  riskMid:       { backgroundColor: '#fff8e6' },
   riskBadgeText: { fontSize: 10, fontWeight: '700' },
-  riskHighText: { color: '#e74c3c' },
-  riskMidText: { color: '#f39c12' },
-  overviewBar: { height: 10, backgroundColor: '#fee', borderRadius: 5, overflow: 'hidden', marginBottom: 8 },
-  overviewFill: { height: '100%', backgroundColor: '#27ae60', borderRadius: 5 },
-  overviewLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  overviewPresent: { fontSize: 12, color: '#27ae60', fontWeight: '600' },
-  overviewAbsent: { fontSize: 12, color: '#e74c3c', fontWeight: '600' },
-  overviewStats: { flexDirection: 'row', backgroundColor: '#f8f9ff', borderRadius: 12, paddingVertical: 14 },
-  overviewItem: { flex: 1, alignItems: 'center' },
-  overviewDivider: { width: 1, backgroundColor: '#e6e9f0' },
-  overviewValue: { fontSize: 20, fontWeight: '800', color: '#1a1f36', marginBottom: 3 },
-  overviewLabel: { fontSize: 10, color: '#8a94a6', fontWeight: '600', textAlign: 'center' },
+  riskHighText:  { color: '#e74c3c' },
+  riskMidText:   { color: '#f39c12' },
+
+  // Empty state
+  emptyState: {
+    alignItems: 'center', paddingVertical: 24,
+  },
+  emptyStateText: { fontSize: 14, fontWeight: '500' },
 });

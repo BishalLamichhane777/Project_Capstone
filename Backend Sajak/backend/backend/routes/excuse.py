@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
 
-from database import db
+from database import db, utc_iso
 from models.attendance import AttendanceRecord
 from models.excuse import WaiverRequest
 from models.notification import Notification
@@ -136,12 +136,12 @@ def pending_excuses():
                     else None
                 ),
                 "session_date": (
-                    session_obj.start_time.isoformat()
+                    utc_iso(session_obj.start_time)
                     if session_obj and session_obj.start_time
                     else None
                 ),
                 "reason": w.reason,
-                "submitted_at": w.submitted_at.isoformat() if w.submitted_at else None,
+                "submitted_at": utc_iso(w.submitted_at),
             }
         )
 
@@ -176,15 +176,15 @@ def my_excuses():
                     else None
                 ),
                 "session_date": (
-                    session_obj.start_time.isoformat()
+                    utc_iso(session_obj.start_time)
                     if session_obj and session_obj.start_time
                     else None
                 ),
                 "reason": w.reason,
                 "supporting_doc_path": w.supporting_doc_path,
                 "status": w.status,
-                "submitted_at": w.submitted_at.isoformat() if w.submitted_at else None,
-                "reviewed_at": w.reviewed_at.isoformat() if w.reviewed_at else None,
+                "submitted_at": utc_iso(w.submitted_at),
+                "reviewed_at": utc_iso(w.reviewed_at),
             }
         )
 

@@ -1,12 +1,13 @@
 """Session routes — start, end, status, class sessions."""
 
 import logging
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, g, jsonify, request
 
-from database import db
+from database import db, utc_iso
 from models.attendance import AttendanceRecord
 from models.class_model import Class, Enrollment
 from models.session import Session
@@ -333,17 +334,65 @@ def end_session():
 
     class_name = session.class_.class_name if session.class_ else "Unknown"
 
+    # ── Collect all absent students who have a device token ──────────────────
+    # Build two parallel lists:
+    #   absent_tokens      — ExponentPushToken strings for multicast delivery
+    #   absent_no_token    — student names with no token (logged as warning only)
+    absent_tokens = []
+    absent_no_token = []
+
     for record in absent_records:
         student = record.student
         if student and student.user:
             device_token = student.user.device_token
             student_name = student.user.fullname
-            notifications.send_absence_notification(
-                device_token=device_token,
-                student_name=student_name,
-                session_id=session_id,
-                class_name=class_name,
-            )
+            if device_token:
+                absent_tokens.append(device_token)
+            else:
+                absent_no_token.append(student_name)
+
+    if absent_no_token:
+        logger.warning(
+            "Session %s: %d absent student(s) have no device token and will "
+            "not receive a push notification: %s",
+            session_id,
+            len(absent_no_token),
+            absent_no_token,
+        )
+
+    # ── Fire notifications in a background thread ─────────────────────────────
+    # This returns the summary response to the teacher immediately without
+    # waiting for the Expo Push API HTTP calls to complete.
+    if absent_tokens:
+        def _send_notifications(tokens, name):
+            try:
+                notifications._send_fcm_multicast(
+                    device_tokens=tokens,
+                    title="Attendance Alert",
+                    body=f"You were marked absent from {name}",
+                )
+                logger.info(
+                    "Session %s: absence notifications dispatched to %d student(s).",
+                    session_id,
+                    len(tokens),
+                )
+            except Exception as exc:
+                logger.error(
+                    "Session %s: background notification dispatch failed: %s",
+                    session_id,
+                    exc,
+                )
+
+        threading.Thread(
+            target=_send_notifications,
+            args=(absent_tokens, class_name),
+            daemon=True,
+        ).start()
+    else:
+        logger.info(
+            "Session %s: no absent students with device tokens — no notifications sent.",
+            session_id,
+        )
 
     return (
         jsonify(
@@ -387,10 +436,10 @@ def session_status(session_id):
                 "class_id": session.class_id,
                 "class_name": session.class_.class_name if session.class_ else None,
                 "start_time": (
-                    session.start_time.isoformat() if session.start_time else None
+                    utc_iso(session.start_time) if session.start_time else None
                 ),
                 "end_time": (
-                    session.end_time.isoformat() if session.end_time else None
+                    utc_iso(session.end_time) if session.end_time else None
                 ),
                 "liveCount": summary["present"],
                 "present_count": summary["present"],

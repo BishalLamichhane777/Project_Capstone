@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
 
-from database import db
+from database import db, utc_iso
 from models.attendance import AttendanceLog, AttendanceRecord
 from models.class_model import Class, Enrollment
 from models.session import Session
@@ -134,13 +134,13 @@ def my_attendance_history():
             {
                 "session_id": record.session_id,
                 "class_name": class_name,
-                "date": session_date,
+                "date": utc_iso(session.start_time) if session and session.start_time else None,
                 "status": record.status,
                 "total_duration_seconds": record.total_duration_seconds,
                 "logs": [
                     {
                         "event_type": log.event_type,
-                        "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                        "timestamp": utc_iso(log.timestamp),
                     }
                     for log in logs
                 ],
@@ -183,7 +183,6 @@ def attendance_history(student_id):
     for record in records:
         session = Session.query.get(record.session_id)
         class_name = session.class_.class_name if session and session.class_ else "Unknown"
-        session_date = session.start_time.isoformat() if session and session.start_time else None
 
         # Fetch entry/exit logs for this student+session
         logs = (
@@ -198,13 +197,13 @@ def attendance_history(student_id):
             {
                 "session_id": record.session_id,
                 "class_name": class_name,
-                "date": session_date,
+                "date": utc_iso(session.start_time) if session and session.start_time else None,
                 "status": record.status,
                 "total_duration_seconds": record.total_duration_seconds,
                 "logs": [
                     {
                         "event_type": log.event_type,
-                        "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                        "timestamp": utc_iso(log.timestamp),
                     }
                     for log in logs
                 ],
@@ -275,7 +274,7 @@ def attendance_report(class_id):
                 "class_id": class_id,
                 "total_sessions": total_sessions,
                 "students": students_data,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": utc_iso(datetime.now(timezone.utc)),
             }
         ),
         200,

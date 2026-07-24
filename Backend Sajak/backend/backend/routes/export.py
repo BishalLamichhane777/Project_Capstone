@@ -2,9 +2,12 @@
 
 Endpoint:
     POST /api/admin/export-report
-    Body: { "report_type": str, "format": str, "period": str }
+    Body: { "report_type": str, "format": str, "period": str,
+            "batch_id": int|null, "class_id": int|null,
+            "student_id": int|null, "risk": str|null, "search": str|null }
 
 report_type values  : full | atrisk | class | waiver | weekly | monthly
+                      | batch | class_roster | student   ← new in step 8
 format values       : csv  | excel  | pdf
 period values       : This Week | This Month | Last Month |
                       This Semester | Custom Range
@@ -15,13 +18,17 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from flask import Blueprint, Response, g, request, jsonify
+from sqlalchemy import func, case
 
 from database import db
 from models.attendance import AttendanceRecord
+from models.batch import Batch, BatchStudent
+from models.batch_class_link import BatchClassLink
 from models.class_model import Class, Enrollment
 from models.excuse import WaiverRequest
 from models.session import Session
 from models.student import Student
+from models.user import User
 from middleware.auth_middleware import require_role
 
 logger = logging.getLogger(__name__)
@@ -176,6 +183,173 @@ def _get_weekly_data():
 def _get_monthly_data():
     start_dt, end_dt = _period_range("This Month")
     return _get_full_data(start_dt, end_dt)
+
+
+# ── Step 8: scoped data builders ──────────────────────────────────────────────
+
+def _get_batch_data(batch_id: int) -> list:
+    """All students in a batch × all classes linked to that batch."""
+    batch = Batch.query.get(batch_id)
+    if not batch:
+        return []
+
+    batch_student_ids = [
+        bs.student_id
+        for bs in BatchStudent.query.filter_by(batch_id=batch_id).all()
+    ]
+    linked_class_ids = [
+        lnk.class_id
+        for lnk in BatchClassLink.query.filter_by(batch_id=batch_id).all()
+    ]
+
+    rows = []
+    for student_id in batch_student_ids:
+        student = Student.query.get(student_id)
+        if not student:
+            continue
+        name = student.user.fullname if student.user else "Unknown"
+
+        for class_id in linked_class_ids:
+            cls = Class.query.get(class_id)
+            if not cls:
+                continue
+
+            sess_ids = [
+                s.session_id
+                for s in Session.query.filter_by(class_id=class_id).all()
+            ]
+            total_sess = len(sess_ids)
+            present = (
+                AttendanceRecord.query.filter(
+                    AttendanceRecord.student_id == student_id,
+                    AttendanceRecord.session_id.in_(sess_ids),
+                    AttendanceRecord.status == "Present",
+                ).count() if sess_ids else 0
+            )
+            pct = round(present / total_sess * 100, 1) if total_sess else 0.0
+            rows.append({
+                "Batch":           batch.batch_name,
+                "Class":           cls.class_name,
+                "Subject":         cls.subject,
+                "Student Name":    name,
+                "Roll Number":     student.roll_number,
+                "Total Sessions":  total_sess,
+                "Present":         present,
+                "Absent":          total_sess - present,
+                "Attendance %":    pct,
+                "At Risk":         "Yes" if pct < 75 else "No",
+            })
+
+    return rows
+
+
+def _get_class_roster_data(class_id: int, risk: str = "all", search: str = "") -> list:
+    """Roster for a single class, optionally filtered by risk tier and search.
+
+    This mirrors the logic in GET /api/admin/classes/<class_id>/students so
+    the export always matches exactly what the admin sees on screen.
+    """
+    cls = Class.query.get(class_id)
+    if not cls:
+        return []
+
+    sess_ids = [
+        s.session_id
+        for s in Session.query.filter_by(class_id=class_id).all()
+    ]
+    total_sess = len(sess_ids)
+
+    enrollments = Enrollment.query.filter_by(class_id=class_id).all()
+    rows = []
+    search_lower = (search or "").strip().lower()
+
+    for enr in enrollments:
+        student = enr.student
+        if not student:
+            continue
+        name = student.user.fullname if student.user else "Unknown"
+        roll = student.roll_number or ""
+
+        # Search filter
+        if search_lower and search_lower not in name.lower() and search_lower not in roll.lower():
+            continue
+
+        present = (
+            AttendanceRecord.query.filter(
+                AttendanceRecord.student_id == student.student_id,
+                AttendanceRecord.session_id.in_(sess_ids),
+                AttendanceRecord.status == "Present",
+            ).count() if sess_ids else 0
+        )
+        pct = round(present / total_sess * 100, 1) if total_sess else 0.0
+        is_at_risk = pct < 75 if total_sess > 0 else False
+
+        # Risk filter
+        if risk == "at_risk" and not is_at_risk:
+            continue
+        if risk == "good" and is_at_risk:
+            continue
+
+        rows.append({
+            "Class":          cls.class_name,
+            "Subject":        cls.subject,
+            "Student Name":   name,
+            "Roll Number":    roll,
+            "Total Sessions": total_sess,
+            "Present":        present,
+            "Absent":         total_sess - present,
+            "Attendance %":   pct,
+            "At Risk":        "Yes" if is_at_risk else "No",
+        })
+
+    # Default sort: attendance ascending (at-risk students first)
+    rows.sort(key=lambda r: r["Attendance %"])
+    return rows
+
+
+def _get_student_data(student_id: int) -> list:
+    """Full class breakdown + all session records for a single student."""
+    student = Student.query.get(student_id)
+    if not student:
+        return []
+
+    name = student.user.fullname if student.user else "Unknown"
+    enrollments = Enrollment.query.filter_by(student_id=student_id).all()
+
+    rows = []
+    for enr in enrollments:
+        cls = enr.class_
+        if not cls:
+            continue
+
+        sess_ids = [
+            s.session_id
+            for s in Session.query.filter_by(class_id=cls.class_id).all()
+        ]
+        total_sess = len(sess_ids)
+        present = (
+            AttendanceRecord.query.filter(
+                AttendanceRecord.student_id == student_id,
+                AttendanceRecord.session_id.in_(sess_ids),
+                AttendanceRecord.status == "Present",
+            ).count() if sess_ids else 0
+        )
+        pct = round(present / total_sess * 100, 1) if total_sess else 0.0
+
+        rows.append({
+            "Student Name":   name,
+            "Roll Number":    student.roll_number,
+            "Class":          cls.class_name,
+            "Subject":        cls.subject,
+            "Total Sessions": total_sess,
+            "Present":        present,
+            "Absent":         total_sess - present,
+            "Attendance %":   pct,
+            "At Risk":        "Yes" if (total_sess > 0 and pct < 75) else "No",
+        })
+
+    rows.sort(key=lambda r: r["Class"].lower())
+    return rows
 
 
 # ── Format builders ───────────────────────────────────────────────────────────
@@ -342,16 +516,22 @@ def _build_pdf(rows: list, title: str) -> bytes:
 # ── Report type router ────────────────────────────────────────────────────────
 
 REPORT_LABELS = {
-    "full":    "Full Attendance Report",
-    "atrisk":  "At-Risk Students Report",
-    "class":   "Per Class Attendance Report",
-    "waiver":  "Waiver Summary",
-    "weekly":  "Weekly Attendance Summary",
-    "monthly": "Monthly Attendance Report",
+    "full":         "Full Attendance Report",
+    "atrisk":       "At-Risk Students Report",
+    "class":        "Per Class Attendance Report",
+    "waiver":       "Waiver Summary",
+    "weekly":       "Weekly Attendance Summary",
+    "monthly":      "Monthly Attendance Report",
+    # Step 8 additions
+    "batch":        "Batch Attendance Report",
+    "class_roster": "Class Roster Report",
+    "student":      "Student Attendance Report",
 }
 
 
-def _get_rows(report_type: str, start_dt, end_dt) -> tuple:
+def _get_rows(report_type: str, start_dt, end_dt,
+              batch_id=None, class_id=None, student_id=None,
+              risk="all", search="") -> tuple:
     """Return (rows, title)."""
     label = REPORT_LABELS.get(report_type, "Attendance Report")
     if report_type == "full":
@@ -366,6 +546,13 @@ def _get_rows(report_type: str, start_dt, end_dt) -> tuple:
         return _get_weekly_data(), label
     elif report_type == "monthly":
         return _get_monthly_data(), label
+    # ── Step 8 scoped types ───────────────────────────────────────────
+    elif report_type == "batch":
+        return _get_batch_data(batch_id), label
+    elif report_type == "class_roster":
+        return _get_class_roster_data(class_id, risk=risk, search=search), label
+    elif report_type == "student":
+        return _get_student_data(student_id), label
     else:
         return [], label
 
@@ -379,10 +566,18 @@ def export_report():
 
     Body (JSON):
       {
-        "report_type": "full" | "atrisk" | "class" | "waiver" | "weekly" | "monthly",
+        "report_type": "full" | "atrisk" | "class" | "waiver" | "weekly" | "monthly"
+                       | "batch" | "class_roster" | "student",
         "format":      "csv"  | "excel"  | "pdf",
         "period":      "This Week" | "This Month" | "Last Month" |
-                       "This Semester" | "Custom Range"
+                       "This Semester" | "Custom Range",
+
+        -- Scoped report params (only required for their respective type) --
+        "batch_id":    int,      -- required for report_type="batch"
+        "class_id":    int,      -- required for report_type="class_roster"
+        "student_id":  int,      -- required for report_type="student"
+        "risk":        "all" | "at_risk" | "good",   -- optional, class_roster only
+        "search":      str,      -- optional, class_roster only
       }
 
     Returns the file as a binary download response.
@@ -393,26 +588,65 @@ def export_report():
     fmt         = (data.get("format")      or "csv" ).strip().lower()
     period      = (data.get("period")      or "This Month").strip()
 
-    valid_reports = {"full", "atrisk", "class", "waiver", "weekly", "monthly"}
+    # Scoped params
+    batch_id   = data.get("batch_id")
+    class_id   = data.get("class_id")
+    student_id = data.get("student_id")
+    risk       = (data.get("risk")   or "all").strip().lower()
+    search     = (data.get("search") or "").strip()
+
+    valid_reports = {
+        "full", "atrisk", "class", "waiver", "weekly", "monthly",
+        "batch", "class_roster", "student",
+    }
     valid_formats = {"csv", "excel", "pdf"}
+    valid_risk    = {"all", "at_risk", "good"}
 
     if report_type not in valid_reports:
         return jsonify({"error": f"Invalid report_type. Must be one of: {', '.join(sorted(valid_reports))}"}), 400
     if fmt not in valid_formats:
         return jsonify({"error": f"Invalid format. Must be one of: {', '.join(sorted(valid_formats))}"}), 400
+    if risk not in valid_risk:
+        return jsonify({"error": f"Invalid risk. Must be one of: {', '.join(sorted(valid_risk))}"}), 400
 
-    # Override period for weekly/monthly report types — they always use their own range
+    # Validate required scoping IDs
+    if report_type == "batch" and not batch_id:
+        return jsonify({"error": "batch_id is required for report_type='batch'"}), 400
+    if report_type == "class_roster" and not class_id:
+        return jsonify({"error": "class_id is required for report_type='class_roster'"}), 400
+    if report_type == "student" and not student_id:
+        return jsonify({"error": "student_id is required for report_type='student'"}), 400
+
+    # Override period for fixed-range types
     if report_type == "weekly":
         period = "This Week"
     elif report_type == "monthly":
         period = "This Month"
 
     start_dt, end_dt = _period_range(period)
-    rows, title      = _get_rows(report_type, start_dt, end_dt)
+    rows, title      = _get_rows(
+        report_type, start_dt, end_dt,
+        batch_id=batch_id, class_id=class_id, student_id=student_id,
+        risk=risk, search=search,
+    )
 
-    # Build a clean filename
+    # Build a clean filename incorporating scope context
     period_slug = period.replace(" ", "_")
-    base_name   = f"{report_type.capitalize()}_Report_{period_slug}"
+    if report_type == "batch" and batch_id:
+        batch = Batch.query.get(batch_id)
+        scope_slug = f"Batch_{(batch.batch_name if batch else str(batch_id)).replace(' ', '_')}"
+    elif report_type == "class_roster" and class_id:
+        cls = Class.query.get(class_id)
+        scope_slug = f"Class_{(cls.class_name if cls else str(class_id)).replace(' ', '_')}"
+        if risk != "all":
+            scope_slug += f"_{risk}"
+    elif report_type == "student" and student_id:
+        student = Student.query.get(student_id)
+        scope_slug = f"Student_{(student.roll_number if student else str(student_id)).replace(' ', '_')}"
+    else:
+        scope_slug = period_slug
+
+    base_name = f"{report_type.capitalize()}_Report_{scope_slug}"
 
     try:
         if fmt == "csv":
@@ -435,8 +669,8 @@ def export_report():
         return jsonify({"error": "Failed to generate report file", "detail": str(exc)}), 500
 
     logger.info(
-        "export-report: type=%s format=%s period=%s rows=%d",
-        report_type, fmt, period, len(rows),
+        "export-report: type=%s format=%s scope=batch:%s class:%s student:%s risk=%s rows=%d",
+        report_type, fmt, batch_id, class_id, student_id, risk, len(rows),
     )
 
     return Response(

@@ -21,9 +21,19 @@ student_bp = Blueprint("student_routes", __name__)
 @student_bp.route("/list", methods=["GET"])
 @require_role("admin", "teacher")
 def list_students():
-    """Return all students with user info."""
+    """Return all students with user info, including is_active status."""
     students = Student.query.all()
-    return jsonify([s.to_dict() for s in students]), 200
+    results = []
+    for s in students:
+        d = s.to_dict()
+        # Include is_active from the linked User so the frontend can
+        # show deactivated students differently without a separate request.
+        d["is_active"] = s.user.is_active if s.user else True
+        # Also expose user_id so the frontend can call deactivate/reactivate
+        # routes which operate on user_id, not student_id.
+        d["user_id"] = s.user_id
+        results.append(d)
+    return jsonify(results), 200
 
 
 @student_bp.route("/classes", methods=["GET"])
@@ -195,6 +205,8 @@ def update_student(student_id):
 
 
 
+@student_bp.route("/<int:student_id>", methods=["DELETE"])
+@require_role("admin")
 def delete_student(student_id):
     """Delete a student and all associated data.
 

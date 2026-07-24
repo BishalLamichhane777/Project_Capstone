@@ -25,6 +25,11 @@ import ManageBatchesScreen from './screens/ManageBatchesScreen';
 import ManageBatchDetailScreen from './screens/ManageBatchDetailScreen';
 import ManageStudentsScreen from './screens/ManageStudentsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
+import BatchOverviewScreen from './screens/BatchOverviewScreen';
+import ClassListScreen from './screens/ClassListScreen';
+import ClassDetailScreen from './screens/ClassDetailScreen';
+import StudentDetailScreen from './screens/StudentDetailScreen';
+import ManageTeachersScreen from './screens/ManageTeachersScreen';
 
 import { AuthProvider } from './context/AuthContext';
 
@@ -62,6 +67,13 @@ export default function App() {
           <Stack.Screen name="ManageBatches"     component={ManageBatchesScreen} />
           <Stack.Screen name="ManageBatchDetail" component={ManageBatchDetailScreen} />
           <Stack.Screen name="ManageStudents"    component={ManageStudentsScreen} />
+          <Stack.Screen name="ManageTeachers"    component={ManageTeachersScreen} />
+
+          {/* ── Batch Analytics drill-down ── */}
+          <Stack.Screen name="BatchOverview"   component={BatchOverviewScreen} />
+          <Stack.Screen name="ClassList"       component={ClassListScreen} />
+          <Stack.Screen name="ClassDetail"     component={ClassDetailScreen} />
+          <Stack.Screen name="StudentDetail"   component={StudentDetailScreen} />
 
           {/* ── Teacher ── */}
           <Stack.Screen name="TeacherDashboard"   component={TeacherDashboardScreen} />

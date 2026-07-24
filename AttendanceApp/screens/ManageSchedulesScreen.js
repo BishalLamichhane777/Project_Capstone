@@ -301,12 +301,34 @@ function FormModal({ visible, onClose, onSave, teachers, batches, saving, isDark
       Alert.alert('Missing Fields', 'Class name and subject are required.');
       return;
     }
+
+    // Both time pickers must be set so we can derive duration_minutes
+    if (!scheduledTime || !scheduledEndTime) {
+      Alert.alert('Missing Fields', 'Please select both a start time and an end time.');
+      return;
+    }
+
+    // Convert "HH:MM" to minutes-since-midnight and subtract
+    const toMinutes = (hhmm) => {
+      const [h, m] = hhmm.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const startMin = toMinutes(scheduledTime);
+    const endMin   = toMinutes(scheduledEndTime);
+    const duration = endMin - startMin;
+
+    if (duration <= 0) {
+      Alert.alert('Invalid Times', 'End time must be after start time.');
+      return;
+    }
+
     onSave({
       class_name:         className.trim(),
       subject:            subject.trim(),
       room:               room.trim() || null,
       teacher_id:         teacherId,
       schedule_time:      scheduleTime.trim() || null,
+      duration_minutes:   duration,                   // ← calculated, never null
       batch_id:           selectedBatch?.batch_id || null,
       scheduled_date:     scheduledDate  || null,
       scheduled_time:     scheduledTime  || null,

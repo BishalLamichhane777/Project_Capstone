@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from flask_login import UserMixin
 
-from database import db
+from database import db, utc_iso
 
 
 class User(UserMixin, db.Model):
@@ -17,6 +17,7 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), nullable=False)  # 'admin' | 'teacher' | 'student'
     phone = db.Column(db.String(30), nullable=True)
     device_token = db.Column(db.String(512), nullable=True)  # FCM push token
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -47,5 +48,6 @@ class User(UserMixin, db.Model):
             "role": self.role,
             "phone": self.phone,
             "device_token": self.device_token,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "is_active": self.is_active,
+            "created_at": utc_iso(self.created_at),
         }

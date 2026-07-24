@@ -1,4 +1,5 @@
-export const BASE_URL = 'http://192.168.1.67:5000';
+// UPDATE THIS to your PC's current IPv4 address (run `ipconfig` in terminal to find it)
+export const BASE_URL = 'http://192.168.1.66:5000';
 
 export const API = {
   login: `${BASE_URL}/api/auth/login`,
@@ -46,4 +47,14 @@ export const API = {
   myNotifications:        `${BASE_URL}/api/notifications/my-notifications`,
   markNotificationsRead:  `${BASE_URL}/api/notifications/mark-read`,
   notificationUnreadCount:`${BASE_URL}/api/notifications/unread-count`,
+  adminBatchSummary:      `${BASE_URL}/api/admin/batches/summary`,
+  adminBatchClassesSummary: `${BASE_URL}/api/admin/batches`,  // append /{batch_id}/classes/summary
+  adminClassRoster:       `${BASE_URL}/api/admin/classes`,    // append /{class_id}/students
+  adminStudentDetail2:    `${BASE_URL}/api/admin/students`,   // append /{student_id}/detail
+  adminTeachersList:      `${BASE_URL}/api/admin/users?role=teacher`,
+  adminUserUpdate:        `${BASE_URL}/api/admin/user`,       // append /:id  PUT
+  adminUserDeactivate:    `${BASE_URL}/api/admin/user`,       // append /:id/deactivate  PUT
+  adminUserReactivate:    `${BASE_URL}/api/admin/user`,       // append /:id/reactivate  PUT
+  adminDashboardAtRisk:   `${BASE_URL}/api/admin/dashboard/at-risk-students`,
+  deviceToken:            `${BASE_URL}/api/auth/device-token`,
 };

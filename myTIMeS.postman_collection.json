@@ -1,0 +1,442 @@
+{
+  "info": {
+    "_postman_id": "mytimes-full-v2",
+    "name": "myTIMeS — Full API",
+    "description": "Complete coverage of every endpoint in the myTIMeS Smart Attendance System.\n\nFolders:\n  0. Auth\n  1. Admin\n  2. Teacher\n  3. Student\n\nRecommended run order for end-to-end testing:\n  Auth (Admin Login) → Admin (requests 1-6) → Teacher (all) → Student (all) → Admin request 7 (Approve Waiver)\n\nPre-requisite: run seed_admin.py inside Docker to create admin@test.com before starting.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Auth",
+      "description": "Login, register, profile, device token — all roles.",
+      "item": [
+        {
+          "name": "Admin Login",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); if(j.token){pm.environment.set('admin_token',j.token);}"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"admin@test.com\",\n  \"password\": \"adminpass\"\n}"},"url":{"raw":"{{base_url}}/api/auth/login","host":["{{base_url}}"],"path":["api","auth","login"]}}
+        },
+        {
+          "name": "Teacher Login",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); if(j.token){pm.environment.set('teacher_token',j.token);}"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"teacher1@test.com\",\n  \"password\": \"pass1234\"\n}"},"url":{"raw":"{{base_url}}/api/auth/login","host":["{{base_url}}"],"path":["api","auth","login"]}}
+        },
+        {
+          "name": "Student Login",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); if(j.token){pm.environment.set('student_token',j.token);}"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"student1@test.com\",\n  \"password\": \"pass1234\"\n}"},"url":{"raw":"{{base_url}}/api/auth/login","host":["{{base_url}}"],"path":["api","auth","login"]}}
+        },
+        {
+          "name": "Register Teacher (Admin)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 201', () => pm.response.to.have.status(201));","var j=pm.response.json(); if(j.user_id){pm.environment.set('teacher_user_id',j.user_id);}"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"fullname\": \"Teacher One\",\n  \"email\": \"teacher1@test.com\",\n  \"password\": \"pass1234\",\n  \"role\": \"teacher\"\n}"},"url":{"raw":"{{base_url}}/api/auth/register","host":["{{base_url}}"],"path":["api","auth","register"]}}
+        },
+        {
+          "name": "Register Student (Admin)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 201', () => pm.response.to.have.status(201));","var j=pm.response.json(); if(j.user_id){pm.environment.set('student_user_id',j.user_id);}"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"fullname\": \"Student One\",\n  \"email\": \"student1@test.com\",\n  \"password\": \"pass1234\",\n  \"role\": \"student\",\n  \"roll_number\": \"R-100\",\n  \"program\": \"BCA\"\n}"},"url":{"raw":"{{base_url}}/api/auth/register","host":["{{base_url}}"],"path":["api","auth","register"]}}
+        },
+        {
+          "name": "Get My Profile (me)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/auth/me","host":["{{base_url}}"],"path":["api","auth","me"]}}
+        },
+        {
+          "name": "Update My Profile (me)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+          "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"fullname\": \"Admin Updated\",\n  \"phone\": \"+977-9800000001\"\n}"},"url":{"raw":"{{base_url}}/api/auth/me","host":["{{base_url}}"],"path":["api","auth","me"]}}
+        },
+        {
+          "name": "Register Device Token",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{student_token}}"}],"body":{"mode":"raw","raw":"{\n  \"device_token\": \"ExponentPushToken[test-token-001]\"\n}"},"url":{"raw":"{{base_url}}/api/auth/device-token","host":["{{base_url}}"],"path":["api","auth","device-token"]}}
+        }
+      ]
+    },
+    {
+      "name": "1. Admin",
+      "description": "All admin-only endpoints: class CRUD, user management, batches, dashboard, notifications, export, face enrollment.",
+      "item": [
+        {
+          "name": "— CLASS MANAGEMENT —",
+          "item": [
+            {
+              "name": "Create Class",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 201', () => pm.response.to.have.status(201));","var j=pm.response.json(); if(j.class_id){pm.environment.set('class_id',j.class_id);}"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"class_name\": \"CS101\",\n  \"subject\": \"Intro to CS\",\n  \"duration_minutes\": 60,\n  \"teacher_id\": {{teacher_user_id}}\n}"},"url":{"raw":"{{base_url}}/api/admin/class/create","host":["{{base_url}}"],"path":["api","admin","class","create"]}}
+            },
+            {
+              "name": "List Classes",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/class/list","host":["{{base_url}}"],"path":["api","admin","class","list"]}}
+            },
+            {
+              "name": "Update Class",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"room\": \"Lab-3\",\n  \"duration_minutes\": 90\n}"},"url":{"raw":"{{base_url}}/api/admin/class/{{class_id}}","host":["{{base_url}}"],"path":["api","admin","class","{{class_id}}"]}}
+            },
+            {
+              "name": "Set Class Schedule",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"scheduled_date\": \"2026-12-01\",\n  \"scheduled_time\": \"09:00\",\n  \"scheduled_end_time\": \"10:30\"\n}"},"url":{"raw":"{{base_url}}/api/admin/class/{{class_id}}/schedule","host":["{{base_url}}"],"path":["api","admin","class","{{class_id}}","schedule"]}}
+            },
+            {
+              "name": "Class Student Roster",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has students array', () => pm.expect(pm.response.json()).to.have.property('students'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/classes/{{class_id}}/students?risk=all&sort=attendance_asc&page=1&page_size=25","host":["{{base_url}}"],"path":["api","admin","classes","{{class_id}}","students"],"query":[{"key":"risk","value":"all"},{"key":"sort","value":"attendance_asc"},{"key":"page","value":"1"},{"key":"page_size","value":"25"}]}}
+            },
+            {
+              "name": "Delete Class",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/class/{{class_id}}","host":["{{base_url}}"],"path":["api","admin","class","{{class_id}}"]}}
+            }
+          ]
+        },
+        {
+          "name": "— USER MANAGEMENT —",
+          "item": [
+            {
+              "name": "List All Users",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/users","host":["{{base_url}}"],"path":["api","admin","users"]}}
+            },
+            {
+              "name": "List Users — Teacher Filter",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('All teachers', () => pm.response.json().forEach(u => pm.expect(u.role).to.eql('teacher')));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/users?role=teacher","host":["{{base_url}}"],"path":["api","admin","users"],"query":[{"key":"role","value":"teacher"}]}}
+            },
+            {
+              "name": "Update User",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has id field', () => pm.expect(pm.response.json()).to.have.property('id'));"],"type":"text/javascript"}}],
+              "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"fullname\": \"Teacher One Updated\",\n  \"phone\": \"+977-9800000002\"\n}"},"url":{"raw":"{{base_url}}/api/admin/user/{{teacher_user_id}}","host":["{{base_url}}"],"path":["api","admin","user","{{teacher_user_id}}"]}}
+            },
+            {
+              "name": "Deactivate User",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/user/{{teacher_user_id}}/deactivate","host":["{{base_url}}"],"path":["api","admin","user","{{teacher_user_id}}","deactivate"]}}
+            },
+            {
+              "name": "Reactivate User",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/user/{{teacher_user_id}}/reactivate","host":["{{base_url}}"],"path":["api","admin","user","{{teacher_user_id}}","reactivate"]}}
+            }
+          ]
+        },
+        {
+          "name": "— STUDENT MANAGEMENT —",
+          "item": [
+            {
+              "name": "List Students",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); pm.test('Is array', () => pm.expect(j).to.be.an('array'));","var uid=parseInt(pm.environment.get('student_user_id'),10); var m=j.find(s=>parseInt(s.user_id,10)===uid); if(m){pm.environment.set('student_id',m.student_id);}"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/student/list","host":["{{base_url}}"],"path":["api","student","list"]}}
+            },
+            {
+              "name": "Get Single Student",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has enrollments', () => pm.expect(pm.response.json()).to.have.property('enrollments'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/student/{{student_id}}","host":["{{base_url}}"],"path":["api","student","{{student_id}}"]}}
+            },
+            {
+              "name": "Update Student",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"fullname\": \"Student One Updated\",\n  \"program\": \"BIT\",\n  \"year_of_study\": 2\n}"},"url":{"raw":"{{base_url}}/api/student/{{student_id}}","host":["{{base_url}}"],"path":["api","student","{{student_id}}"]}}
+            },
+            {
+              "name": "Enroll Student in Class",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 201', () => pm.response.to.have.status(201));"],"type":"text/javascript"}}],
+              "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"class_id\": {{class_id}}\n}"},"url":{"raw":"{{base_url}}/api/student/enrol/{{student_id}}","host":["{{base_url}}"],"path":["api","student","enrol","{{student_id}}"]}}
+            },
+            {
+              "name": "Unenroll Student from Class",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"DELETE","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"student_id\": {{student_id}},\n  \"class_id\": {{class_id}}\n}"},"url":{"raw":"{{base_url}}/api/student/unenrol","host":["{{base_url}}"],"path":["api","student","unenrol"]}}
+            },
+            {
+              "name": "Student Full Detail",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has classes array', () => pm.expect(pm.response.json()).to.have.property('classes'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/students/{{student_id}}/detail","host":["{{base_url}}"],"path":["api","admin","students","{{student_id}}","detail"]}}
+            },
+            {
+              "name": "Manual Attendance Override",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"student_id\": {{student_id}},\n  \"session_id\": \"{{session_id}}\",\n  \"status\": \"Present\"\n}"},"url":{"raw":"{{base_url}}/api/attendance/manual-override","host":["{{base_url}}"],"path":["api","attendance","manual-override"]}}
+            }
+          ]
+        },
+        {
+          "name": "— DASHBOARD —",
+          "item": [
+            {
+              "name": "Dashboard Stats",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); pm.test('Has all stat fields', () => { pm.expect(j).to.have.property('total_students'); pm.expect(j).to.have.property('present_today'); pm.expect(j).to.have.property('absent_today'); pm.expect(j).to.have.property('attendance_rate'); });"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/stats","host":["{{base_url}}"],"path":["api","admin","stats"]}}
+            },
+            {
+              "name": "Recent Sessions",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/recent-sessions","host":["{{base_url}}"],"path":["api","admin","recent-sessions"]}}
+            },
+            {
+              "name": "At-Risk Students",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has students array', () => pm.expect(pm.response.json()).to.have.property('students'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/dashboard/at-risk-students?limit=10","host":["{{base_url}}"],"path":["api","admin","dashboard","at-risk-students"],"query":[{"key":"limit","value":"10"}]}}
+            }
+          ]
+        },
+        {
+          "name": "— SESSION MANAGEMENT —",
+          "item": [
+            {
+              "name": "Delete Session (Admin)",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/session/{{session_id}}","host":["{{base_url}}"],"path":["api","admin","session","{{session_id}}"]}}
+            }
+          ]
+        },
+        {
+          "name": "— NOTIFICATIONS (Admin) —",
+          "item": [
+            {
+              "name": "Admin Notifications",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/notifications","host":["{{base_url}}"],"path":["api","admin","notifications"]}}
+            },
+            {
+              "name": "Send Notification — All Students",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has recipients', () => pm.expect(pm.response.json()).to.have.property('recipients'));"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"title\": \"Reminder\",\n  \"message\": \"Please attend classes regularly.\",\n  \"target_type\": \"all_students\"\n}"},"url":{"raw":"{{base_url}}/api/admin/send-notification","host":["{{base_url}}"],"path":["api","admin","send-notification"]}}
+            },
+            {
+              "name": "Send Notification — Specific Student",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"title\": \"Personal Reminder\",\n  \"message\": \"Your attendance is low.\",\n  \"target_type\": \"specific_student\",\n  \"target_id\": {{student_id}}\n}"},"url":{"raw":"{{base_url}}/api/admin/send-notification","host":["{{base_url}}"],"path":["api","admin","send-notification"]}}
+            }
+          ]
+        },
+        {
+          "name": "— BATCHES —",
+          "item": [
+            {
+              "name": "Create Batch",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 201', () => pm.response.to.have.status(201));","var j=pm.response.json(); if(j.batch_id){pm.environment.set('batch_id',j.batch_id);}"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"batch_name\": \"BCA Year 1\",\n  \"description\": \"First year BCA students\"\n}"},"url":{"raw":"{{base_url}}/api/admin/batches","host":["{{base_url}}"],"path":["api","admin","batches"]}}
+            },
+            {
+              "name": "List Batches",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/batches","host":["{{base_url}}"],"path":["api","admin","batches"]}}
+            },
+            {
+              "name": "Batch Summary (Analytics)",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/batches/summary","host":["{{base_url}}"],"path":["api","admin","batches","summary"]}}
+            },
+            {
+              "name": "Get Single Batch",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/batches/{{batch_id}}","host":["{{base_url}}"],"path":["api","admin","batches","{{batch_id}}"]}}
+            },
+            {
+              "name": "Update Batch",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"batch_name\": \"BCA Year 1 Updated\",\n  \"description\": \"Updated description\"\n}"},"url":{"raw":"{{base_url}}/api/admin/batches/{{batch_id}}","host":["{{base_url}}"],"path":["api","admin","batches","{{batch_id}}"]}}
+            },
+            {
+              "name": "Add Students to Batch",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"student_ids\": [{{student_id}}]\n}"},"url":{"raw":"{{base_url}}/api/admin/batches/{{batch_id}}/students","host":["{{base_url}}"],"path":["api","admin","batches","{{batch_id}}","students"]}}
+            },
+            {
+              "name": "Batch Classes Summary",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/batches/{{batch_id}}/classes/summary","host":["{{base_url}}"],"path":["api","admin","batches","{{batch_id}}","classes","summary"]}}
+            },
+            {
+              "name": "Enroll Batch into Class",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"batch_id\": {{batch_id}}\n}"},"url":{"raw":"{{base_url}}/api/admin/classes/{{class_id}}/enroll-batch","host":["{{base_url}}"],"path":["api","admin","classes","{{class_id}}","enroll-batch"]}}
+            },
+            {
+              "name": "Remove Student from Batch",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/batches/{{batch_id}}/students/{{student_id}}","host":["{{base_url}}"],"path":["api","admin","batches","{{batch_id}}","students","{{student_id}}"]}}
+            },
+            {
+              "name": "Delete Batch",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/admin/batches/{{batch_id}}","host":["{{base_url}}"],"path":["api","admin","batches","{{batch_id}}"]}}
+            }
+          ]
+        },
+        {
+          "name": "— EXPORT REPORTS —",
+          "item": [
+            {
+              "name": "Export Full Report (CSV)",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is CSV', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv'));"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"report_type\": \"full\",\n  \"format\": \"csv\",\n  \"period\": \"This Month\"\n}"},"url":{"raw":"{{base_url}}/api/admin/export-report","host":["{{base_url}}"],"path":["api","admin","export-report"]}}
+            },
+            {
+              "name": "Export At-Risk Report (Excel)",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"report_type\": \"atrisk\",\n  \"format\": \"excel\",\n  \"period\": \"This Month\"\n}"},"url":{"raw":"{{base_url}}/api/admin/export-report","host":["{{base_url}}"],"path":["api","admin","export-report"]}}
+            },
+            {
+              "name": "Export Class Roster (CSV)",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"report_type\": \"class_roster\",\n  \"format\": \"csv\",\n  \"class_id\": {{class_id}},\n  \"risk\": \"all\"\n}"},"url":{"raw":"{{base_url}}/api/admin/export-report","host":["{{base_url}}"],"path":["api","admin","export-report"]}}
+            },
+            {
+              "name": "Export Student Report (PDF)",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"report_type\": \"student\",\n  \"format\": \"pdf\",\n  \"student_id\": {{student_id}}\n}"},"url":{"raw":"{{base_url}}/api/admin/export-report","host":["{{base_url}}"],"path":["api","admin","export-report"]}}
+            },
+            {
+              "name": "Export Waiver Report (CSV)",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+              "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"report_type\": \"waiver\",\n  \"format\": \"csv\",\n  \"period\": \"This Month\"\n}"},"url":{"raw":"{{base_url}}/api/admin/export-report","host":["{{base_url}}"],"path":["api","admin","export-report"]}}
+            }
+          ]
+        },
+        {
+          "name": "— WAIVERS (Admin) —",
+          "item": [
+            {
+              "name": "Pending Waivers",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/excuse/pending","host":["{{base_url}}"],"path":["api","excuse","pending"]}}
+            },
+            {
+              "name": "Approve Waiver  ⚠ RUN AFTER Student folder",
+              "event": [
+                {"listen":"prerequest","script":{"exec":["var wid=pm.environment.get('waiver_request_id'); if(!wid){console.warn('waiver_request_id not set — run Student > Submit Waiver first.');}"],"type":"text/javascript"}},
+                {"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Decision Approved', () => pm.expect(pm.response.json().decision).to.eql('Approved'));"],"type":"text/javascript"}}
+              ],
+              "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{admin_token}}"}],"body":{"mode":"raw","raw":"{\n  \"decision\": \"Approved\"\n}"},"url":{"raw":"{{base_url}}/api/excuse/decide/{{waiver_request_id}}","host":["{{base_url}}"],"path":["api","excuse","decide","{{waiver_request_id}}"]}}
+            },
+            {
+              "name": "Waiver History by Student",
+              "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+              "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{admin_token}}"}],"url":{"raw":"{{base_url}}/api/excuse/history/{{student_id}}","host":["{{base_url}}"],"path":["api","excuse","history","{{student_id}}"]}}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Teacher",
+      "description": "Teacher-only endpoints: class listing, session start/end/status, attendance report, attendance analytics.",
+      "item": [
+        {
+          "name": "My Classes",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));","var j=pm.response.json(); pm.test('Has schedule_status', () => { if(j.length>0){pm.expect(j[0]).to.have.property('schedule_status');} });"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"url":{"raw":"{{base_url}}/api/session/classes","host":["{{base_url}}"],"path":["api","session","classes"]}}
+        },
+        {
+          "name": "My Sessions",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"url":{"raw":"{{base_url}}/api/session/my-sessions","host":["{{base_url}}"],"path":["api","session","my-sessions"]}}
+        },
+        {
+          "name": "Sessions by Class",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has sessions array', () => pm.expect(pm.response.json()).to.have.property('sessions'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"url":{"raw":"{{base_url}}/api/session/class/{{class_id}}","host":["{{base_url}}"],"path":["api","session","class","{{class_id}}"]}}
+        },
+        {
+          "name": "Start Session",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); pm.test('Has session_id', () => pm.expect(j).to.have.property('session_id'));","if(j.session_id){pm.environment.set('session_id',j.session_id);} pm.test('Strict threshold is 0.80', () => pm.expect(j.threshold_percent).to.eql(0.80)); pm.test('Enrolled count >= 1', () => pm.expect(j.enrolled_count).to.be.at.least(1));"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"body":{"mode":"raw","raw":"{\n  \"class_id\": {{class_id}},\n  \"mode\": \"Strict\"\n}"},"url":{"raw":"{{base_url}}/api/session/start","host":["{{base_url}}"],"path":["api","session","start"]}}
+        },
+        {
+          "name": "Session Status",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); pm.test('Has status ACTIVE', () => pm.expect(j.status).to.eql('ACTIVE')); pm.test('Has enrolled_students', () => pm.expect(j).to.have.property('enrolled_students'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"url":{"raw":"{{base_url}}/api/session/status/{{session_id}}","host":["{{base_url}}"],"path":["api","session","status","{{session_id}}"]}}
+        },
+        {
+          "name": "End Session",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); pm.test('Has summary', () => pm.expect(j).to.have.property('summary')); pm.test('Summary has total', () => pm.expect(j.summary).to.have.property('total'));"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"body":{"mode":"raw","raw":"{\n  \"session_id\": \"{{session_id}}\"\n}"},"url":{"raw":"{{base_url}}/api/session/end","host":["{{base_url}}"],"path":["api","session","end"]}}
+        },
+        {
+          "name": "Attendance Report (Class)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); pm.test('Has total_sessions', () => pm.expect(j).to.have.property('total_sessions')); pm.test('Has students array', () => pm.expect(j).to.have.property('students'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"url":{"raw":"{{base_url}}/api/attendance/report/{{class_id}}","host":["{{base_url}}"],"path":["api","attendance","report","{{class_id}}"]}}
+        },
+        {
+          "name": "Attendance Analytics (All Students)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"url":{"raw":"{{base_url}}/api/attendance/analytics","host":["{{base_url}}"],"path":["api","attendance","analytics"]}}
+        },
+        {
+          "name": "Attendance Analytics (Single Student)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has student_id', () => pm.expect(pm.response.json()).to.have.property('student_id'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"url":{"raw":"{{base_url}}/api/attendance/analytics?student_id={{student_id}}","host":["{{base_url}}"],"path":["api","attendance","analytics"],"query":[{"key":"student_id","value":"{{student_id}}"}]}}
+        },
+        {
+          "name": "Attendance History by Student ID (Teacher View)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{teacher_token}}"}],"url":{"raw":"{{base_url}}/api/attendance/history/{{student_id}}","host":["{{base_url}}"],"path":["api","attendance","history","{{student_id}}"]}}
+        }
+      ]
+    },
+    {
+      "name": "3. Student",
+      "description": "Student-only endpoints: own classes, attendance history, self-log, waivers, notifications.",
+      "item": [
+        {
+          "name": "My Enrolled Classes",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{student_token}}"}],"url":{"raw":"{{base_url}}/api/student/classes","host":["{{base_url}}"],"path":["api","student","classes"]}}
+        },
+        {
+          "name": "My Attendance History",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","var j=pm.response.json(); pm.test('Is array', () => pm.expect(j).to.be.an('array'));","var sid=pm.environment.get('session_id'); var rec=j.find(r=>r.session_id===sid); if(rec){pm.test('Session in history', ()=>pm.expect(rec).to.not.be.undefined); pm.test('Status is Absent', ()=>pm.expect(rec.status).to.eql('Absent'));}"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{student_token}}"}],"url":{"raw":"{{base_url}}/api/attendance/history","host":["{{base_url}}"],"path":["api","attendance","history"]}}
+        },
+        {
+          "name": "My Attendance History by ID",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{student_token}}"}],"url":{"raw":"{{base_url}}/api/attendance/history/{{student_id}}","host":["{{base_url}}"],"path":["api","attendance","history","{{student_id}}"]}}
+        },
+        {
+          "name": "Log Attendance (ENTRY)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 201', () => pm.response.to.have.status(201));"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{student_token}}"}],"body":{"mode":"raw","raw":"{\n  \"session_id\": \"{{session_id}}\",\n  \"event_type\": \"ENTRY\"\n}"},"url":{"raw":"{{base_url}}/api/attendance/log","host":["{{base_url}}"],"path":["api","attendance","log"]}}
+        },
+        {
+          "name": "My Attendance Status",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has status field', () => pm.expect(pm.response.json()).to.have.property('status'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{student_token}}"}],"url":{"raw":"{{base_url}}/api/attendance/status?session_id={{session_id}}","host":["{{base_url}}"],"path":["api","attendance","status"],"query":[{"key":"session_id","value":"{{session_id}}"}]}}
+        },
+        {
+          "name": "Submit Waiver",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 201', () => pm.response.to.have.status(201));","var j=pm.response.json(); pm.test('Has request_id', () => pm.expect(j).to.have.property('request_id'));","if(j.request_id){pm.environment.set('waiver_request_id',j.request_id); console.log('waiver_request_id saved:',j.request_id); console.log('>>> Now run Admin > Waivers > Approve Waiver');}"],"type":"text/javascript"}}],
+          "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{student_token}}"}],"body":{"mode":"raw","raw":"{\n  \"session_id\": \"{{session_id}}\",\n  \"reason\": \"Was sick\"\n}"},"url":{"raw":"{{base_url}}/api/excuse/submit","host":["{{base_url}}"],"path":["api","excuse","submit"]}}
+        },
+        {
+          "name": "My Waivers",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{student_token}}"}],"url":{"raw":"{{base_url}}/api/excuse/my-excuses","host":["{{base_url}}"],"path":["api","excuse","my-excuses"]}}
+        },
+        {
+          "name": "My Notifications",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{student_token}}"}],"url":{"raw":"{{base_url}}/api/student/notifications","host":["{{base_url}}"],"path":["api","student","notifications"]}}
+        },
+        {
+          "name": "All Notifications (any role)",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{student_token}}"}],"url":{"raw":"{{base_url}}/api/notifications/my-notifications","host":["{{base_url}}"],"path":["api","notifications","my-notifications"]}}
+        },
+        {
+          "name": "Unread Notification Count",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has unread_count', () => pm.expect(pm.response.json()).to.have.property('unread_count'));"],"type":"text/javascript"}}],
+          "request": {"method":"GET","header":[{"key":"Authorization","value":"Bearer {{student_token}}"}],"url":{"raw":"{{base_url}}/api/notifications/unread-count","host":["{{base_url}}"],"path":["api","notifications","unread-count"]}}
+        },
+        {
+          "name": "Mark All Notifications Read",
+          "event": [{"listen":"test","script":{"exec":["pm.test('Status 200', () => pm.response.to.have.status(200));","pm.test('Has marked_read', () => pm.expect(pm.response.json()).to.have.property('marked_read'));"],"type":"text/javascript"}}],
+          "request": {"method":"PUT","header":[{"key":"Content-Type","value":"application/json"},{"key":"Authorization","value":"Bearer {{student_token}}"}],"body":{"mode":"raw","raw":"{}"},"url":{"raw":"{{base_url}}/api/notifications/mark-read","host":["{{base_url}}"],"path":["api","notifications","mark-read"]}}
+        }
+      ]
+    }
+  ]
+}

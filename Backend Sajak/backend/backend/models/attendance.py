@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from database import db
+from database import db, utc_iso
 
 
 class AttendanceLog(db.Model):
@@ -31,7 +31,7 @@ class AttendanceLog(db.Model):
             "student_id": self.student_id,
             "session_id": self.session_id,
             "event_type": self.event_type,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": utc_iso(self.timestamp),
             "confidence_score": self.confidence_score,
         }
 
@@ -69,7 +69,5 @@ class AttendanceRecord(db.Model):
             "total_duration_seconds": self.total_duration_seconds,
             "threshold_required": self.threshold_required,
             "status": self.status,
-            "finalized_at": (
-                self.finalized_at.isoformat() if self.finalized_at else None
-            ),
+            "finalized_at": utc_iso(self.finalized_at),
         }

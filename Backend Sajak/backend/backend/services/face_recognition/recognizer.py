@@ -55,6 +55,31 @@ def cosine_distance(vec_a, vec_b):
     return float(1.0 - np.dot(a, b))
 
 
+def compute_confidence(distance: float, threshold: float) -> float:
+    """Convert a cosine distance into a 0–100 display confidence score.
+
+    Pure function — no I/O, no imports, no side effects.  Extracted so it
+    can be unit-tested independently of the full recognition pipeline.
+
+    Formula:
+        confidence = max(0, (1 - distance / threshold) * 100)  rounded to 1 dp
+
+    Examples:
+        distance = 0.0          → 100.0  (perfect match)
+        distance = threshold    → 0.0    (right at the boundary)
+        distance > threshold    → 0.0    (unknown face — never negative)
+        distance = threshold/2  → 50.0   (halfway)
+
+    Args:
+        distance:  cosine distance in [0, 2]
+        threshold: per-student recognition threshold (e.g. 0.40)
+
+    Returns:
+        float in [0.0, 100.0]
+    """
+    return round(max(0.0, (1.0 - (distance / threshold)) * 100), 1)
+
+
 def load_all_embeddings():
     """
     Loads ALL student data into memory.
@@ -252,9 +277,7 @@ def recognize_face(frame_bgr, embeddings_dict):
         # distance=threshold    → confidence=0%
         # This makes the score mean the same thing for every student
         # regardless of how tight or loose their threshold is.
-        display_confidence = round(
-            max(0.0, (1.0 - (best_distance / best_threshold)) * 100), 1
-        )
+        display_confidence = compute_confidence(best_distance, best_threshold)
 
         # Step 6: Apply per-student threshold — only collect recognized hits
         if best_distance <= best_threshold:

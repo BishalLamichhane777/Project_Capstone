@@ -5,8 +5,9 @@ import datetime as dt
 from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
+from sqlalchemy import func, case, or_
 
-from database import db
+from database import db, utc_iso
 from models.attendance import AttendanceLog, AttendanceRecord
 from models.class_model import Class, Enrollment
 from models.notification import Notification
@@ -128,6 +129,7 @@ def create_class():
     auto_enrolled = 0
     if batch_id:
         from models.batch import Batch, BatchStudent
+        from models.batch_class_link import BatchClassLink
         batch = Batch.query.get(batch_id)
         if batch:
             for bs in batch.batch_students:
@@ -139,6 +141,18 @@ def create_class():
                         student_id=bs.student_id, class_id=cls.class_id
                     ))
                     auto_enrolled += 1
+
+            # Persist the permanent batch↔class link so:
+            # (a) future batch membership changes auto-sync to this class, and
+            # (b) batch analytics endpoints (which count classes via BatchClassLink)
+            #     correctly include this class.
+            # Mirrors the exact logic in enroll_batch_into_class (routes/batch.py).
+            existing_link = BatchClassLink.query.filter_by(
+                batch_id=batch_id, class_id=cls.class_id
+            ).first()
+            if not existing_link:
+                db.session.add(BatchClassLink(batch_id=batch_id, class_id=cls.class_id))
+
             db.session.commit()
 
     return jsonify({
@@ -384,7 +398,13 @@ def list_users():
 @admin_bp.route("/user/<int:user_id>", methods=["PUT"])
 @require_role("admin")
 def update_user(user_id):
-    """Update user fields (not password, not role)."""
+    """Update user fields — fullname, email, phone, password, device_token.
+
+    Returns the full updated user object so the frontend can update its
+    local state without a separate fetch.
+    """
+    import bcrypt as _bcrypt
+
     user = User.query.get(user_id)
     if not user:
         return jsonify({"error": "User not found", "status": 404}), 404
@@ -394,15 +414,87 @@ def update_user(user_id):
         return jsonify({"error": "Request body is required", "status": 400}), 400
 
     if "fullname" in data:
-        user.fullname = data["fullname"].strip()
+        fullname = (data["fullname"] or "").strip()
+        if not fullname:
+            return jsonify({"error": "fullname cannot be empty", "status": 400}), 400
+        user.fullname = fullname
+
+    if "email" in data:
+        new_email = (data["email"] or "").strip().lower()
+        if not new_email:
+            return jsonify({"error": "email cannot be empty", "status": 400}), 400
+        # Uniqueness check — ignore this user's own current email
+        existing = User.query.filter(User.email == new_email, User.id != user_id).first()
+        if existing:
+            return jsonify({"error": "Email already in use", "status": 409}), 409
+        user.email = new_email
+
     if "phone" in data:
         user.phone = data["phone"].strip() if data["phone"] else None
+
+    if "password" in data:
+        new_password = data["password"]
+        if not new_password or len(str(new_password)) < 6:
+            return jsonify({"error": "Password must be at least 6 characters", "status": 400}), 400
+        salt = _bcrypt.gensalt()
+        user.password_hash = _bcrypt.hashpw(
+            str(new_password).encode("utf-8"), salt
+        ).decode("utf-8")
+
     if "device_token" in data:
         user.device_token = data["device_token"].strip() if data["device_token"] else None
 
     db.session.commit()
+    logger.info("Admin updated user_id=%s", user_id)
+    return jsonify(user.to_dict()), 200
 
-    return jsonify({"message": "User updated"}), 200
+
+@admin_bp.route("/user/<int:user_id>/deactivate", methods=["PUT"])
+@require_role("admin")
+def deactivate_user(user_id):
+    """Soft-delete a user by setting is_active = False.
+
+    Does NOT delete any rows — classes, sessions, attendance records, and
+    notifications are fully preserved. The user simply cannot log in.
+    """
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found", "status": 404}), 404
+
+    if not user.is_active:
+        return jsonify({"error": "User is already deactivated", "status": 409}), 409
+
+    # Prevent an admin from accidentally deactivating themselves
+    if g.current_user["user_id"] == user_id:
+        return jsonify({"error": "You cannot deactivate your own account", "status": 400}), 400
+
+    user.is_active = False
+    db.session.commit()
+    logger.info("Admin deactivated user_id=%s role=%s", user_id, user.role)
+    return jsonify({
+        "message": f"User '{user.fullname}' has been deactivated.",
+        "user": user.to_dict(),
+    }), 200
+
+
+@admin_bp.route("/user/<int:user_id>/reactivate", methods=["PUT"])
+@require_role("admin")
+def reactivate_user(user_id):
+    """Re-enable a previously deactivated user (sets is_active = True)."""
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found", "status": 404}), 404
+
+    if user.is_active:
+        return jsonify({"error": "User is already active", "status": 409}), 409
+
+    user.is_active = True
+    db.session.commit()
+    logger.info("Admin reactivated user_id=%s role=%s", user_id, user.role)
+    return jsonify({
+        "message": f"User '{user.fullname}' has been reactivated.",
+        "user": user.to_dict(),
+    }), 200
 
 
 # ── Send Notification ────────────────────────────────────────────────────
@@ -499,6 +591,7 @@ def send_notification():
 
     # ── Persist Notification rows ─────────────────────────────────────
     notif_type = "General"   # stored in the type column
+
     for user in recipient_users:
         db.session.add(Notification(
             user_id=user.id,
@@ -510,7 +603,6 @@ def send_notification():
     admin_user_id = g.current_user["user_id"]
     admin_ids_in_recipients = {u.id for u in recipient_users}
     if admin_user_id not in admin_ids_in_recipients:
-        # Build a human-readable summary for the admin's own record
         target_label = {
             "all_students":     "All Students",
             "all_teachers":     "All Teachers",
@@ -586,41 +678,42 @@ def admin_notifications():
 def get_stats():
     """Return overall attendance stats for the dashboard."""
     from datetime import datetime, time
-    
+
     total_students = User.query.filter_by(role='student').count()
-    
+
     today_start = datetime.combine(datetime.today(), time.min)
-    today_end = datetime.combine(datetime.today(), time.max)
-    
+    today_end   = datetime.combine(datetime.today(), time.max)
+
     sessions_today = Session.query.filter(
-        Session.start_time >= today_start, 
+        Session.start_time >= today_start,
         Session.start_time <= today_end
     ).count()
-    
+
+    # Status values are title-cased in the model: 'Present' / 'Absent' / 'Pending'
     present_today = db.session.query(AttendanceRecord).join(Session).filter(
-        Session.start_time >= today_start, 
+        Session.start_time >= today_start,
         Session.start_time <= today_end,
-        AttendanceRecord.status == 'present'
+        AttendanceRecord.status == 'Present'
     ).count()
-    
+
     absent_today = db.session.query(AttendanceRecord).join(Session).filter(
-        Session.start_time >= today_start, 
+        Session.start_time >= today_start,
         Session.start_time <= today_end,
-        AttendanceRecord.status == 'absent'
+        AttendanceRecord.status == 'Absent'
     ).count()
-    
-    waivers_pending = WaiverRequest.query.filter_by(status='pending').count()
-    
+
+    waivers_pending = WaiverRequest.query.filter_by(status='Pending').count()
+
     total_today = present_today + absent_today
-    attendance_rate = round((present_today / total_today * 100), 1) if total_today > 0 else 100
+    attendance_rate = round((present_today / total_today * 100), 1) if total_today > 0 else 0
 
     return jsonify({
-        "total_students": total_students,
-        "sessions_today": sessions_today,
-        "present_today": present_today,
-        "absent_today": absent_today,
+        "total_students":  total_students,
+        "sessions_today":  sessions_today,
+        "present_today":   present_today,
+        "absent_today":    absent_today,
         "waivers_pending": waivers_pending,
-        "attendance_rate": attendance_rate
+        "attendance_rate": attendance_rate,
     }), 200
 
 
@@ -638,7 +731,7 @@ def get_recent_sessions():
             "session_id": s.session_id,
             "class_name": cls.class_name if cls else "Unknown",
             "subject": cls.subject if cls else "Unknown",
-            "start_time": s.start_time.isoformat() if s.start_time else None,
+            "start_time": utc_iso(s.start_time),
             "status": s.status,
             "present_count": present,
             "absent_count": absent
@@ -938,3 +1031,536 @@ def enroll_face():
         }),
         201,
     )
+
+
+# ── Class Student Roster ─────────────────────────────────────────────────
+
+
+@admin_bp.route("/classes/<int:class_id>/students", methods=["GET"])
+@require_role("admin")
+def class_student_roster(class_id):
+    """Return enrolled students for a class with per-student attendance stats.
+
+    Query params:
+      search     — partial match on fullname or roll_number (case-insensitive)
+      risk       — 'all' (default) | 'at_risk' (< 75%) | 'good' (>= 75%)
+      sort       — 'attendance_asc' (default) | 'attendance_desc' | 'name_asc'
+      page       — 1-based page number (default 1)
+      page_size  — results per page (default 25)
+
+    Response:
+      {
+        "class_id":    int,
+        "class_name":  str,
+        "subject":     str,
+        "session_count": int,
+        "total_count": int,          # total matching students before pagination
+        "page":        int,
+        "page_size":   int,
+        "students": [ { student_id, fullname, roll_number,
+                        session_count, present_count, absent_count,
+                        attendance_percent, is_at_risk }, ... ]
+      }
+    """
+    # Reuse the same threshold defined in routes/batch.py to stay consistent
+    from routes.batch import AT_RISK_THRESHOLD
+
+    # ── 1. Validate class ────────────────────────────────────────────
+    cls = Class.query.get(class_id)
+    if not cls:
+        return jsonify({"error": f"Class {class_id} not found", "status": 404}), 404
+
+    # ── 2. Parse query params ────────────────────────────────────────
+    search    = (request.args.get("search", "") or "").strip().lower()
+    risk      = (request.args.get("risk",   "all") or "all").strip().lower()
+    sort      = (request.args.get("sort",   "attendance_asc") or "attendance_asc").strip().lower()
+
+    try:
+        page      = max(1, int(request.args.get("page", 1)))
+        page_size = max(1, min(100, int(request.args.get("page_size", 25))))
+    except (ValueError, TypeError):
+        return jsonify({"error": "page and page_size must be integers", "status": 400}), 400
+
+    valid_risk = {"all", "at_risk", "good"}
+    valid_sort = {"attendance_asc", "attendance_desc", "name_asc"}
+    if risk not in valid_risk:
+        return jsonify({"error": f"risk must be one of: {', '.join(sorted(valid_risk))}", "status": 400}), 400
+    if sort not in valid_sort:
+        return jsonify({"error": f"sort must be one of: {', '.join(sorted(valid_sort))}", "status": 400}), 400
+
+    # ── 3. Session count for this class (same for every student) ─────
+    session_count = db.session.query(
+        func.count(Session.session_id)
+    ).filter(Session.class_id == class_id).scalar() or 0
+
+    # ── 4. Per-student attendance aggregation subquery ───────────────
+    # sessions for this class → used to scope AttendanceRecord joins
+    class_session_ids = db.session.query(Session.session_id).filter(
+        Session.class_id == class_id
+    ).subquery()
+
+    # One row per student: present and absent counts from AttendanceRecord
+    agg = (
+        db.session.query(
+            AttendanceRecord.student_id,
+            func.sum(
+                case((AttendanceRecord.status == "Present", 1), else_=0)
+            ).label("present_count"),
+            func.sum(
+                case((AttendanceRecord.status == "Absent", 1), else_=0)
+            ).label("absent_count"),
+            func.count(AttendanceRecord.record_id).label("record_count"),
+        )
+        .filter(AttendanceRecord.session_id.in_(class_session_ids))
+        .group_by(AttendanceRecord.student_id)
+        .subquery()
+    )
+
+    # ── 5. Main query: Enrollment → Student → User → agg (left join) ─
+    query = (
+        db.session.query(
+            Student.student_id,
+            User.fullname,
+            Student.roll_number,
+            func.coalesce(agg.c.present_count, 0).label("present_count"),
+            func.coalesce(agg.c.absent_count,  0).label("absent_count"),
+            func.coalesce(agg.c.record_count,  0).label("record_count"),
+        )
+        .join(Enrollment, Enrollment.student_id == Student.student_id)
+        .join(User,       User.id == Student.user_id)
+        .outerjoin(agg,   agg.c.student_id == Student.student_id)
+        .filter(Enrollment.class_id == class_id)
+    )
+
+    # ── 6. Search filter (SQL LIKE, case-insensitive via lower()) ────
+    if search:
+        query = query.filter(
+            or_(
+                func.lower(User.fullname).contains(search),
+                func.lower(Student.roll_number).contains(search),
+            )
+        )
+
+    # ── 7. Fetch all matching rows (needed for risk filter + total) ──
+    # We compute attendance_percent in Python because SQLite doesn't support
+    # CASE … / … in a way that plays nicely with the coalesce subquery alias
+    # ordering — all rows fit easily in memory for a class roster.
+    all_rows = query.all()
+
+    # ── 8. Compute derived fields and apply risk filter ───────────────
+    students_data = []
+    for row in all_rows:
+        rec_count = row.record_count or 0
+        pres      = row.present_count or 0
+        abs_      = row.absent_count  or 0
+
+        if rec_count > 0:
+            att_pct = round(pres / rec_count * 100.0, 1)
+        else:
+            # No records yet → treat as 0 % if sessions exist, else null
+            att_pct = 0.0 if session_count > 0 else None
+
+        is_at_risk = (att_pct is not None) and (att_pct < AT_RISK_THRESHOLD)
+
+        # Risk filter
+        if risk == "at_risk" and not is_at_risk:
+            continue
+        if risk == "good" and is_at_risk:
+            continue
+
+        students_data.append({
+            "student_id":         row.student_id,
+            "fullname":           row.fullname,
+            "roll_number":        row.roll_number,
+            "session_count":      session_count,
+            "present_count":      pres,
+            "absent_count":       abs_,
+            "attendance_percent": att_pct,
+            "is_at_risk":         is_at_risk,
+        })
+
+    # ── 9. Sort ───────────────────────────────────────────────────────
+    if sort == "attendance_asc":
+        # None sorts last (students with no sessions go to the bottom)
+        students_data.sort(key=lambda s: (
+            s["attendance_percent"] is None,
+            s["attendance_percent"] if s["attendance_percent"] is not None else 0,
+        ))
+    elif sort == "attendance_desc":
+        students_data.sort(key=lambda s: (
+            s["attendance_percent"] is None,
+            -(s["attendance_percent"] if s["attendance_percent"] is not None else 0),
+        ))
+    elif sort == "name_asc":
+        students_data.sort(key=lambda s: s["fullname"].lower())
+
+    # ── 10. Pagination ────────────────────────────────────────────────
+    total_count  = len(students_data)
+    offset       = (page - 1) * page_size
+    page_results = students_data[offset: offset + page_size]
+
+    logger.info(
+        "class_student_roster: class_id=%s search=%r risk=%s sort=%s "
+        "total=%d page=%d/%d",
+        class_id, search, risk, sort,
+        total_count, page, (total_count + page_size - 1) // page_size if page_size else 1,
+    )
+
+    return jsonify({
+        "class_id":      class_id,
+        "class_name":    cls.class_name,
+        "subject":       cls.subject,
+        "session_count": session_count,
+        "total_count":   total_count,
+        "page":          page,
+        "page_size":     page_size,
+        "at_risk_threshold_percent": AT_RISK_THRESHOLD,
+        "students":      page_results,
+    }), 200
+
+
+# ── Student Detail ────────────────────────────────────────────────────────────
+
+
+@admin_bp.route("/students/<int:student_id>/detail", methods=["GET"])
+@require_role("admin")
+def student_detail(student_id):
+    """Return full attendance detail for a single student.
+
+    Response shape:
+      {
+        student_id, fullname, roll_number, program, year_of_study,
+        overall_attendance_percent,   # null if no sessions yet
+        total_sessions, total_present, total_absent,
+        classes: [
+          { class_id, class_name, subject,
+            session_count, present_count, absent_count,
+            attendance_percent }   # null if no sessions for that class
+        ],
+        recent_sessions: [           # most recent 10 across all classes
+          { session_id, class_name, date, status, waived }
+        ]
+      }
+    """
+    # ── 1. Validate student ──────────────────────────────────────────
+    student = Student.query.get(student_id)
+    if not student:
+        return jsonify({"error": f"Student {student_id} not found", "status": 404}), 404
+
+    user = student.user
+
+    # ── 2. All classes this student is enrolled in ───────────────────
+    enrollments = Enrollment.query.filter_by(student_id=student_id).all()
+    enrolled_class_ids = [e.class_id for e in enrollments]
+
+    # ── 3. Aggregate attendance per class in one SQL query ────────────
+    # Sessions scoped to enrolled classes
+    class_session_ids_subq = (
+        db.session.query(Session.session_id, Session.class_id)
+        .filter(Session.class_id.in_(enrolled_class_ids))
+        .subquery()
+    ) if enrolled_class_ids else None
+
+    per_class_agg = {}
+    if enrolled_class_ids and class_session_ids_subq is not None:
+        rows = (
+            db.session.query(
+                class_session_ids_subq.c.class_id,
+                func.count(AttendanceRecord.record_id).label("total"),
+                func.sum(
+                    case((AttendanceRecord.status == "Present", 1), else_=0)
+                ).label("present"),
+                func.sum(
+                    case((AttendanceRecord.status == "Absent", 1), else_=0)
+                ).label("absent"),
+            )
+            .join(
+                AttendanceRecord,
+                AttendanceRecord.session_id == class_session_ids_subq.c.session_id,
+            )
+            .filter(AttendanceRecord.student_id == student_id)
+            .group_by(class_session_ids_subq.c.class_id)
+            .all()
+        )
+        for row in rows:
+            per_class_agg[row.class_id] = {
+                "total":   row.total,
+                "present": row.present,
+                "absent":  row.absent,
+            }
+
+    # Session counts per class (not just sessions the student attended)
+    session_count_by_class = {}
+    if enrolled_class_ids:
+        sc_rows = (
+            db.session.query(
+                Session.class_id,
+                func.count(Session.session_id).label("cnt"),
+            )
+            .filter(Session.class_id.in_(enrolled_class_ids))
+            .group_by(Session.class_id)
+            .all()
+        )
+        session_count_by_class = {r.class_id: r.cnt for r in sc_rows}
+
+    # ── 4. Build per-class list ───────────────────────────────────────
+    classes_by_id = {
+        c.class_id: c
+        for c in Class.query.filter(Class.class_id.in_(enrolled_class_ids)).all()
+    } if enrolled_class_ids else {}
+
+    classes_list = []
+    for class_id in enrolled_class_ids:
+        cls = classes_by_id.get(class_id)
+        if not cls:
+            continue
+        agg        = per_class_agg.get(class_id, {})
+        sess_count = session_count_by_class.get(class_id, 0)
+        present    = agg.get("present", 0)
+        absent     = agg.get("absent",  0)
+        total_rec  = agg.get("total",   0)
+
+        att_pct = round(present / total_rec * 100.0, 1) if total_rec > 0 else (
+            0.0 if sess_count > 0 else None
+        )
+
+        classes_list.append({
+            "class_id":           class_id,
+            "class_name":         cls.class_name,
+            "subject":            cls.subject,
+            "session_count":      sess_count,
+            "present_count":      present,
+            "absent_count":       absent,
+            "attendance_percent": att_pct,
+        })
+
+    classes_list.sort(key=lambda c: c["class_name"].lower())
+
+    # ── 5. Overall totals ─────────────────────────────────────────────
+    total_present = sum(c["present_count"] for c in classes_list)
+    total_absent  = sum(c["absent_count"]  for c in classes_list)
+    total_records = total_present + total_absent
+    total_sessions = sum(c["session_count"] for c in classes_list)
+
+    overall_pct = round(total_present / total_records * 100.0, 1) if total_records > 0 else (
+        0.0 if total_sessions > 0 else None
+    )
+
+    # ── 6. Recent sessions (last 10 across all enrolled classes) ─────
+    recent_records = []
+    if enrolled_class_ids:
+        recent_records = (
+            db.session.query(
+                AttendanceRecord.session_id,
+                AttendanceRecord.status,
+                Session.start_time,
+                Session.class_id,
+            )
+            .join(Session, Session.session_id == AttendanceRecord.session_id)
+            .filter(
+                AttendanceRecord.student_id == student_id,
+                Session.class_id.in_(enrolled_class_ids),
+            )
+            .order_by(Session.start_time.desc())
+            .limit(10)
+            .all()
+        )
+
+    # Build a set of session_ids where an approved waiver exists for this student
+    waived_session_ids = set()
+    if recent_records:
+        rec_session_ids = [r.session_id for r in recent_records]
+        waiver_rows = (
+            db.session.query(WaiverRequest.session_id)
+            .filter(
+                WaiverRequest.student_id == student_id,
+                WaiverRequest.session_id.in_(rec_session_ids),
+                WaiverRequest.status == "Approved",
+            )
+            .all()
+        )
+        waived_session_ids = {w.session_id for w in waiver_rows}
+
+    recent_sessions = []
+    for rec in recent_records:
+        cls = classes_by_id.get(rec.class_id)
+        recent_sessions.append({
+            "session_id": rec.session_id,
+            "class_name": cls.class_name if cls else "Unknown",
+            "date":       utc_iso(rec.start_time),
+            "status":     rec.status,
+            "waived":     rec.session_id in waived_session_ids,
+        })
+
+    logger.info("student_detail: student_id=%s classes=%d", student_id, len(classes_list))
+
+    return jsonify({
+        "student_id":                  student_id,
+        "fullname":                    user.fullname if user else "",
+        "roll_number":                 student.roll_number,
+        "program":                     student.program,
+        "year_of_study":               student.year_of_study,
+        "overall_attendance_percent":  overall_pct,
+        "total_sessions":              total_sessions,
+        "total_present":               total_present,
+        "total_absent":                total_absent,
+        "classes":                     classes_list,
+        "recent_sessions":             recent_sessions,
+    }), 200
+
+# ── Dashboard At-Risk Students ────────────────────────────────────────────────
+
+
+@admin_bp.route("/dashboard/at-risk-students", methods=["GET"])
+@require_role("admin")
+def dashboard_at_risk_students():
+    """Return the top at-risk students across ALL classes for the dashboard.
+
+    A student is at-risk if their attendance in any enrolled class is below
+    AT_RISK_THRESHOLD (75%).  For students enrolled in multiple classes we
+    surface the class where attendance is lowest (worst-case exposure).
+
+    Query params:
+      limit  — max number of results to return (default 8, max 20)
+
+    Response shape:
+      {
+        "at_risk_threshold_percent": 75.0,
+        "students": [
+          {
+            "student_id": 1,
+            "fullname": "...",
+            "roll_number": "...",
+            "attendance_percent": 54.3,   // their lowest across all classes
+            "class_name": "...",          // the class where that low % was recorded
+            "class_id": 5
+          },
+          ...
+        ]
+      }
+    """
+    from routes.batch import AT_RISK_THRESHOLD
+
+    try:
+        limit = min(int(request.args.get("limit", 8)), 20)
+    except (ValueError, TypeError):
+        limit = 8
+
+    # ── Single SQL query: per (student, class) attendance aggregation ─────────
+    # For each (student_id, class_id) pair, compute:
+    #   session_count  = number of sessions held for that class
+    #   present_count  = AttendanceRecord rows with status='Present' for that student
+    #
+    # We use a subquery for session counts per class (independent of student),
+    # then left-join attendance records to get per-student counts.
+
+    # Subquery: session count per class
+    session_counts_sq = (
+        db.session.query(
+            Session.class_id.label("class_id"),
+            func.count(Session.session_id).label("session_count"),
+        )
+        .group_by(Session.class_id)
+        .subquery()
+    )
+
+    # Subquery: present record count per (student, session)
+    present_counts_sq = (
+        db.session.query(
+            AttendanceRecord.student_id.label("student_id"),
+            Session.class_id.label("class_id"),
+            func.count(AttendanceRecord.record_id).label("present_count"),
+        )
+        .join(Session, Session.session_id == AttendanceRecord.session_id)
+        .filter(AttendanceRecord.status == "Present")
+        .group_by(AttendanceRecord.student_id, Session.class_id)
+        .subquery()
+    )
+
+    # Main query: join Enrollment → session_counts → present_counts → Student → User → Class
+    rows = (
+        db.session.query(
+            Enrollment.student_id,
+            Enrollment.class_id,
+            session_counts_sq.c.session_count,
+            func.coalesce(present_counts_sq.c.present_count, 0).label("present_count"),
+        )
+        .join(
+            session_counts_sq,
+            session_counts_sq.c.class_id == Enrollment.class_id,
+        )
+        .outerjoin(
+            present_counts_sq,
+            (present_counts_sq.c.student_id == Enrollment.student_id)
+            & (present_counts_sq.c.class_id == Enrollment.class_id),
+        )
+        .filter(session_counts_sq.c.session_count > 0)  # skip classes with no sessions
+        .all()
+    )
+
+    # ── Compute attendance % per (student, class), keep only at-risk ─────────
+    # For each student, keep only their worst (lowest) class
+    worst_by_student: dict[int, dict] = {}
+    for row in rows:
+        pct = round(row.present_count / row.session_count * 100.0, 1)
+        if pct >= AT_RISK_THRESHOLD:
+            continue  # not at risk in this class
+
+        existing = worst_by_student.get(row.student_id)
+        if existing is None or pct < existing["attendance_percent"]:
+            worst_by_student[row.student_id] = {
+                "student_id":         row.student_id,
+                "class_id":           row.class_id,
+                "attendance_percent": pct,
+            }
+
+    if not worst_by_student:
+        return jsonify({
+            "at_risk_threshold_percent": AT_RISK_THRESHOLD,
+            "students": [],
+        }), 200
+
+    # ── Enrich with student name, roll number, class name ─────────────────────
+    student_ids = list(worst_by_student.keys())
+    class_ids   = list({v["class_id"] for v in worst_by_student.values()})
+
+    students_map = {
+        s.student_id: s
+        for s in Student.query.filter(Student.student_id.in_(student_ids)).all()
+    }
+    users_map = {}
+    for s in students_map.values():
+        if s.user_id:
+            users_map[s.student_id] = User.query.get(s.user_id)
+
+    classes_map = {
+        c.class_id: c
+        for c in Class.query.filter(Class.class_id.in_(class_ids)).all()
+    }
+
+    # Build result list, sort by lowest attendance first, take top `limit`
+    results = []
+    for student_id, entry in worst_by_student.items():
+        student = students_map.get(student_id)
+        user    = users_map.get(student_id)
+        cls     = classes_map.get(entry["class_id"])
+        if not student or not user or not cls:
+            continue
+        results.append({
+            "student_id":         student_id,
+            "fullname":           user.fullname,
+            "roll_number":        student.roll_number,
+            "attendance_percent": entry["attendance_percent"],
+            "class_name":         cls.class_name,
+            "class_id":           entry["class_id"],
+        })
+
+    results.sort(key=lambda x: x["attendance_percent"])
+    results = results[:limit]
+
+    logger.info("dashboard_at_risk_students: %d at-risk students found", len(results))
+
+    return jsonify({
+        "at_risk_threshold_percent": AT_RISK_THRESHOLD,
+        "students": results,
+    }), 200

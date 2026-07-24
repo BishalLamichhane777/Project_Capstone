@@ -31,10 +31,35 @@ const ALERT_TYPES = [
   { key: 'general',    icon: Megaphone,     label: 'General',             color: '#edfaf3', activeColor: '#27ae60' },
 ];
 
+// ─── NPT timezone helper (UTC+5:45) ──────────────────────────────────────────
+// Shift a UTC ISO string to Nepal Standard Time by adding 5h 45m in ms.
+// Using UTC getters on the shifted Date gives NPT values without relying
+// on the device's local timezone setting.
+const _NPT_OFFSET_MS = (5 * 60 + 45) * 60 * 1000;
+function _toNPT(iso) {
+  return new Date(new Date(iso).getTime() + _NPT_OFFSET_MS);
+}
+
 function formatRelative(iso) {
   if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
+
+  // "X ago" is a pure duration — no timezone conversion needed.
+  // Both sides are raw UTC milliseconds; the offset cancels either way.
+  const sentUtcMs = new Date(iso).getTime();
+  const nowUtcMs  = Date.now();
+  const diffMs    = nowUtcMs - sentUtcMs;
+
+  // ── DIAGNOSTIC (remove after confirming fix) ──────────────────────────────
+  console.warn(
+    '[NOTIF_DIAG FIXED-SendAlerts] raw=' + JSON.stringify(iso) +
+    ' | sentUtcMs=' + sentUtcMs +
+    ' | nowUtcMs='  + nowUtcMs  +
+    ' | diffMs='    + diffMs    +
+    ' | diff_min='  + Math.floor(diffMs / 60000)
+  );
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const m = Math.floor(diffMs / 60000);
   if (m < 1)  return 'just now';
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
@@ -104,7 +129,21 @@ export default function SendAlertsScreen({ navigation }) {
       try {
         const res = await fetch(API.adminNotifications, { headers: authHeaders });
         const data = await res.json();
-        if (res.ok && Array.isArray(data)) setRecents(data.slice(0, 5));
+        if (res.ok && Array.isArray(data)) {
+          // ── DIAGNOSTIC STEP 3: log first recent notif's raw sent_at ──────
+          if (data.length > 0) {
+            const _f = data[0];
+            console.warn(
+              '[NOTIF_DIAG STEP3-SendAlerts-api] First notif from /admin/notifications:' +
+              ' notif_id=' + _f.notif_id +
+              ' | sent_at=' + JSON.stringify(_f.sent_at) +
+              ' | typeof=' + typeof _f.sent_at +
+              ' | last_char=' + (_f.sent_at ? JSON.stringify(_f.sent_at[_f.sent_at.length - 1]) : 'null')
+            );
+          }
+          // ────────────────────────────────────────────────────────────────
+          setRecents(data.slice(0, 5));
+        }
       } catch (_) {}
       setRecentsLoading(false);
     })();

@@ -79,6 +79,10 @@ def _compute_adaptive_threshold(embeddings_list):
             dist = float(1.0 - np.dot(a, b))
             pairwise_distances.append(dist)
 
+    std_dev = float(np.std(pairwise_distances))
+    raw = DEFAULT_THRESHOLD + std_dev * 2
+    return float(max(0.30, min(0.55, raw)))
+
 def generate_embedding(image_bgr):
     """
     Generates a DeepFace FaceNet embedding from a BGR image.

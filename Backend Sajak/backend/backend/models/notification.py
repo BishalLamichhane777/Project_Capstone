@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from database import db
+from database import db, utc_iso
 
 
 class Notification(db.Model):
@@ -27,5 +27,5 @@ class Notification(db.Model):
             "type": self.type,
             "message": self.message,
             "is_read": self.is_read,
-            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
+            "sent_at": utc_iso(self.sent_at),
         }

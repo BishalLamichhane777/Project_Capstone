@@ -1,7 +1,7 @@
 """Batch and BatchStudent models — group students for bulk class enrollment."""
 
 from datetime import datetime, timezone
-from database import db
+from database import db, utc_iso
 
 
 class Batch(db.Model):
@@ -32,7 +32,7 @@ class Batch(db.Model):
             "batch_id":      self.batch_id,
             "batch_name":    self.batch_name,
             "description":   self.description,
-            "created_at":    self.created_at.isoformat() if self.created_at else None,
+            "created_at":    utc_iso(self.created_at),
             "student_count": self.student_count,
         }
         if include_students:

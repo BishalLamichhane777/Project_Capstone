@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from database import db
+from database import db, utc_iso
 
 
 class WaiverRequest(db.Model):
@@ -35,10 +35,6 @@ class WaiverRequest(db.Model):
             "reason": self.reason,
             "supporting_doc_path": self.supporting_doc_path,
             "status": self.status,
-            "submitted_at": (
-                self.submitted_at.isoformat() if self.submitted_at else None
-            ),
-            "reviewed_at": (
-                self.reviewed_at.isoformat() if self.reviewed_at else None
-            ),
+            "submitted_at": utc_iso(self.submitted_at),
+            "reviewed_at": utc_iso(self.reviewed_at),
         }

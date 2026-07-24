@@ -26,72 +26,57 @@ Paste this into a new Kiro chat to continue development with full context.
 ## Directory Structure
 
 ```
-Project_Capstone_New/
+Project_Capstone/
 ├── docker-compose.yml
 ├── .env                          # ROOT env — used by docker-compose
 ├── firebase_credentials.json
-├── _archive/standalone_ai_reference/   # OLD standalone AI scripts (not used)
 │
-├── Backend Sajak/backend/backend/      # MAIN FLASK BACKEND (Dockerized)
+├── Backend Sajak/backend/backend/      # MAIN FLASK BACKEND (live-mounted)
 │   ├── app.py                          # Flask factory
 │   ├── config.py
 │   ├── database.py                     # db = SQLAlchemy()
-│   ├── Dockerfile
+│   ├── Dockerfile                      # gunicorn --reload (live reload)
 │   ├── requirements.txt
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── user.py
-│   │   ├── student.py
-│   │   ├── class_model.py              # Class + Enrollment
-│   │   ├── session.py
-│   │   ├── attendance.py               # AttendanceLog + AttendanceRecord
-│   │   ├── excuse.py                   # WaiverRequest
-│   │   ├── notification.py
-│   │   └── batch.py                    # Batch + BatchStudent (NEW)
+│   ├── migrate_add_is_active.py        # one-off migration: adds is_active column
+│   ├── backfill_batch_class_links.py   # one-off migration: backfills missing BCL rows
+│   ├── models/ ...
 │   ├── routes/
-│   │   ├── auth.py          → /api/auth
-│   │   ├── session.py       → /api/session
-│   │   ├── attendance.py    → /api/attendance
-│   │   ├── excuse.py        → /api/excuse
-│   │   ├── student.py       → /api/student
-│   │   ├── admin.py         → /api/admin
-│   │   └── batch.py         → /api/admin  (NEW)
-│   ├── services/
-│   │   ├── attendance_engine.py
-│   │   ├── firebase_sync.py
-│   │   ├── notifications.py
-│   │   └── face_recognition/
-│   │       ├── __init__.py             # recognize_student(), reload_embeddings()
-│   │       ├── recognizer.py           # load_all_embeddings(), recognize_face()
-│   │       ├── detector.py             # MTCNN wrapper
-│   │       ├── preprocess.py
-│   │       ├── enroll.py               # enroll_student_from_images() (NEW)
-│   │       ├── validate_embeddings.py  # startup validation (NEW)
-│   │       └── embeddings/             # *.npy files + labels.json
-│   ├── admin/                          # Flask-Admin panel
-│   │   └── __init__.py                 # CSRFProtect — all API blueprints exempted here
-│   └── tests/
-│       ├── test_face_enrollment.py
-│       ├── test_scan_attendance.py
-│       ├── test_batch_enrollment.py
-│       └── test_schedule_enforcement.py
+│   │   ├── batch.py                    # UPDATED — added is_at_risk() and pick_worst_class() pure helpers
+│   │   └── ...
+│   ├── services/ ...
+│   ├── test/                           # API/integration tests (Flask test client)
+│   │   ├── __init__.py                 # makes test/ a package
+│   │   ├── test_helpers.py             # shared test infrastructure (make_app, auth_as, DB factories, AI stubs)
+│   │   ├── test_admin_routes.py        # admin class/user/dashboard/at-risk tests (27 tests)
+│   │   ├── test_student_routes.py      # student list/enrol/history/log/waiver/notif tests (28 tests)
+│   │   └── test_teacher_routes.py      # teacher class listing, session lifecycle, report tests (19 tests)
+│   └── tests/unit/                     # NEW — pure unit tests (no Flask, no DB, no HTTP)
+│       ├── __init__.py
+│       ├── test_attendance_engine.py   # 13 tests for _determine_status()
+│       ├── test_enroll_threshold.py    # 12 tests for _compute_adaptive_threshold()
+│       ├── test_recognizer_confidence.py # 16 tests for compute_confidence()
+│       └── test_batch_risk_logic.py    # 19 tests for is_at_risk() + pick_worst_class()
 │
 └── AttendanceApp/                      # REACT NATIVE FRONTEND
     ├── api.js                          # BASE_URL + all API endpoints
-    ├── App.js                          # Navigator
+    ├── App.js                          # Navigator (all screens registered)
     ├── context/AuthContext.js
-    ├── components/
-    │   ├── AdminBottomNav.js           # 5 tabs: Home/Waivers/Batches/Reports/Settings
-    │   ├── BottomNav.js                # Student nav
-    │   └── TeacherBottomNav.js
+    ├── utils/
+    │   └── exportHelper.js             # shared triggerExport() utility (new)
+    ├── components/ ...
     └── screens/
         ├── LoginScreen.js
-        ├── AdminDashboardScreen.js
-        ├── ManageSchedulesScreen.js    # Class creation + Set Schedule button
-        ├── ManageBatchesScreen.js      # NEW
-        ├── ManageBatchDetailScreen.js  # NEW
-        ├── TeacherClassesScreen.js     # Schedule badges + gated Start button
-        ├── StartClassScreen.js         # Live camera scan (CameraView)
+        ├── AdminDashboardScreen.js     # REWRITTEN — live At Risk from API, removed hardcoded data + duplicate cards
+        ├── ManageSchedulesScreen.js    # duration_minutes fix (auto-calc from time pickers)
+        ├── ManageStudentsScreen.js     # REWRITTEN — deactivate/reactivate replaces hard-delete, inactive toggle added
+        ├── ManageTeachersScreen.js     # NEW — teacher CRUD + deactivate/reactivate
+        ├── ManageBatchesScreen.js
+        ├── ManageBatchDetailScreen.js
+        ├── BatchOverviewScreen.js      # NEW — batch analytics overview + per-batch export
+        ├── ClassListScreen.js          # NEW — classes within a batch
+        ├── ClassDetailScreen.js        # NEW — student roster with filters/sort/pagination + export
+        ├── StudentDetailScreen.js      # NEW — per-student attendance detail + export
+        ├── ExportReportsScreen.js      # existing (unchanged)
         └── ... (other screens)
 ```
 
@@ -99,7 +84,7 @@ Project_Capstone_New/
 
 ## Database Schema (SQLite — key tables)
 
-### `users`
+### `users` (updated)
 | Column | Type | Notes |
 |---|---|---|
 | id | Integer PK | |
@@ -109,6 +94,7 @@ Project_Capstone_New/
 | role | String(20) | `admin` / `teacher` / `student` |
 | phone | String(30) nullable | |
 | device_token | String(512) nullable | FCM token |
+| is_active | Boolean DEFAULT 1 | **NEW** — soft-delete; False blocks login |
 | created_at | DateTime | UTC |
 
 ### `students`
@@ -222,33 +208,58 @@ Project_Capstone_New/
 | GET | /api/attendance/analytics | any | |
 | PUT | /api/attendance/manual-override | admin | |
 
+### Admin — Dashboard
+| Method | URL | Role | Notes |
+|---|---|---|---|
+| GET | /api/admin/stats | admin | total_students, present_today, absent_today, waivers_pending, sessions_today, attendance_rate — **casing bug fixed (was always returning 0)** |
+| GET | /api/admin/recent-sessions | admin | last 5 sessions with present/absent counts |
+| GET | /api/admin/dashboard/at-risk-students | admin | **NEW** — top N students below 75% across all classes; params: `limit` (default 8, max 20); sorted lowest first |
+
 ### Admin — Classes
 | Method | URL | Role | Notes |
 |---|---|---|---|
-| POST | /api/admin/class/create | admin | optional `batch_id`, `scheduled_date/time` |
+| POST | /api/admin/class/create | admin | `duration_minutes` required; optional `batch_id` also creates BatchClassLink |
 | GET | /api/admin/class/list | admin/teacher | |
 | PUT | /api/admin/class/{id} | admin | |
 | DELETE | /api/admin/class/{id} | admin | |
 | PUT | /api/admin/class/{id}/schedule | admin | set schedule fields |
+| GET | /api/admin/classes/{id}/students | admin | roster; params: search, risk, sort, page, page_size |
 
-### Admin — Batches (NEW)
+### Admin — Users / Teachers
+| Method | URL | Role | Notes |
+|---|---|---|---|
+| GET | /api/admin/users | admin | optional `?role=teacher` filter; includes `is_active` |
+| PUT | /api/admin/user/{id} | admin | fullname, email, phone, password, device_token |
+| PUT | /api/admin/user/{id}/deactivate | admin | sets `is_active=False`; blocks login |
+| PUT | /api/admin/user/{id}/reactivate | admin | sets `is_active=True`; restores login |
+
+### Admin — Batches
 | Method | URL | Role | Notes |
 |---|---|---|---|
 | POST | /api/admin/batches | admin | create batch |
 | GET | /api/admin/batches | admin | list all |
+| GET | /api/admin/batches/summary | admin | **NEW** per-batch analytics summary |
 | GET | /api/admin/batches/{id} | admin | detail + students |
 | PUT | /api/admin/batches/{id} | admin | rename/edit |
 | DELETE | /api/admin/batches/{id} | admin | **never cascades to enrollments** |
-| POST | /api/admin/batches/{id}/students | admin | add students |
-| DELETE | /api/admin/batches/{id}/students/{sid} | admin | remove from batch only |
-| POST | /api/admin/classes/{id}/enroll-batch | admin | bulk enroll |
+| POST | /api/admin/batches/{id}/students | admin | add students; auto-enrolls to linked classes |
+| DELETE | /api/admin/batches/{id}/students/{sid} | admin | remove from batch + unenroll from linked classes |
+| GET | /api/admin/batches/{id}/classes/summary | admin | **NEW** per-class analytics for a batch |
+| POST | /api/admin/classes/{id}/enroll-batch | admin | bulk enroll; creates BatchClassLink |
 
-### Admin — Other
+### Admin — Students
 | Method | URL | Role | Notes |
 |---|---|---|---|
-| POST | /api/admin/enroll-face | admin | face enrollment from photos |
-| GET | /api/admin/users | admin | |
-| GET | /api/admin/stats | admin | dashboard stats |
+| GET | /api/student/list | admin/teacher | list all students; includes `is_active` and `user_id` per student *(updated)* |
+| GET | /api/student/{id} | admin/teacher | student + enrollments |
+| PUT | /api/student/{id} | admin | update student profile |
+| DELETE | /api/student/{id} | admin | hard delete with cascade (fixed) |
+| GET | /api/admin/students/{id}/detail | admin | **NEW** full attendance detail for drill-down |
+
+### Admin — Export
+| Method | URL | Role | Notes |
+|---|---|---|---|
+| POST | /api/admin/export-report | admin | report_type: full/atrisk/class/waiver/weekly/monthly/**batch**/**class_roster**/**student** (new); format: csv/excel/pdf; scoped params: batch_id, class_id, student_id, risk, search |
 
 ---
 
@@ -319,36 +330,112 @@ const { token, user, loginState, logoutState } = useAuth();
 
 ---
 
+## Running Tests
+
+### API / Integration tests (Flask test client)
+```bash
+# From inside the container (recommended — all deps available)
+docker exec -w /app/test attendance_backend python -m unittest test_admin_routes test_student_routes test_teacher_routes -v
+
+# From your local machine (must be in the test/ directory — no Docker needed)
+cd "Backend Sajak/backend/backend/test"
+python -m unittest test_admin_routes test_student_routes test_teacher_routes -v
+```
+
+**Important**: The test files use bare `from test_helpers import ...` so the working directory must be `test/` when running. Running from `backend/` with `python -m unittest test.test_admin_routes` will fail with `ModuleNotFoundError: No module named 'test_helpers'`.
+
+**Local run works without Docker**: `test_helpers.py` stubs out `cv2`, `deepface`, `mtcnn`, and `tensorflow` at the `sys.modules` level before any imports happen, so heavy AI packages (Docker-only) are never actually loaded during tests.
+
+**Current results**: 73/73 tests pass (27 admin + 28 student + 19 teacher).
+
+### Pure unit tests (no Flask, no DB, no Docker needed)
+```bash
+# From your local machine — must be in the tests/unit/ directory
+cd "Backend Sajak/backend/backend/tests/unit"
+python -m unittest test_attendance_engine test_recognizer_confidence test_batch_risk_logic test_enroll_threshold -v
+```
+
+**Design**: Each file stubs its own import chain using `importlib.util.spec_from_file_location` to load only the target module, completely bypassing `routes/__init__.py` and `services/face_recognition/__init__.py`. No Flask app, no SQLAlchemy session, no JWT, no cv2, no DeepFace. Runs in ~70 ms.
+
+**Current results**: 62/62 tests pass across 4 files.
+
+---
+
 ## Docker
 
 ```bash
-# First build (also after any code change)
-docker-compose up --build -d
+# First build (or after requirements.txt / Dockerfile changes)
+docker compose up --build -d
 
-# Quick restart (env/config change only)
-docker-compose restart backend
+# Subsequent runs — source is live-mounted, no rebuild needed for .py changes
+docker compose up -d
 
 # Logs
 docker logs attendance_backend --tail 50
 
 # Stop
-docker-compose stop
+docker compose stop
 ```
 
-**Important**: Source code is baked into the image — `docker-compose restart` uses the old image. Always use `--build` after code changes.
+**Important**: Source code is **volume-mounted** into the container (`./Backend Sajak/backend/backend:/app`) and gunicorn runs with `--reload`. Python file changes are live within ~2 seconds. Only `requirements.txt` or `Dockerfile` changes require `--build`.
 
 **DB lock issue**: If DB Browser for SQLite is open, it locks `attendance.db` and causes `sqlite3.OperationalError: disk I/O error`. Close DB Browser before starting the container.
+
+**"Frontend not working" checklist** (in order):
+1. Is the backend container running? → `docker ps` or `docker compose ps`. If empty, run `docker compose up -d`.
+2. Is `BASE_URL` in `api.js` set to the PC's current WiFi IP? → `ipconfig` to check. Update if IP changed.
+3. Is the device/emulator on the **same WiFi network** as the PC?
+4. Is `npx expo start` running in the `AttendanceApp` folder?
+
+---
+
+## Postman Collection
+
+Two files at the project root (`Project_Capstone/`):
+
+| File | Description |
+|---|---|
+| `myTIMeS.postman_collection.json` | **72 requests** across 4 folders (0. Auth, 1. Admin, 2. Teacher, 3. Student) — full coverage of every endpoint |
+| `myTIMeS.postman_environment.json` | 10 environment variables; `base_url` defaults to `http://localhost:5000`, all others auto-populated by test scripts |
+
+**Run order for end-to-end testing**:
+`Auth (Admin Login)` → `Admin (1–6)` → `Teacher (all)` → `Student (all)` → `Admin → Waivers → Approve Waiver`
+
+Every request has a `pm.test()` status check and `pm.environment.set()` to chain variables automatically. See `myTIMeS_postman_README.md` for full instructions.
+
+---
+
+## Agent Hooks
+
+Located at `.kiro/hooks/`:
+
+| Hook file | Trigger | Action |
+|---|---|---|
+| `session-context-loader.json` | SessionStart | Reads `PROJECT_CONTEXT.md` then `PROJECT_DOCUMENTATION.md` at the start of every session |
+| `session-doc-updater.json` | Stop | Updates both docs at the end of every session to reflect all changes made |
 
 ---
 
 ## Current Known Issues / Pending Work
 
-1. **`reload_embeddings()` only refreshes one gunicorn worker** — with `--workers 2`, the other worker keeps the old cache until restarted. Acceptable for low-traffic; container restart guarantees consistency.
+### Fixed this session ✅
+1. **Student DELETE was 405** — `delete_student()` missing `@student_bp.route` decorator. Fixed.
+2. **`routes/admin.py` crashed on startup** — missing `from flask import Blueprint, g, jsonify, request`. Fixed.
+3. **Add Class always failed** — `duration_minutes` never sent from frontend. Fixed: auto-calculated from start/end time pickers with validation.
+4. **`BatchClassLink` not created on class creation** — analytics endpoints couldn't see classes created via the form. Fixed + backfill run (no orphans in existing data).
+5. **`GET /api/admin/stats` always returned 0 for present_today, absent_today, waivers_pending** — status filter used lowercase `'present'`/`'absent'`/`'pending'` but the model stores title-case. Also `attendance_rate` defaulted to `100` when no sessions — now correctly defaults to `0`. Fixed.
+6. **`AdminDashboardScreen` hardcoded fake data** — removed `atRiskStudents` array, `weekData` array, `WeeklyChart` component, and the duplicate "Today's Overview" card. At-risk section now fetches from `GET /api/admin/dashboard/at-risk-students`. All orphaned styles removed.
+7. **`ManageStudentsScreen` hard-delete replaced with deactivate/reactivate** — frontend now mirrors the teacher pattern: inactive toggle, grayed-out cards, "Inactive" badge, Deactivate/Reactivate buttons. Backend `GET /api/student/list` updated to include `is_active` and `user_id` per student. Hard-delete route preserved in backend but not exposed in UI. Full 10-test end-to-end loop verified.
+8. **Missing test infrastructure** — `test/test_helpers.py` and `test/__init__.py` created. Provides `make_app()` (isolated in-memory Flask app), `auth_as()` (JWT injection context manager), and all DB factory helpers. 55/55 tests pass across both suites.
+9. **Test suite expanded + infrastructure restored** — `test_teacher_routes.py` (19 tests: teacher class listing, session lifecycle, attendance report) added and passing. `test_helpers.py` now stubs `cv2`/`deepface`/`mtcnn`/`tensorflow` in `sys.modules` so the full suite runs locally without Docker. **73/73 tests pass** (27 admin + 28 student + 19 teacher).
+10. **Postman collection rebuilt** — replaced old 13-request minimal collection with a full **72-request** collection covering every endpoint across 4 folders (Auth, Admin, Teacher, Student). Every request has status assertions and automatic `pm.environment.set()` variable chaining. Environment file (`myTIMeS.postman_environment.json`) unchanged.
+11. **`BASE_URL` IP updated** — `AttendanceApp/api.js` updated from stale `10.200.30.101` → `192.168.1.66` (current WiFi IP). Login `AbortError` resolved.
 
-2. **Face enrollment via API produces `{roll_number}_mean.npy`** but the three test students in the DB currently have `face_label = Student_1/2/3` (manually patched). Any new student enrolled via the API will be consistent automatically.
+### Still pending
+1. **`reload_embeddings()` only refreshes one gunicorn worker** — with multiple workers, the other worker keeps the old cache until restarted. Container restart guarantees consistency. Acceptable for low-traffic.
+
+2. **Face enrollment via API produces `{roll_number}_mean.npy`** but three test students have `face_label = Student_1/2/3` (manually patched). New students enrolled via the API are consistent automatically.
 
 3. **Schedule date picker** — currently plain TextInput (ISO format). Could be improved with a date picker library.
 
-4. **`ExportReportsScreen`** — export is simulated (no actual file generation).
-
-5. **`AddStudentFaceScreen`** — the face photo UI is a placeholder; actual enrollment goes through `POST /api/admin/enroll-face`.
+4. **`AddStudentFaceScreen`** — the face photo UI is functional but actual enrollment goes through `POST /api/admin/enroll-face`; the screen calls `POST /api/admin/register-student` for full registration with face data.

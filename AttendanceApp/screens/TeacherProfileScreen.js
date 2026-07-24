@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   StatusBar, Switch, Modal, TextInput, ActivityIndicator, Alert,
@@ -10,23 +10,21 @@ import { useAuth } from '../context/AuthContext';
 import {
   Edit2, Key, Moon, Sun, Bell, Camera, Save,
   HelpCircle, FileText, Clipboard, ChevronRight, ChevronLeft,
-  LogOut, Phone, Building, Calendar, X, Eye, EyeOff, Mail,
+  LogOut, Phone, Mail, X, Eye, EyeOff,
 } from 'lucide-react-native';
 import { API } from '../api';
 
 const BLUE = '#2952e3';
 
-const TEACHER = {
-  name: 'Dr Ramesh Sharma',
-  initials: 'RS',
-  role: 'Lecturer',
-  department: 'Computer Science',
-  employeeId: 'EMP-2024-041',
-  email: 'ramesh@mytimes.com',
-  phone: '+977-01-4362154',
-  joinDate: 'August 2021',
-  classes: 3,
-};
+// ─── Helper: derive initials from a full name ─────────────────────────────────
+function getInitials(name = '') {
+  return (name || '??')
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 // ─── Help & FAQ Page ──────────────────────────────────────────────────────────
 function HelpFAQPage({ onBack, isDarkMode }) {
@@ -191,10 +189,18 @@ function TeacherPwField({ label, value, onChange, show, toggle, textPri, textSub
 }
 
 // ─── Edit Profile Modal ───────────────────────────────────────────────────────
-function EditProfileModal({ visible, onClose, isDarkMode, token }) {
-  const [fullname, setFullname] = useState(TEACHER.name);
-  const [phone, setPhone]       = useState(TEACHER.phone);
+function EditProfileModal({ visible, onClose, isDarkMode, token, profile, onSaved }) {
+  const [fullname, setFullname] = useState('');
+  const [phone, setPhone]       = useState('');
   const [saving, setSaving]     = useState(false);
+
+  // Pre-fill fields when modal opens
+  useEffect(() => {
+    if (visible && profile) {
+      setFullname(profile.fullname || '');
+      setPhone(profile.phone || '');
+    }
+  }, [visible, profile]);
 
   const bg       = isDarkMode ? '#1a1f2e' : '#ffffff';
   const overlay  = isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.45)';
@@ -215,6 +221,7 @@ function EditProfileModal({ visible, onClose, isDarkMode, token }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update profile');
       Alert.alert('Success', 'Profile updated!');
+      onSaved({ fullname: fullname.trim(), phone: phone.trim() || null });
       onClose();
     } catch (e) {
       Alert.alert('Error', e.message);
@@ -235,7 +242,7 @@ function EditProfileModal({ visible, onClose, isDarkMode, token }) {
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 20 }}>
             <Text style={[mStyles.fieldLabel, { color: textSub }]}>EMAIL (cannot be changed)</Text>
             <View style={[mStyles.fieldStatic, { backgroundColor: isDarkMode ? '#1a1f2e' : '#f0f2f8', borderColor: inputBdr }]}>
-              <Text style={[mStyles.fieldStaticText, { color: textSub }]}>{TEACHER.email}</Text>
+              <Text style={[mStyles.fieldStaticText, { color: textSub }]}>{profile?.email || ''}</Text>
             </View>
             <Text style={[mStyles.fieldLabel, { color: textSub }]}>FULL NAME</Text>
             <TextInput
@@ -405,6 +412,32 @@ export default function TeacherProfileScreen({ navigation }) {
   const [editProfileVisible,    setEditProfileVisible]    = useState(false);
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
 
+  // ── Real profile data fetched from API ────────────────────────────────────
+  const [profile, setProfile]       = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await fetch(API.currentUser, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProfile(data);
+      }
+    } catch (e) {
+      console.warn('Could not load teacher profile:', e.message);
+    } finally {
+      setLoadingProfile(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  const handleProfileSaved = (updated) => {
+    setProfile(prev => ({ ...prev, ...updated }));
+  };
+
   const bg       = isDarkMode ? '#111827' : '#f5f7fa';
   const cardBg   = isDarkMode ? '#1a1f2e' : '#ffffff';
   const textPri  = isDarkMode ? '#ffffff' : '#1a1f36';
@@ -419,6 +452,13 @@ export default function TeacherProfileScreen({ navigation }) {
   if (subPage === 'privacy') return <PrivacyPolicyPage onBack={() => setSubPage(null)} isDarkMode={isDarkMode} />;
   if (subPage === 'terms')   return <TermsPage         onBack={() => setSubPage(null)} isDarkMode={isDarkMode} />;
 
+  // Derived display values — fall back to placeholders while loading
+  const displayName    = profile?.fullname    || '—';
+  const displayEmail   = profile?.email       || '—';
+  const displayPhone   = profile?.phone       || 'Not set';
+  const displayRole    = 'Teacher';
+  const displayInitials = getInitials(profile?.fullname);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={bg} />
@@ -428,28 +468,20 @@ export default function TeacherProfileScreen({ navigation }) {
         <View style={styles.heroCard}>
           <View style={styles.avatarWrap}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{TEACHER.initials}</Text>
+              <Text style={styles.avatarText}>{displayInitials}</Text>
             </View>
             <View style={styles.onlineIndicator} />
           </View>
-          <Text style={styles.heroName}>{TEACHER.name}</Text>
-          <Text style={styles.heroRole}>{TEACHER.role} · {TEACHER.department}</Text>
-          <Text style={styles.heroId}>ID: {TEACHER.employeeId}</Text>
-          <View style={styles.heroStats}>
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{TEACHER.classes}</Text>
-              <Text style={styles.heroStatLabel}>Classes</Text>
-            </View>
-          </View>
+          <Text style={styles.heroName}>{displayName}</Text>
+          <Text style={styles.heroRole}>{displayRole}</Text>
+          <Text style={styles.heroId}>{displayEmail}</Text>
         </View>
 
         {/* Contact Info */}
         <View style={[styles.card, { backgroundColor: cardBg }]}>
           <Text style={[styles.sectionTitle, { color: textSub }]}>Contact Information</Text>
-          <InfoRow icon={Mail}     label="Email"      value={TEACHER.email}      isDarkMode={isDarkMode} />
-          <InfoRow icon={Phone}    label="Phone"      value={TEACHER.phone}      isDarkMode={isDarkMode} />
-          <InfoRow icon={Building} label="Department" value={TEACHER.department} isDarkMode={isDarkMode} />
-          <InfoRow icon={Calendar} label="Joined"     value={TEACHER.joinDate}   isDarkMode={isDarkMode} />
+          <InfoRow icon={Mail}     label="Email"  value={displayEmail} isDarkMode={isDarkMode} />
+          <InfoRow icon={Phone}    label="Phone"  value={displayPhone} isDarkMode={isDarkMode} />
         </View>
 
         {/* Appearance */}
@@ -530,7 +562,7 @@ export default function TeacherProfileScreen({ navigation }) {
 
       <TeacherBottomNav navigation={navigation} active="Profile" />
 
-      <EditProfileModal    visible={editProfileVisible}    onClose={() => setEditProfileVisible(false)}    isDarkMode={isDarkMode} token={token} />
+      <EditProfileModal    visible={editProfileVisible}    onClose={() => setEditProfileVisible(false)}    isDarkMode={isDarkMode} token={token} profile={profile} onSaved={handleProfileSaved} />
       <ChangePasswordModal visible={changePasswordVisible} onClose={() => setChangePasswordVisible(false)} isDarkMode={isDarkMode} token={token} />
     </SafeAreaView>
   );

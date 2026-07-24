@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Load Project Context on Session Start",
+      "trigger": "SessionStart",
+      "action": {
+        "type": "agent",
+        "prompt": "At the start of every session, ALWAYS read PROJECT_CONTEXT.md first (quick reference), then PROJECT_DOCUMENTATION.md for deeper context. Do this before responding to the user's first message or taking any action. At the END of every session (when the Stop trigger fires), update both PROJECT_CONTEXT.md and PROJECT_DOCUMENTATION.md to reflect all changes made during the session — new endpoints, new screens, schema changes, bug fixes, and any new known issues."
+      }
+    }
+  ]
+}

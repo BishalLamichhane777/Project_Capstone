@@ -40,6 +40,13 @@ def login():
     ):
         return jsonify({"error": "Invalid credentials", "status": 401}), 401
 
+    # Reject deactivated accounts before issuing a token
+    if not user.is_active:
+        return jsonify({
+            "error": "This account has been deactivated. Contact an administrator.",
+            "status": 403,
+        }), 403
+
     # Generate JWT
     expiry_hours = current_app.config.get("JWT_EXPIRY_HOURS", 24)
     payload = {
@@ -184,20 +191,6 @@ def register():
                 ),
                 500,
             )
-
-    # Create user in Firebase Auth (best-effort)
-    try:
-        from firebase_admin import auth as firebase_auth
-
-        firebase_auth.create_user(
-            uid=str(user.id),
-            email=email,
-            display_name=fullname,
-            password=password,
-        )
-        logger.info("Firebase Auth user created for %s", email)
-    except Exception as exc:
-        logger.warning("Firebase Auth user creation failed: %s", exc)
 
     return jsonify({"user_id": user.id, "message": "User registered"}), 201
 

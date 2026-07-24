@@ -22,42 +22,101 @@ const TYPE_CONFIG = {
 };
 function typeConfig(type) { return TYPE_CONFIG[type] || TYPE_CONFIG.default; }
 
+// ─── NPT timezone helpers (UTC+5:45) ─────────────────────────────────────────
+// Nepal Standard Time is UTC+5:45 (offset = 5*60 + 45 = 345 minutes).
+// We always convert the UTC value from the backend before displaying it so
+// the result is correct regardless of what timezone the device is set to.
+const NPT_OFFSET_MS = (5 * 60 + 45) * 60 * 1000; // 20700000 ms
+
+/**
+ * Parse an ISO 8601 UTC string (ending in 'Z' or '+00:00') and return a
+ * plain Date object whose numeric value has been shifted to NPT.
+ * Using a shifted Date lets us call .getHours(), .getDate(), etc. and
+ * read NPT values directly without any locale trickery.
+ */
+function toNPT(iso) {
+  if (!iso) return null;
+  const utcMs = new Date(iso).getTime(); // always UTC because the string ends in Z
+  return new Date(utcMs + NPT_OFFSET_MS);
+}
+
+/** Zero-pad a number to 2 digits */
+const pad2 = n => String(n).padStart(2, '0');
+
+/** Format a shifted NPT Date as "h:MM AM/PM" */
+function nptTimeStr(nptDate) {
+  let h = nptDate.getUTCHours(); // use UTC getters on the shifted date
+  const min = pad2(nptDate.getUTCMinutes());
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${min} ${ampm}`;
+}
+
+/** Month names for formatFull */
+const MONTHS = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
+];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 // ─── Timestamp helpers ────────────────────────────────────────────────────────
 function formatRelative(iso) {
   if (!iso) return '';
-  const date = new Date(iso);
-  const now  = new Date();
-  const diff = now - date;
-  const m = Math.floor(diff / 60000);
+
+  // "X ago" is a pure duration — timezone is irrelevant.
+  // Both sides must be raw UTC milliseconds so no offset is applied
+  // to either. toNPT() is intentionally NOT used here.
+  const sentUtcMs = new Date(iso).getTime(); // Z-suffix guarantees UTC parse
+  const nowUtcMs  = Date.now();              // always UTC
+  const diffMs    = nowUtcMs - sentUtcMs;
+
+  // ── DIAGNOSTIC STEP 3+4 (simplified — remove after confirming fix) ────
+  console.warn(
+    '[NOTIF_DIAG FIXED] raw_sent_at=' + JSON.stringify(iso) +
+    ' | sentUtcMs=' + sentUtcMs +
+    ' | nowUtcMs='  + nowUtcMs  +
+    ' | diffMs='    + diffMs    +
+    ' | diff_min='  + Math.floor(diffMs / 60000)
+  );
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const m = Math.floor(diffMs / 60000);
   if (m < 1)  return 'Just now';
   if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
-  // same calendar day?
-  if (
-    date.getDate()     === now.getDate()   &&
-    date.getMonth()    === now.getMonth()  &&
-    date.getFullYear() === now.getFullYear()
-  ) {
-    return `Today, ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
-  }
-  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-  if (
-    date.getDate()     === yesterday.getDate()   &&
-    date.getMonth()    === yesterday.getMonth()  &&
-    date.getFullYear() === yesterday.getFullYear()
-  ) {
-    return `Yesterday, ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
-  }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  // For "Today / Yesterday / date" we DO need NPT — that's a calendar
+  // label, not a duration, so the timezone matters for which day it falls on.
+  const nptDate  = toNPT(iso);
+  const nowNPT   = toNPT(new Date().toISOString());
+
+  const sameDay =
+    nptDate.getUTCFullYear() === nowNPT.getUTCFullYear() &&
+    nptDate.getUTCMonth()    === nowNPT.getUTCMonth()    &&
+    nptDate.getUTCDate()     === nowNPT.getUTCDate();
+  if (sameDay) return `Today, ${nptTimeStr(nptDate)}`;
+
+  const yesterdayNPT = new Date(nowNPT.getTime() - 24 * 60 * 60 * 1000);
+  const isYesterday =
+    nptDate.getUTCFullYear() === yesterdayNPT.getUTCFullYear() &&
+    nptDate.getUTCMonth()    === yesterdayNPT.getUTCMonth()    &&
+    nptDate.getUTCDate()     === yesterdayNPT.getUTCDate();
+  if (isYesterday) return `Yesterday, ${nptTimeStr(nptDate)}`;
+
+  return `${MONTHS_SHORT[nptDate.getUTCMonth()]} ${nptDate.getUTCDate()}, ${nptDate.getUTCFullYear()}`;
 }
 
 function formatFull(iso) {
+  // Absolute time — NPT conversion IS needed here.
   if (!iso) return '';
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'long', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
-  });
+  const nptDate = toNPT(iso);
+  const result = (
+    `${MONTHS[nptDate.getUTCMonth()]} ${nptDate.getUTCDate()}, ` +
+    `${nptDate.getUTCFullYear()}, ${nptTimeStr(nptDate)} NPT`
+  );
+  console.warn('[NOTIF_DIAG FIXED-full] raw=' + JSON.stringify(iso) + ' | result=' + JSON.stringify(result));
+  return result;
 }
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
@@ -145,6 +204,20 @@ export default function NotificationsScreen({ navigation }) {
       if (!res.ok) throw new Error('Failed to load');
       const data = await res.json();
       const notifs = Array.isArray(data) ? data : [];
+
+      // ── DIAGNOSTIC STEP 3: log first notification's raw sent_at from API ──
+      if (notifs.length > 0) {
+        const _first = notifs[0];
+        console.warn(
+          '[NOTIF_DIAG STEP3-api] First notif from /my-notifications:' +
+          ' notif_id=' + _first.notif_id +
+          ' | sent_at=' + JSON.stringify(_first.sent_at) +
+          ' | typeof=' + typeof _first.sent_at +
+          ' | last_char=' + (_first.sent_at ? JSON.stringify(_first.sent_at[_first.sent_at.length - 1]) : 'null')
+        );
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       setNotifications(notifs);
 
       // Mark all unread as read as soon as the user opens this screen.

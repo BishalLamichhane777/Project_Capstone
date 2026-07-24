@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 import datetime as dt
 
-from database import db
+from database import db, utc_iso
 
 class Class(db.Model):
     __tablename__ = "classes"
@@ -36,10 +36,10 @@ class Class(db.Model):
             "room": self.room,
             "teacher_id": self.teacher_id,
             "teacher_name": self.teacher.fullname if self.teacher else None,
-            "schedule_time": (
-                self.schedule_time.isoformat() if self.schedule_time else None
-            ),
+            # schedule_time is a DateTime — needs utc_iso
+            "schedule_time": utc_iso(self.schedule_time) if self.schedule_time else None,
             "duration_minutes": self.duration_minutes,
+            # scheduled_date / time are date/time types — plain isoformat is fine (no TZ)
             "scheduled_date":     self.scheduled_date.isoformat()     if self.scheduled_date     else None,
             "scheduled_time":     self.scheduled_time.isoformat()     if self.scheduled_time     else None,
             "scheduled_end_time": self.scheduled_end_time.isoformat() if self.scheduled_end_time else None,
@@ -73,7 +73,5 @@ class Enrollment(db.Model):
             "enrollment_id": self.enrollment_id,
             "student_id": self.student_id,
             "class_id": self.class_id,
-            "enrolled_at": (
-                self.enrolled_at.isoformat() if self.enrolled_at else None
-            ),
+            "enrolled_at": utc_iso(self.enrolled_at),
         }

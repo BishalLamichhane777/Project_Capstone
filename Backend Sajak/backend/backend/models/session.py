@@ -1,6 +1,6 @@
 """Session model — represents a live or closed attendance session."""
 
-from database import db
+from database import db, utc_iso
 
 
 class Session(db.Model):
@@ -35,8 +35,8 @@ class Session(db.Model):
             "class_id": self.class_id,
             "teacher_id": self.teacher_id,
             "mode": self.mode,
-            "start_time": self.start_time.isoformat() if self.start_time else None,
-            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "start_time": utc_iso(self.start_time),
+            "end_time": utc_iso(self.end_time),
             "status": self.status,
             "threshold_percent": self.threshold_percent,
             "class_name": self.class_.class_name if self.class_ else None,
