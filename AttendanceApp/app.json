@@ -24,8 +24,13 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
+      "package": "com.mytimes.attendanceapp",
+      "googleServicesFile": "./google-services.json",
       "permissions": ["android.permission.CAMERA"]
     },
+    "plugins": [
+      "expo-notifications"
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }
