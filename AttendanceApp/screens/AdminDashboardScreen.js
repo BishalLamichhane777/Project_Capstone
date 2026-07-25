@@ -8,7 +8,7 @@ import AdminBottomNav from '../components/AdminBottomNav';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
 import {
-  Calendar, BarChart2, UserPlus, ClipboardList, Download, Bell,
+  Calendar, ClipboardList, Download, Bell,
   Shield, LogOut, Users, CheckCircle, XCircle, AlertTriangle, TrendingUp,
 } from 'lucide-react-native';
 
@@ -17,9 +17,7 @@ const BLUE = '#2952e3';
 
 const quickActions = [
   { icon: Calendar,      label: 'Manage\nSchedules',  route: 'ManageSchedules',  color: '#eef2ff', iconColor: BLUE },
-  { icon: BarChart2,     label: 'Student\nAnalytics', route: 'StudentAnalytics', color: '#edfaf3', iconColor: '#27ae60' },
   { icon: TrendingUp,    label: 'Batch\nAnalytics',   route: 'BatchOverview',    color: '#f3eeff', iconColor: '#7c3aed' },
-  { icon: UserPlus,      label: 'Add Student\nFace',  route: 'AddStudentFace',   color: '#fff8e6', iconColor: GOLD },
   { icon: Users,         label: 'Manage\nStudents',   route: 'ManageStudents',   color: '#edfaf3', iconColor: '#27ae60' },
   { icon: Users,         label: 'Manage\nTeachers',   route: 'ManageTeachers',   color: '#e8f4ff', iconColor: '#2980b9' },
   { icon: ClipboardList, label: 'Review\nWaivers',    route: 'AdminWaivers',     color: '#fff0f0', iconColor: '#e74c3c' },

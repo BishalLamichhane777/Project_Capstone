@@ -276,11 +276,13 @@ export default function ClassesScreen({ navigation }) {
         <View>
           <Text style={[styles.headerTitle, { color: isDarkMode ? '#ffffff' : '#1a1f36' }]}>My Classes</Text>
           <Text style={[styles.headerSub, { color: isDarkMode ? '#8a94b8' : '#8a94a6' }]}>
-            {classes.length} enrolled · tap a date to filter
+            {classes.length} enrolled · showing {filtered.length} for this date
           </Text>
         </View>
         <View style={[styles.totalBadge, { backgroundColor: isDarkMode ? '#1e2540' : '#eef2ff' }]}>
-          <Text style={styles.totalText}>{classes.length} total</Text>
+          <Text style={styles.totalText}>
+            {filtered.length} {selected === toLocalDateStr(days[0]) ? 'today' : 'this day'}
+          </Text>
         </View>
       </View>
 

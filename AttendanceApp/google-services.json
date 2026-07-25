@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "520435276114",
+    "project_id": "capstone-project-attendanceapp",
+    "storage_bucket": "capstone-project-attendanceapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:520435276114:android:26eb9e5b2c23674356828b",
+        "android_client_info": {
+          "package_name": "com.mytimes.attendanceapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWC4W7tsJeeTsh21lQ4aJVbpRi2egTWF8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -13,9 +13,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import BottomNav from '../components/BottomNav';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
-import { Calendar, ChevronLeft, FolderOpen } from 'lucide-react-native';
+import { Calendar, ChevronLeft, FolderOpen, Clock, AlertTriangle } from 'lucide-react-native';
 
-const BLUE = '#2952e3';
+const BLUE   = '#2952e3';
+const ORANGE = '#f39c12';
+
+// date helper — handles plain YYYY-MM-DD and ISO UTC strings
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatWaiverDate(iso) {
+  if (!iso) return 'Unknown Date';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return `${MONTH_SHORT[m - 1]} ${d}, ${y}`;
+  }
+  const d = new Date(iso);
+  return `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
 
 const statusConfig = {
   'Approved': {
@@ -51,36 +64,72 @@ function StatusBadge({ status }) {
 }
 
 function WaiverCard({ waiver, isDarkMode }) {
-  const config = statusConfig[waiver.status] || statusConfig['Pending'];
+  const config    = statusConfig[waiver.status] || statusConfig['Pending'];
   const isPending = waiver.status === 'Pending';
-  const dateStr = waiver.session_date
-    ? new Date(waiver.session_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-    : 'Unknown Date';
+  const isPrior   = waiver.waiver_type === 'prior';
+  const dateLabel = isPrior ? (
+    waiver.end_date && waiver.end_date !== waiver.start_date ? 'Leave Period' : 'Target Date'
+  ) : 'Absence Date';
+  const dateStr   = isPrior
+    ? (waiver.end_date && waiver.end_date !== waiver.start_date
+        ? `${formatWaiverDate(waiver.start_date)} → ${formatWaiverDate(waiver.end_date)}`
+        : formatWaiverDate(waiver.start_date || waiver.session_date))
+    : formatWaiverDate(waiver.session_date);
 
-  const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
-  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
-  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const cardBg           = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPrimary      = isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub          = isDarkMode ? '#8a94b8' : '#8a94a6';
   const reasonLabelColor = isDarkMode ? '#5a6080' : '#8a94a6';
-  const feedbackBg  = isDarkMode ? '#252b3e' : '#f9fafb';
+  const feedbackBg       = isDarkMode ? '#252b3e' : '#f9fafb';
 
   return (
     <View style={[styles.card, { backgroundColor: cardBg }]}>
+      {/* Top row: status badge + ID + type badge */}
       <View style={styles.cardTopRow}>
-        <StatusBadge status={waiver.status} />
-        <Text style={[styles.waiverID, { color: textSub }]}>ID: #W-{waiver.request_id}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+          <StatusBadge status={waiver.status} />
+          {/* Prior / Retroactive type badge */}
+          <View style={[
+            styles.typeBadge,
+            isPrior
+              ? { backgroundColor: isDarkMode ? '#2e2010' : '#fff8e6' }
+              : { backgroundColor: isDarkMode ? '#252b3e' : '#f0f2f8' }
+          ]}>
+            {isPrior
+              ? <Clock size={10} color={ORANGE} style={{ marginRight: 3 }} />
+              : <AlertTriangle size={10} color={textSub} style={{ marginRight: 3 }} />
+            }
+            <Text style={[styles.typeBadgeText, { color: isPrior ? ORANGE : textSub }]}>
+              {isPrior ? 'Prior' : 'Retroactive'}
+            </Text>
+          </View>
+        </View>
+        <Text style={[styles.waiverID, { color: textSub }]}>#{waiver.request_id}</Text>
       </View>
+
       <Text style={[styles.subjectText, { color: textPrimary }]}>{waiver.class_name}</Text>
+
       <View style={styles.dateRow}>
         <Calendar size={13} color={textSub} />
-        <Text style={[styles.dateText, { color: textSub }]}>Absence Date: {dateStr}</Text>
+        <Text style={[styles.dateText, { color: textSub }]}>{dateLabel}: {dateStr}</Text>
       </View>
+
       <View style={styles.reasonBox}>
         <Text style={[styles.reasonLabel, { color: reasonLabelColor }]}>YOUR REASON</Text>
         <Text style={[styles.reasonText, { color: textPrimary }]}>"{waiver.reason}"</Text>
       </View>
-      <View style={[styles.feedbackBox, { backgroundColor: isPending ? '#fff8e6' : feedbackBg, borderLeftColor: config.feedbackBorder }, isPending && styles.feedbackBoxPending]}>
+
+      <View style={[
+        styles.feedbackBox,
+        { backgroundColor: isPending ? '#fff8e6' : feedbackBg, borderLeftColor: config.feedbackBorder },
+        isPending && styles.feedbackBoxPending,
+      ]}>
         {!isPending && <Text style={[styles.feedbackLabel, { color: reasonLabelColor }]}>ADMIN FEEDBACK</Text>}
-        <Text style={[styles.feedbackText, { color: isDarkMode ? '#a0b0d0' : '#3a4a6a' }, isPending && { color: config.text }]}>
+        <Text style={[
+          styles.feedbackText,
+          { color: isDarkMode ? '#a0b0d0' : '#3a4a6a' },
+          isPending && { color: config.text },
+        ]}>
           {isPending ? config.feedbackText : `"${config.feedbackText}"`}
         </Text>
       </View>
@@ -282,6 +331,13 @@ const styles = StyleSheet.create({
     color: '#8a94a6',
     fontWeight: '500',
   },
+
+  // Type badge (Prior / Retroactive)
+  typeBadge: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
+  },
+  typeBadgeText: { fontSize: 10, fontWeight: '700' },
 
   subjectText: {
     fontSize: 17,

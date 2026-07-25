@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
   StatusBar, ActivityIndicator, RefreshControl, Modal, ScrollView,
@@ -70,16 +71,7 @@ function formatRelative(iso) {
   const nowUtcMs  = Date.now();              // always UTC
   const diffMs    = nowUtcMs - sentUtcMs;
 
-  // ── DIAGNOSTIC STEP 3+4 (simplified — remove after confirming fix) ────
-  console.warn(
-    '[NOTIF_DIAG FIXED] raw_sent_at=' + JSON.stringify(iso) +
-    ' | sentUtcMs=' + sentUtcMs +
-    ' | nowUtcMs='  + nowUtcMs  +
-    ' | diffMs='    + diffMs    +
-    ' | diff_min='  + Math.floor(diffMs / 60000)
-  );
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ── DIAGNOSTIC STEP 3+4 removed ──────────────────────────────────────────
   const m = Math.floor(diffMs / 60000);
   if (m < 1)  return 'Just now';
   if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
@@ -108,15 +100,12 @@ function formatRelative(iso) {
 }
 
 function formatFull(iso) {
-  // Absolute time — NPT conversion IS needed here.
   if (!iso) return '';
   const nptDate = toNPT(iso);
-  const result = (
+  return (
     `${MONTHS[nptDate.getUTCMonth()]} ${nptDate.getUTCDate()}, ` +
     `${nptDate.getUTCFullYear()}, ${nptTimeStr(nptDate)} NPT`
   );
-  console.warn('[NOTIF_DIAG FIXED-full] raw=' + JSON.stringify(iso) + ' | result=' + JSON.stringify(result));
-  return result;
 }
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
@@ -205,29 +194,10 @@ export default function NotificationsScreen({ navigation }) {
       const data = await res.json();
       const notifs = Array.isArray(data) ? data : [];
 
-      // ── DIAGNOSTIC STEP 3: log first notification's raw sent_at from API ──
-      if (notifs.length > 0) {
-        const _first = notifs[0];
-        console.warn(
-          '[NOTIF_DIAG STEP3-api] First notif from /my-notifications:' +
-          ' notif_id=' + _first.notif_id +
-          ' | sent_at=' + JSON.stringify(_first.sent_at) +
-          ' | typeof=' + typeof _first.sent_at +
-          ' | last_char=' + (_first.sent_at ? JSON.stringify(_first.sent_at[_first.sent_at.length - 1]) : 'null')
-        );
-      }
-      // ──────────────────────────────────────────────────────────────────────
-
-      setNotifications(notifs);
-
-      // Mark all unread as read as soon as the user opens this screen.
-      // Optimistic update — flip is_read locally right away so the badge
-      // in the header disappears immediately without waiting for the API.
       const hasUnread = notifs.some(n => !n.is_read);
       if (hasUnread) {
         setNotifications(notifs.map(n => ({ ...n, is_read: true })));
-        // Fire-and-forget — persists the change on the backend so the
-        // badge stays cleared after a page refresh too.
+        // Mark all as read on the backend (fire-and-forget)
         fetch(API.markNotificationsRead, {
           method:  'PUT',
           headers: authHeaders,
@@ -244,18 +214,30 @@ export default function NotificationsScreen({ navigation }) {
 
   useEffect(() => { fetchNotifications(); }, []);
 
+  // Re-fetch every time the student navigates to this screen, not just on mount.
+  // Without this, new notifications created after the first load are never shown
+  // until the app is fully restarted.
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications();
+    }, [fetchNotifications])
+  );
+
   const onRefresh = () => { setRefreshing(true); fetchNotifications(true); };
 
-  // Mark a single notification as read in local state only.
-  // The bulk mark-all-read already ran when the screen opened, so we
-  // just need to flip the local dot/highlight for any stale is_read=false
-  // entries that may appear during the same session.
+  // Mark a single notification as read — local state + backend
   const markOneRead = useCallback((notif) => {
     if (notif.is_read) return;
+    // Optimistic local update
     setNotifications(prev =>
       prev.map(n => n.notif_id === notif.notif_id ? { ...n, is_read: true } : n)
     );
-  }, []);
+    // Persist to backend via PUT /api/student/notifications/<id>/read
+    fetch(`${API.studentNotificationsBase}/${notif.notif_id}/read`, {
+      method: 'PUT',
+      headers: authHeaders,
+    }).catch(() => { /* non-blocking */ });
+  }, [token]);
 
   // Open modal + mark read
   const handleView = useCallback((notif) => {

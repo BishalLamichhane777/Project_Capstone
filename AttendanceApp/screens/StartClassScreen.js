@@ -435,19 +435,34 @@ export default function StartClassScreen({ navigation, route }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to start session');
 
-      const mapped = (data.enrolled_students || []).map(s => ({
-        id:         String(s.student_id),
-        student_id: s.student_id,
-        name:       s.fullname,
-        initials:   getInitials(s.fullname),
-        confidence: null,
-      }));
+      if (data.resumed) {
+        // An existing ACTIVE session was found — restore its state exactly
+        // as if the teacher had never left. fetchSessionStatus recalculates
+        // elapsed time from server start_time and re-populates the detected list.
+        setSessionId(data.session_id);
+        await fetchSessionStatus(data.session_id);
+        // Brief toast so the teacher knows what happened
+        Alert.alert(
+          'Session Resumed',
+          'Your previous session was still active. Resuming where you left off.',
+          [{ text: 'OK' }],
+        );
+      } else {
+        // Fresh session — reset all local state to zero
+        const mapped = (data.enrolled_students || []).map(s => ({
+          id:         String(s.student_id),
+          student_id: s.student_id,
+          name:       s.fullname,
+          initials:   getInitials(s.fullname),
+          confidence: null,
+        }));
 
-      setSessionId(data.session_id);
-      setEnrolledStudents(mapped);
-      setDetected([]);
-      setElapsed(0);
-      setIsRunning(true);
+        setSessionId(data.session_id);
+        setEnrolledStudents(mapped);
+        setDetected([]);
+        setElapsed(0);
+        setIsRunning(true);
+      }
     } catch (err) {
       console.error(err);
       Alert.alert('Error', err.message || 'Could not start session.');

@@ -16,7 +16,8 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # 'admin' | 'teacher' | 'student'
     phone = db.Column(db.String(30), nullable=True)
-    device_token = db.Column(db.String(512), nullable=True)  # FCM push token
+    device_token = db.Column(db.String(512), nullable=True)  # FCM native device token
+    platform = db.Column(db.String(10), nullable=True)       # 'android' | 'ios'
     is_active = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
@@ -48,6 +49,7 @@ class User(UserMixin, db.Model):
             "role": self.role,
             "phone": self.phone,
             "device_token": self.device_token,
+            "platform": self.platform,
             "is_active": self.is_active,
             "created_at": utc_iso(self.created_at),
         }

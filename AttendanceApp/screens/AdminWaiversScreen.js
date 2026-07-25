@@ -7,7 +7,21 @@ import { useFocusEffect } from '@react-navigation/native';
 import AdminBottomNav from '../components/AdminBottomNav';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api';
-import { X, Check, PartyPopper, ChevronLeft } from 'lucide-react-native';
+import { X, Check, PartyPopper, ChevronLeft, Clock, AlertTriangle } from 'lucide-react-native';
+
+const ORANGE = '#f39c12';
+
+// date helper — handles both plain YYYY-MM-DD and ISO UTC strings
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatWaiverDate(iso) {
+  if (!iso) return 'Unknown Date';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return `${MONTH_SHORT[m - 1]} ${d}, ${y}`;
+  }
+  const d = new Date(iso);
+  return `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
 
 const BLUE = '#2952e3';
 
@@ -20,16 +34,18 @@ function getInitials(name) {
 }
 
 function WaiverCard({ waiver, onApprove, onReject, isDarkMode }) {
-  const dateStr = waiver.session_date 
-    ? new Date(waiver.session_date).toLocaleDateString()
-    : 'Unknown Date';
+  const isPrior   = waiver.waiver_type === 'prior';
+  const dateLabel = isPrior ? 'Target Date' : 'Session Date';
+  const dateStr   = isPrior && waiver.end_date && waiver.end_date !== waiver.start_date
+    ? `${formatWaiverDate(waiver.start_date)} → ${formatWaiverDate(waiver.end_date)}`
+    : formatWaiverDate(waiver.session_date);
 
-  const cardBg      = isDarkMode ? '#1a1f2e' : '#ffffff';
-  const textPrimary = isDarkMode ? '#ffffff' : '#1a1f36';
-  const textSub     = isDarkMode ? '#8a94b8' : '#8a94a6';
-  const badgeBg     = isDarkMode ? '#252b3e' : '#f0f2f8';
-  const reasonBg    = isDarkMode ? '#252b3e' : '#f8f9ff';
-  const reasonText  = isDarkMode ? '#c0c8e8' : '#3a4a6a';
+  const cardBg     = isDarkMode ? '#1a1f2e' : '#ffffff';
+  const textPrimary= isDarkMode ? '#ffffff' : '#1a1f36';
+  const textSub    = isDarkMode ? '#8a94b8' : '#8a94a6';
+  const badgeBg    = isDarkMode ? '#252b3e' : '#f0f2f8';
+  const reasonBg   = isDarkMode ? '#252b3e' : '#f8f9ff';
+  const reasonText = isDarkMode ? '#c0c8e8' : '#3a4a6a';
 
   return (
     <View style={[styles.card, { backgroundColor: cardBg }]}>
@@ -40,16 +56,41 @@ function WaiverCard({ waiver, onApprove, onReject, isDarkMode }) {
         </View>
         <View style={styles.cardTopInfo}>
           <Text style={[styles.studentName, { color: textPrimary }]}>{waiver.student_name || 'Unknown Student'}</Text>
-          <View style={[styles.typeBadge, { backgroundColor: badgeBg }]}>
-            <Text style={[styles.typeText, { color: textSub }]}>Request #{waiver.request_id}</Text>
+          {/* Type badge — Prior (orange) or Retroactive (grey) */}
+          <View style={[
+            styles.typeBadge,
+            isPrior
+              ? { backgroundColor: isDarkMode ? '#2e2010' : '#fff8e6' }
+              : { backgroundColor: badgeBg }
+          ]}>
+            {isPrior
+              ? <Clock size={10} color={ORANGE} style={{ marginRight: 4 }} />
+              : <AlertTriangle size={10} color={textSub} style={{ marginRight: 4 }} />
+            }
+            <Text style={[styles.typeText, { color: isPrior ? ORANGE : textSub }]}>
+              {isPrior ? 'Prior Request' : 'Retroactive'}
+            </Text>
           </View>
           <Text style={[styles.subjectText, { color: textSub }]}>{waiver.class_name}</Text>
         </View>
-        <Text style={[styles.timeText, { color: textSub }]}>{dateStr}</Text>
+        <View style={{ alignItems: 'flex-end', gap: 2 }}>
+          <Text style={[styles.timeText, { color: textSub }]}>{dateStr}</Text>
+          <Text style={[styles.dateLabelText, { color: isDarkMode ? '#5a6080' : '#c0c8d8' }]}>{dateLabel}</Text>
+        </View>
       </View>
 
       {/* Reason */}
       <Text style={[styles.reasonText, { backgroundColor: reasonBg, color: reasonText }]}>"{waiver.reason}"</Text>
+
+      {/* Prior note — remind admin no attendance record exists yet */}
+      {isPrior && (
+        <View style={[styles.priorNote, { backgroundColor: isDarkMode ? '#2e2010' : '#fff8e6' }]}>
+          <Clock size={12} color={ORANGE} />
+          <Text style={[styles.priorNoteText, { color: isDarkMode ? '#f0c060' : '#a06010' }]}>
+            Prior request — no attendance record yet. Approve to authorise this absence in advance.
+          </Text>
+        </View>
+      )}
 
       {/* Action Buttons */}
       <View style={styles.actionRow}>
@@ -252,10 +293,18 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 14, fontWeight: '800', color: BLUE },
   cardTopInfo: { flex: 1, gap: 4 },
   studentName: { fontSize: 15, fontWeight: '800', color: '#1a1f36' },
-  typeBadge: { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: '#f0f2f8' },
+  typeBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: '#f0f2f8' },
   typeText: { fontSize: 11, fontWeight: '700', color: '#8a94a6' },
   subjectText: { fontSize: 12, color: '#8a94a6' },
   timeText: { fontSize: 11, color: '#aab0be' },
+  dateLabelText: { fontSize: 10, color: '#c0c8d8' },
+
+  // Prior request note bar
+  priorNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    borderRadius: 8, padding: 10, marginBottom: 12,
+  },
+  priorNoteText: { flex: 1, fontSize: 12, lineHeight: 17 },
 
   reasonText: {
     fontSize: 13, color: '#3a4a6a', lineHeight: 20,

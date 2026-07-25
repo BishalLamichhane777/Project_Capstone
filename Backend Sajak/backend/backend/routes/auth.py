@@ -271,15 +271,18 @@ def update_me():
 
 @auth_bp.route("/device-token", methods=["POST"])
 def register_device_token():
-    """Save the caller's Expo push token to their user record.
+    """Save the caller's native FCM device token and platform to their user record.
 
     Requires a valid JWT in the Authorization header.
-    Body: { "device_token": "<ExponentPushToken[...]>" }
+    Body: {
+        "device_token": "<native FCM token>",
+        "platform":     "android" | "ios"
+    }
 
-    The token is stored on the users.device_token column and used by
-    services/notifications.py to send FCM/Expo push notifications.
+    The token is stored on users.device_token and used by
+    services/notifications.py to send FCM push notifications (Android only).
+    platform is stored on users.platform to gate push delivery.
     """
-    # Authenticate using the same pattern as /me
     auth_error = authenticate()
     if auth_error:
         return auth_error
@@ -289,8 +292,13 @@ def register_device_token():
         return jsonify({"error": "Request body is required", "status": 400}), 400
 
     device_token = data.get("device_token", "").strip()
+    platform     = data.get("platform", "").strip().lower()
+
     if not device_token:
         return jsonify({"error": "device_token is required", "status": 400}), 400
+
+    if platform not in ("android", "ios", ""):
+        return jsonify({"error": "platform must be 'android' or 'ios'", "status": 422}), 422
 
     user_id = g.current_user["user_id"]
     user = User.query.get(user_id)
@@ -298,8 +306,13 @@ def register_device_token():
         return jsonify({"error": "User not found", "status": 404}), 404
 
     user.device_token = device_token
+    if platform:
+        user.platform = platform
     db.session.commit()
 
-    logger.info("Device token saved for user_id=%s role=%s", user_id, user.role)
+    logger.info(
+        "Device token saved: user_id=%s role=%s platform=%s",
+        user_id, user.role, platform or "unspecified",
+    )
 
     return jsonify({"message": "Device token saved"}), 200

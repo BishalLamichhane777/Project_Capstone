@@ -1,151 +1,211 @@
-"""FCM push notification service.
+"""Notification service — in-app DB rows + Android FCM push.
 
-Uses the Expo Push Notification API (https://exp.host/--/exponent-push-api/v2/push/send)
-which works with ExponentPushToken values registered by expo-notifications on the client.
-All operations wrapped in try/except — failures are logged, never crash the API.
+Strategy (decided, do not change):
+  ALL platforms  → insert a Notification row into SQLite (universal fallback).
+  Android only   → also send a native FCM push via firebase_admin.messaging.send()
+                   using the native device token from users.device_token.
+  iOS            → in-app only (no APNs — no Apple Developer account).
+
+All push operations are wrapped in try/except.
+A failed push NEVER blocks the in-app notification or crashes session-end.
 """
 
 import logging
-
-import requests as _requests
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-_EXPO_PUSH_URL = "https://exp.host/--/exponent-push-api/v2/push/send"
-_EXPO_HEADERS  = {
-    "Accept":       "application/json",
-    "Content-Type": "application/json",
-}
+
+# ─── FCM push (Android only) ─────────────────────────────────────────────────
+
+def _send_android_fcm(device_token: str, title: str, body: str) -> bool:
+    """Send a single native FCM push to an Android device token.
+
+    Uses firebase_admin.messaging.send() — requires the Firebase Admin SDK
+    to be already initialised (done in app.py _init_firebase).
+    Returns True on success, False on any failure.
+    """
+    try:
+        from firebase_admin import messaging
+
+        message = messaging.Message(
+            notification=messaging.Notification(title=title, body=body),
+            token=device_token,
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(
+                    sound="default",
+                    channel_id="default",
+                ),
+            ),
+        )
+        response = messaging.send(message)
+        logger.info("FCM push sent: message_id=%s token=%s", response, device_token[:20])
+        return True
+    except Exception as exc:
+        logger.error("FCM push failed (token=%s): %s", device_token[:20] if device_token else "None", exc)
+        return False
 
 
-def _send_fcm(device_token: str, title: str, body: str) -> bool:
-    """Send a single Expo push notification.
+# ─── In-app notification row ──────────────────────────────────────────────────
 
-    Accepts an ExponentPushToken (e.g. "ExponentPushToken[xxxxxx]").
+def _create_inapp_notification(user_id: int, notif_type: str, message: str) -> bool:
+    """Insert a Notification row into SQLite for any platform.
+
+    Called inside an active Flask app context (request or app.app_context).
     Returns True on success, False on failure.
     """
     try:
-        payload = {"to": device_token, "title": title, "body": body}
-        response = _requests.post(
-            _EXPO_PUSH_URL, json=payload, headers=_EXPO_HEADERS, timeout=10
+        from database import db
+        from models.notification import Notification
+
+        notif = Notification(
+            user_id=user_id,
+            type=notif_type,
+            message=message,
+            is_read=False,
+            sent_at=datetime.now(timezone.utc),
         )
-        response.raise_for_status()
-        data = response.json()
-        # Expo returns a "data" array; each entry has a "status" field
-        statuses = [item.get("status") for item in data.get("data", [])]
-        if "error" in statuses:
-            logger.error("Expo push error response (token=%s): %s", device_token, data)
-            return False
-        logger.info("Expo push sent successfully to token=%s", device_token)
+        db.session.add(notif)
+        db.session.commit()
+        logger.info("In-app notification created: user_id=%s type=%s", user_id, notif_type)
         return True
     except Exception as exc:
-        logger.error("Expo push failed (token=%s): %s", device_token, exc)
+        logger.error("In-app notification failed: user_id=%s error=%s", user_id, exc)
         return False
 
 
-def _send_fcm_multicast(device_tokens: list, title: str, body: str) -> bool:
-    """Send Expo push notification to multiple devices in one request.
+# ─── Public API ───────────────────────────────────────────────────────────────
 
-    Returns True if the request succeeded and at least one message was
-    accepted (status != 'error').
-    """
-    if not device_tokens:
-        return False
-    try:
-        payload = {"to": device_tokens, "title": title, "body": body}
-        response = _requests.post(
-            _EXPO_PUSH_URL, json=payload, headers=_EXPO_HEADERS, timeout=10
-        )
-        response.raise_for_status()
-        data = response.json()
-        statuses  = [item.get("status") for item in data.get("data", [])]
-        ok_count  = statuses.count("ok")
-        err_count = statuses.count("error")
-        logger.info(
-            "Expo multicast: %d ok, %d error (of %d tokens)",
-            ok_count, err_count, len(device_tokens),
-        )
-        return ok_count > 0
-    except Exception as exc:
-        logger.error("Expo multicast failed: %s", exc)
-        return False
-
-
-def send_absence_notification(
+def notify_absent_student(
+    user_id: int,
+    platform: str,
     device_token: str,
     student_name: str,
-    session_id: str,
     class_name: str,
 ) -> bool:
     """Notify a student they were marked absent.
 
-    Title: "Attendance Alert"
-    Body: "You were marked absent from {class_name}"
+    Always creates an in-app Notification row.
+    Also sends Android FCM push if platform == 'android' and token present.
     """
-    if not device_token:
-        logger.warning(
-            "No device token for student %s — skipping absence push", student_name
-        )
-        return False
+    title   = "Attendance Alert"
+    message = f"You were marked absent from {class_name}"
 
-    return _send_fcm(
-        device_token=device_token,
-        title="Attendance Alert",
-        body=f"You were marked absent from {class_name}",
-    )
+    # Step 1 — in-app row (all platforms)
+    _create_inapp_notification(user_id, "Absent", message)
+
+    # Step 2 — Android FCM push
+    if platform == "android" and device_token:
+        _send_android_fcm(device_token, title, message)
+
+    return True
 
 
-def send_excuse_approved_notification(
-    device_token: str, class_name: str
-) -> bool:
-    """Notify a student their excuse was approved.
+def notify_absent_students_bulk(absent_records, class_name: str) -> None:
+    """Process all absent students after session end.
 
-    Title: "Excuse Approved"
-    Body: "Your excuse for {class_name} has been approved"
+    absent_records: list of AttendanceRecord ORM objects.
+    Each record must have record.student.user loaded (lazy load is fine).
+    Runs the two-step notify_absent_student for each.
+
+    NOTE: This version requires an active SQLAlchemy session (request context).
+    Use notify_absent_students_bulk_plain() when calling from a background thread.
     """
-    if not device_token:
-        return False
-    return _send_fcm(
-        device_token=device_token,
-        title="Excuse Approved",
-        body=f"Your excuse for {class_name} has been approved",
-    )
+    for record in absent_records:
+        try:
+            student = record.student
+            if not student or not student.user:
+                continue
+            user = student.user
+            notify_absent_student(
+                user_id=user.id,
+                platform=user.platform or "",
+                device_token=user.device_token or "",
+                student_name=user.fullname,
+                class_name=class_name,
+            )
+        except Exception as exc:
+            logger.error(
+                "notify_absent_students_bulk: failed for record_id=%s error=%s",
+                getattr(record, "record_id", "?"),
+                exc,
+            )
 
 
-def send_excuse_rejected_notification(
-    device_token: str, class_name: str
-) -> bool:
-    """Notify a student their excuse was rejected.
+def notify_absent_students_bulk_plain(absent_data: list, class_name: str) -> None:
+    """Process absent student notifications from pre-extracted plain dicts.
 
-    Title: "Excuse Rejected"
-    Body: "Your excuse for {class_name} was not approved"
+    This is the background-thread-safe version. It must be called inside a
+    pushed Flask app context (app.app_context()) so that db.session works.
+
+    absent_data: list of dicts, each with keys:
+        user_id, platform, device_token, student_name
     """
-    if not device_token:
-        return False
-    return _send_fcm(
-        device_token=device_token,
-        title="Excuse Rejected",
-        body=f"Your excuse for {class_name} was not approved",
-    )
+    for entry in absent_data:
+        try:
+            notify_absent_student(
+                user_id=entry["user_id"],
+                platform=entry.get("platform", ""),
+                device_token=entry.get("device_token", ""),
+                student_name=entry.get("student_name", ""),
+                class_name=class_name,
+            )
+        except Exception as exc:
+            logger.error(
+                "notify_absent_students_bulk_plain: failed for user_id=%s error=%s",
+                entry.get("user_id", "?"),
+                exc,
+            )
 
 
-def send_waiver_request_notification(
-    admin_tokens_list: list,
-    student_name: str,
+def notify_excuse_decision(
+    user_id: int,
+    platform: str,
+    device_token: str,
+    decision: str,
     class_name: str,
 ) -> bool:
-    """Notify admin users about a new excuse request.
+    """Notify student of waiver approval or rejection.
 
-    Title: "New Excuse Request"
-    Body: "{student_name} submitted an excuse for {class_name}"
+    Always creates in-app row. Android gets FCM push too.
     """
-    valid_tokens = [t for t in admin_tokens_list if t]
-    if not valid_tokens:
-        logger.warning("No admin device tokens available for waiver push")
-        return False
+    if decision == "Approved":
+        title   = "Excuse Approved"
+        message = f"Your excuse for {class_name} has been approved"
+    else:
+        title   = "Excuse Rejected"
+        message = f"Your excuse for {class_name} was not approved"
 
-    return _send_fcm_multicast(
-        device_tokens=valid_tokens,
-        title="New Excuse Request",
-        body=f"{student_name} submitted an excuse for {class_name}",
-    )
+    _create_inapp_notification(user_id, "Waiver", message)
+
+    if platform == "android" and device_token:
+        _send_android_fcm(device_token, title, message)
+
+    return True
+
+
+def notify_admins_new_waiver(
+    admin_users: list,
+    student_name: str,
+    class_name: str,
+) -> None:
+    """Notify all admin users of a new waiver request.
+
+    admin_users: list of User ORM objects with role == 'admin'.
+    Creates in-app row for every admin.
+    Sends Android FCM push to any admin on Android with a device token.
+    """
+    title   = "New Excuse Request"
+    message = f"{student_name} submitted an excuse for {class_name}"
+
+    for admin in admin_users:
+        try:
+            _create_inapp_notification(admin.id, "Waiver", message)
+            if (admin.platform or "") == "android" and admin.device_token:
+                _send_android_fcm(admin.device_token, title, message)
+        except Exception as exc:
+            logger.error(
+                "notify_admins_new_waiver: failed for admin_id=%s error=%s",
+                admin.id, exc,
+            )

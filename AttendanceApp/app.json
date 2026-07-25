@@ -26,13 +26,20 @@
       "edgeToEdgeEnabled": true,
       "package": "com.mytimes.attendanceapp",
       "googleServicesFile": "./google-services.json",
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "plugins": [
       "expo-notifications"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5defca78-788a-4f38-bdca-615425b8ec08"
+      }
     }
   }
 }

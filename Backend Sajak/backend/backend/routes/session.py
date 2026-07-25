@@ -13,7 +13,7 @@ from models.class_model import Class, Enrollment
 from models.session import Session
 from models.user import User
 from middleware.auth_middleware import require_role
-from services import attendance_engine, firebase_sync, notifications
+from services import attendance_engine, notifications
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,71 @@ def get_teacher_classes():
         return jsonify({"error": str(e), "status": 500}), 500
 
 
-@session_bp.route("/start", methods=["POST"])
+# ─── Session auto-expiry helper ──────────────────────────────────────────────
+
+def _auto_expire_stale_session(session: "Session") -> bool:
+    """Auto-close an ACTIVE session that has outlived its scheduled window.
+
+    A session is considered stale when ALL of the following are true:
+      1. The linked class has both scheduled_date and scheduled_end_time set.
+      2. The current local time is > scheduled_end_time + STALE_GRACE_MINUTES
+         on the *same date* the session started.  (Sessions that started on a
+         different calendar day are always considered stale regardless of time.)
+
+    Returns True if the session was closed (caller should commit), False if it
+    is still within its valid window and should be resumed.
+    """
+    from flask import current_app
+    from zoneinfo import ZoneInfo
+
+    STALE_GRACE_MINUTES = 60  # extra leniency after scheduled end
+
+    cls = session.class_
+    if cls is None:
+        return False
+
+    tz_name = current_app.config.get("SERVER_TIMEZONE", "Asia/Kathmandu")
+    tz = ZoneInfo(tz_name)
+    now_local = datetime.now(tz)
+    today_local = now_local.date()
+
+    # Normalise session start_time to local date for comparison
+    start_aware = session.start_time
+    if start_aware.tzinfo is None:
+        start_aware = start_aware.replace(tzinfo=timezone.utc)
+    session_date_local = start_aware.astimezone(tz).date()
+
+    # Session started on a previous calendar day — always stale
+    if session_date_local < today_local:
+        logger.info(
+            "Auto-expiring stale session %s (started %s, today is %s)",
+            session.session_id[:8], session_date_local, today_local,
+        )
+        session.end_time = start_aware.astimezone(timezone.utc).replace(
+            hour=23, minute=59, second=59, microsecond=0
+        )
+        session.status = "CLOSED"
+        return True
+
+    # Session started today — only expire if past scheduled_end_time + grace
+    if cls.scheduled_end_time is not None:
+        end_dt = datetime.combine(today_local, cls.scheduled_end_time).replace(tzinfo=tz)
+        cutoff = end_dt + timedelta(minutes=STALE_GRACE_MINUTES)
+        if now_local > cutoff:
+            logger.info(
+                "Auto-expiring stale session %s (scheduled end %s + %d min grace passed)",
+                session.session_id[:8],
+                cls.scheduled_end_time.strftime("%H:%M"),
+                STALE_GRACE_MINUTES,
+            )
+            session.end_time = end_dt.astimezone(timezone.utc)
+            session.status = "CLOSED"
+            return True
+
+    # Still within valid window
+    return False
+
+
 @require_role("teacher")
 def start_session():
     """Start a new attendance session for a class.
@@ -154,6 +218,44 @@ def start_session():
             jsonify({"error": "You are not the teacher of this class", "status": 403}),
             403,
         )
+
+    # ── Resume check ──────────────────────────────────────────────────
+    # If an ACTIVE session already exists for this class, return it
+    # directly instead of creating a duplicate.  This handles teacher
+    # phone crashes / app restarts without losing the session.
+    existing = Session.query.filter_by(class_id=class_id, status="ACTIVE").first()
+    if existing:
+        # Check whether the session has outlived its scheduled window.
+        stale = _auto_expire_stale_session(existing)
+        if stale:
+            # Commit the auto-close, then fall through to create a fresh session.
+            db.session.commit()
+            logger.info(
+                "Stale session %s auto-closed; creating a new session for class %s",
+                existing.session_id[:8], class_id,
+            )
+        else:
+            # Valid session — return it so the teacher resumes where they left off.
+            enrollments = Enrollment.query.filter_by(class_id=class_id).all()
+            logger.info(
+                "Resuming existing session %s for class %s",
+                existing.session_id[:8], class_id,
+            )
+            return (
+                jsonify(
+                    {
+                        "session_id":       existing.session_id,
+                        "threshold_percent": existing.threshold_percent,
+                        "enrolled_count":   len(enrollments),
+                        "enrolled_students": [
+                            e.student.to_dict() for e in enrollments if e.student
+                        ],
+                        "start_time":       utc_iso(existing.start_time),
+                        "resumed":          True,
+                    }
+                ),
+                200,
+            )
 
     # ── Schedule enforcement ──────────────────────────────────────────
     # Only enforced when a scheduled_date has been set by admin.
@@ -270,11 +372,7 @@ def start_session():
 
     db.session.commit()
 
-    # Sync to Firebase (best-effort)
-    firebase_sync.sync_session_start(
-        session_id,
-        {"status": "ACTIVE", "class_id": class_id, "mode": mode},
-    )
+    # Sync to Firebase removed — Realtime DB sync deprecated
 
     return (
         jsonify(
@@ -325,74 +423,51 @@ def end_session():
     session.status = "CLOSED"
     db.session.commit()
 
-    firebase_sync.sync_session_end(session_id, summary)
-    firebase_sync.sync_attendance_summary(session_id, summary.get("details", []))
-
     absent_records = AttendanceRecord.query.filter_by(
         session_id=session_id, status="Absent"
     ).all()
 
     class_name = session.class_.class_name if session.class_ else "Unknown"
 
-    # ── Collect all absent students who have a device token ──────────────────
-    # Build two parallel lists:
-    #   absent_tokens      — ExponentPushToken strings for multicast delivery
-    #   absent_no_token    — student names with no token (logged as warning only)
-    absent_tokens = []
-    absent_no_token = []
+    # ── Notify all absent students ────────────────────────────────────
+    # Pre-extract all data we need from the ORM objects NOW, while still
+    # inside the request context and attached to the SQLAlchemy session.
+    # The background thread cannot access lazy-loaded relationships or
+    # db.session — both are tied to the request context that is torn down
+    # before the thread runs.
+    from flask import current_app
+    absent_data = []
+    for rec in absent_records:
+        try:
+            student = rec.student
+            if not student or not student.user:
+                continue
+            user = student.user
+            absent_data.append({
+                "user_id":      user.id,
+                "platform":     user.platform or "",
+                "device_token": user.device_token or "",
+                "student_name": user.fullname,
+            })
+        except Exception as exc:
+            logger.error("Session %s: failed to pre-load absent record %s: %s",
+                         session_id, getattr(rec, "record_id", "?"), exc)
 
-    for record in absent_records:
-        student = record.student
-        if student and student.user:
-            device_token = student.user.device_token
-            student_name = student.user.fullname
-            if device_token:
-                absent_tokens.append(device_token)
-            else:
-                absent_no_token.append(student_name)
+    flask_app = current_app._get_current_object()
 
-    if absent_no_token:
-        logger.warning(
-            "Session %s: %d absent student(s) have no device token and will "
-            "not receive a push notification: %s",
-            session_id,
-            len(absent_no_token),
-            absent_no_token,
-        )
-
-    # ── Fire notifications in a background thread ─────────────────────────────
-    # This returns the summary response to the teacher immediately without
-    # waiting for the Expo Push API HTTP calls to complete.
-    if absent_tokens:
-        def _send_notifications(tokens, name):
+    def _notify_absent(data_list, name, app):
+        with app.app_context():
             try:
-                notifications._send_fcm_multicast(
-                    device_tokens=tokens,
-                    title="Attendance Alert",
-                    body=f"You were marked absent from {name}",
-                )
-                logger.info(
-                    "Session %s: absence notifications dispatched to %d student(s).",
-                    session_id,
-                    len(tokens),
-                )
+                notifications.notify_absent_students_bulk_plain(data_list, name)
             except Exception as exc:
-                logger.error(
-                    "Session %s: background notification dispatch failed: %s",
-                    session_id,
-                    exc,
-                )
+                logger.error("Session %s: bulk absence notification failed: %s",
+                             session_id, exc)
 
-        threading.Thread(
-            target=_send_notifications,
-            args=(absent_tokens, class_name),
-            daemon=True,
-        ).start()
-    else:
-        logger.info(
-            "Session %s: no absent students with device tokens — no notifications sent.",
-            session_id,
-        )
+    threading.Thread(
+        target=_notify_absent,
+        args=(absent_data, class_name, flask_app),
+        daemon=True,
+    ).start()
 
     return (
         jsonify(

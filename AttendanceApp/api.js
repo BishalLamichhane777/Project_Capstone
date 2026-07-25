@@ -55,6 +55,9 @@ export const API = {
   adminUserUpdate:        `${BASE_URL}/api/admin/user`,       // append /:id  PUT
   adminUserDeactivate:    `${BASE_URL}/api/admin/user`,       // append /:id/deactivate  PUT
   adminUserReactivate:    `${BASE_URL}/api/admin/user`,       // append /:id/reactivate  PUT
-  adminDashboardAtRisk:   `${BASE_URL}/api/admin/dashboard/at-risk-students`,
-  deviceToken:            `${BASE_URL}/api/auth/device-token`,
+  adminDashboardAtRisk:       `${BASE_URL}/api/admin/dashboard/at-risk-students`,
+  deviceToken:                `${BASE_URL}/api/auth/device-token`,
+  studentNotificationsBase:   `${BASE_URL}/api/student/notifications`,
+  attendanceReport:           `${BASE_URL}/api/attendance/report`,   // append /<class_id>
+  sessionByClass:             `${BASE_URL}/api/session/class`,        // append /<class_id>
 };

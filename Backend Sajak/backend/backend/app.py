@@ -104,6 +104,89 @@ def create_app(config_class=Config) -> Flask:
         db.create_all()
         logger.info("Database tables created / verified")
 
+        # ── Column migrations (SQLite does not support ALTER COLUMN) ───
+        # Add new columns to existing tables safely using raw SQL.
+        # Each statement is wrapped in try/except so it silently passes
+        # if the column already exists (SQLite raises OperationalError).
+        _migrations = [
+            # users table
+            "ALTER TABLE users ADD COLUMN platform VARCHAR(10)",
+            # waiver_requests table — prior waiver support
+            "ALTER TABLE waiver_requests ADD COLUMN waiver_type VARCHAR(20) NOT NULL DEFAULT 'retroactive'",
+            "ALTER TABLE waiver_requests ADD COLUMN class_id INTEGER REFERENCES classes(class_id)",
+            "ALTER TABLE waiver_requests ADD COLUMN target_date VARCHAR(10)",
+            # prior waiver date range (start_date + end_date)
+            "ALTER TABLE waiver_requests ADD COLUMN start_date VARCHAR(10)",
+            "ALTER TABLE waiver_requests ADD COLUMN end_date VARCHAR(10)",
+        ]
+        with db.engine.connect() as conn:
+            for stmt in _migrations:
+                try:
+                    conn.execute(db.text(stmt))
+                    conn.commit()
+                    logger.info("Migration applied: %s", stmt)
+                except Exception:
+                    pass  # Column already exists — safe to ignore
+
+            # ── Make waiver_requests.session_id nullable (SQLite rebuild) ──
+            # SQLite cannot ALTER COLUMN, so we check whether the current DDL
+            # still has the NOT NULL constraint and rebuild the table if so.
+            ddl_row = conn.execute(db.text(
+                "SELECT sql FROM sqlite_master WHERE type=:t AND name=:n"
+            ), {"t": "table", "n": "waiver_requests"}).fetchone()
+            ddl = ddl_row[0] if ddl_row else ""
+            # Detect the old schema: session_id is NOT NULL without a DEFAULT
+            # (the new nullable column definition omits NOT NULL for session_id)
+            needs_rebuild = (
+                "session_id VARCHAR(36) NOT NULL" in ddl
+                or 'session_id VARCHAR(36) NOT NULL,' in ddl
+            )
+            if needs_rebuild:
+                try:
+                    conn.execute(db.text("PRAGMA foreign_keys = OFF"))
+                    conn.execute(db.text("""
+                        CREATE TABLE IF NOT EXISTS waiver_requests_new (
+                            request_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                            student_id INTEGER NOT NULL REFERENCES students(student_id),
+                            waiver_type VARCHAR(20) NOT NULL DEFAULT 'retroactive',
+                            session_id VARCHAR(36) REFERENCES sessions(session_id),
+                            class_id INTEGER REFERENCES classes(class_id),
+                            target_date VARCHAR(10),
+                            start_date VARCHAR(10),
+                            end_date VARCHAR(10),
+                            reason TEXT NOT NULL,
+                            supporting_doc_path VARCHAR(512),
+                            status VARCHAR(20) NOT NULL,
+                            submitted_at DATETIME NOT NULL,
+                            reviewed_at DATETIME
+                        )
+                    """))
+                    conn.execute(db.text("""
+                        INSERT INTO waiver_requests_new
+                            (request_id, student_id, waiver_type, session_id,
+                             class_id, target_date, start_date, end_date,
+                             reason, supporting_doc_path,
+                             status, submitted_at, reviewed_at)
+                        SELECT
+                            request_id, student_id,
+                            COALESCE(waiver_type, 'retroactive'),
+                            session_id, class_id, target_date,
+                            start_date, end_date,
+                            reason, supporting_doc_path,
+                            status, submitted_at, reviewed_at
+                        FROM waiver_requests
+                    """))
+                    conn.execute(db.text("DROP TABLE waiver_requests"))
+                    conn.execute(db.text(
+                        "ALTER TABLE waiver_requests_new RENAME TO waiver_requests"
+                    ))
+                    conn.execute(db.text("PRAGMA foreign_keys = ON"))
+                    conn.commit()
+                    logger.info("Migration: waiver_requests.session_id made nullable")
+                except Exception as exc:
+                    conn.rollback()
+                    logger.error("waiver_requests rebuild failed: %s", exc)
+
         # ── Face embedding consistency check ───────────────────────────
         # Warns at startup if any DB face_label has no matching .npy file.
         # This catches the Student_N vs roll_number mismatch class of bugs

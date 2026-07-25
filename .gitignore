@@ -46,6 +46,10 @@ android/
 database/
 models_storage/
 
+# 4a. Waiver uploads (actual files — directory structure tracked via .gitkeep)
+Backend\ Sajak/backend/backend/uploads/waivers/*
+!Backend\ Sajak/backend/backend/uploads/waivers/.gitkeep
+
 # 5. OS & IDE
 .DS_Store
 Thumbs.db

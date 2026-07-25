@@ -1,7 +1,6 @@
 """Attendance routes — history, reports, manual override."""
 
 import logging
-import threading
 from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
@@ -12,7 +11,6 @@ from models.class_model import Class, Enrollment
 from models.session import Session
 from models.student import Student
 from middleware.auth_middleware import require_role
-from services import firebase_sync
 from services.face_recognition import recognize_student
 
 logger = logging.getLogger(__name__)
@@ -323,9 +321,6 @@ def manual_override():
     record.finalized_at = datetime.now(timezone.utc)
     db.session.commit()
 
-    # Sync to Firebase (best-effort)
-    firebase_sync.sync_manual_override(student_id, session_id, status)
-
     return jsonify({"message": "Attendance updated"}), 200
 
 
@@ -576,25 +571,6 @@ def scan_attendance():
     # Commit all logged entries in one shot
     if logged_results:
         db.session.commit()
-
-        # ── 5. Firebase real-time sync (best-effort, non-blocking) ────
-        def _firebase_sync_all(items, sid):
-            for item in items:
-                try:
-                    firebase_sync.sync_attendance_log(
-                        item["student_id"], sid, item["event"]
-                    )
-                except Exception as fb_exc:
-                    logger.warning(
-                        "Firebase sync failed for student=%s session=%s: %s",
-                        item["student_id"], sid, fb_exc,
-                    )
-
-        threading.Thread(
-            target=_firebase_sync_all,
-            args=(list(logged_results), session_id),
-            daemon=True,
-        ).start()
 
     # ── 6. Response ───────────────────────────────────────────────────
     if not logged_results:

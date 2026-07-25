@@ -254,7 +254,10 @@ def delete_student(student_id):
 @student_bp.route("/notifications", methods=["GET"])
 @require_role("student")
 def student_notifications():
-    """Return notifications for the logged-in student. Marks them as read."""
+    """Return notifications for the logged-in student, newest first.
+
+    Does NOT auto-mark as read — use PUT /notifications/<id>/read.
+    """
     user_id = g.current_user["user_id"]
 
     notifs = (
@@ -263,13 +266,27 @@ def student_notifications():
         .all()
     )
 
-    results = [n.to_dict() for n in notifs]
+    return jsonify([n.to_dict() for n in notifs]), 200
 
-    # Mark all as read
-    for n in notifs:
-        if not n.is_read:
-            n.is_read = True
 
+@student_bp.route("/notifications/<int:notif_id>/read", methods=["PUT"])
+@require_role("student")
+def mark_notification_read(notif_id):
+    """Mark a single notification as read.
+
+    Only the owning student can mark their own notification.
+    Returns 404 if the notification does not exist or belongs to another user.
+    """
+    user_id = g.current_user["user_id"]
+
+    notif = Notification.query.filter_by(
+        notif_id=notif_id, user_id=user_id
+    ).first()
+
+    if not notif:
+        return jsonify({"error": "Notification not found", "status": 404}), 404
+
+    notif.is_read = True
     db.session.commit()
 
-    return jsonify(results), 200
+    return jsonify({"message": "Notification marked as read", "notif_id": notif_id}), 200
