@@ -24,26 +24,31 @@
 - **Automated Face Recognition**: Real-time attendance tracking using AI
 - **Multi-Role Support**: Admin, Teacher, and Student interfaces
 - **Batch Management**: Group students for bulk class enrollment
-- **Waiver System**: Students can submit absence excuses with admin approval workflow
+- **Prior & Retroactive Waiver System**: Students can submit absence excuses — both retroactive (after being marked absent) and prior (in advance, with optional date range and class selection) — with admin approval workflow
 - **Real-time Analytics**: Attendance statistics, trends, and at-risk student identification
-- **Notification System**: In-app alerts for attendance status and waiver decisions
-- **Export Reports**: Generate attendance reports for administrative purposes
+- **Notification System**: In-app alerts + Android FCM push notifications for attendance events and waiver decisions
+- **Export Reports**: Generate attendance reports in CSV, Excel, and PDF
+- **Session Resume**: Teacher phone crash/restart automatically resumes the existing active session instead of creating a duplicate
+- **Dark Mode**: Full dark/light theme support across all screens
 
 ### Technology Stack
 
 **Frontend:**
-- React Native with Expo
+- React Native with Expo SDK 54
 - React Navigation for navigation
 - Lucide React Native for icons
 - Expo Camera for face scanning
+- expo-notifications 0.32.17 for push notifications
+- expo-document-picker 14.0.8 for waiver document upload
 - Context API for state management
 
 **Backend:**
 - Flask (Python web framework)
 - SQLAlchemy ORM with SQLite database
-- Flask-Login for authentication
+- JWT (PyJWT) + bcrypt for authentication
 - Flask-CORS for cross-origin requests
-- Firebase Admin SDK for push notifications
+- Firebase Admin SDK for FCM push notifications (Android)
+- Multipart file upload for waiver supporting documents (stored at `uploads/waivers/`)
 
 **AI/ML:**
 - DeepFace (FaceNet model for face embeddings)
@@ -100,19 +105,19 @@ The app uses React Navigation with a stack navigator, organized by user role:
 - `Login` → Role-based dashboard navigation
 
 **Student Screens:**
-- `Home` - Dashboard with attendance overview
-- `SubmitWaiver` - Submit absence excuses
+- `Home` - Dashboard with live attendance %, real weekly trend chart, real recent status
+- `SubmitWaiver` - Submit absence excuses — retroactive or prior (advance request with date range + optional class)
 - `AttendanceHistory` - View attendance records
-- `Classes` - View enrolled classes
-- `WaiverStatus` - Track waiver request status
-- `Profile` - Student profile management
-- `Notifications` - View alerts and messages
+- `Classes` - View enrolled classes with date-filtered counter
+- `WaiverStatus` - Track waiver request status with type badges (Prior / Retroactive)
+- `Profile` - Student profile with live analytics, real monthly chart, real risk assessment, OS notification toggle
+- `Notifications` - View alerts and messages (refreshes on focus)
 
 **Admin Screens:**
-- `AdminDashboard` - Overview with statistics and quick actions
-- `AdminWaivers` - Review and approve/reject waivers
+- `AdminDashboard` - Overview with statistics and quick actions (removed Add Student Face + Student Analytics from quick actions)
+- `AdminWaivers` - Review and approve/reject waivers — **Prior Request / Retroactive badge** on each card; prior cards show info bar that no attendance record exists yet
 - `ManageSchedules` - Class scheduling management
-- `AddStudentFace` - Enroll student faces for recognition
+- `AddStudentFace` - Enroll student faces (accessible from ManageStudents, not from dashboard)
 - `StudentAnalytics` - Attendance analytics and at-risk students
 - `AdminSettings` - System configuration
 - `SendAlerts` - Broadcast notifications
@@ -120,17 +125,17 @@ The app uses React Navigation with a stack navigator, organized by user role:
 - `ManageBatches` - Create and manage student batches
 - `ManageBatchDetail` - Batch-specific student management
 - `ManageStudents` - Student CRUD operations
-- `ManageTeachers` - Teacher CRUD + soft-deactivate/reactivate *(new)*
-- `BatchOverview` - Drill-down analytics: batch-level summary with export *(new)*
-- `ClassList` - Drill-down analytics: classes within a batch *(new)*
-- `ClassDetail` - Drill-down analytics: student roster with search/filter/sort/export *(new)*
-- `StudentDetail` - Drill-down analytics: per-student attendance breakdown + export *(new)*
+- `ManageTeachers` - Teacher CRUD + soft-deactivate/reactivate
+- `BatchOverview` - Drill-down analytics: batch-level summary with export
+- `ClassList` - Drill-down analytics: classes within a batch
+- `ClassDetail` - Drill-down analytics: student roster with search/filter/sort/export
+- `StudentDetail` - Drill-down analytics: per-student attendance breakdown + export
 
 **Teacher Screens:**
 - `TeacherDashboard` - Teacher-specific overview
-- `StartClass` - Live face recognition attendance session
+- `StartClass` - Live face recognition attendance session with session resume on crash/restart
 - `TeacherClasses` - View assigned classes
-- `TeacherReports` - Class attendance reports
+- `TeacherReports` - **REWRITTEN** — all static data replaced with live data; shows real overall attendance %, real at-risk students, real weekly trend chart, real student distribution per class
 - `TeacherProfile` - Teacher profile management
 
 ### Screen Details
@@ -162,21 +167,19 @@ The app uses React Navigation with a stack navigator, organized by user role:
 **Purpose**: Student dashboard with attendance overview
 
 **Features**:
-- Circular progress indicator showing overall attendance percentage
-- "Good Standing" badge for attendance above threshold
+- Circular progress indicator showing **real** overall attendance percentage from `GET /api/attendance/analytics`
+- **Conditional** Standing badge: ≥75% → green "Good Standing", <75% → red "At Risk" (matches AT_RISK_THRESHOLD=75 used in batch.py)
 - Quick actions for waiver submission and status viewing
-- Weekly attendance trend bar chart
-- Recent attendance status cards
-- Notification bell with unread count badge
-- Dark mode support
-
-**Data Display**:
-- Overall attendance percentage (e.g., 82%)
-- Weekly trend visualization (Mon-Fri)
-- Recent class attendance with status (Present/Absent)
-- Unread notification count
+- **Real** weekly attendance trend bar chart — derived from last 7 days of attendance history, grouped by NPT calendar day; days with no sessions show empty bars
+- **Real** trend badge (+/-%) — calculated as this week's average minus last week's average
+- **Real** recent attendance status cards — last 3 records from history, showing actual class names, NPT-formatted dates, and colour-coded status badges (Present/Absent/Partial)
+- Notification bell with real unread count badge
+- All data refreshes every time the screen comes into focus (useFocusEffect)
+- Single parallel fetch for analytics + history + unread count
 
 **API Integration**:
+- `GET /api/attendance/analytics` — percentage
+- `GET /api/attendance/history` — recent records + weekly trend data
 - `GET /api/notifications/unread-count`
 
 ---
@@ -219,7 +222,8 @@ The app uses React Navigation with a stack navigator, organized by user role:
 
 **Features**:
 - Real-time camera feed with face detection
-- Session timer showing elapsed time
+- Session timer showing elapsed time **calculated from server start_time** (not a local counter)
+- **Session resume on crash/restart**: if the teacher reopens the app after a crash, tapping "Start" returns the existing active session with correct elapsed time and previously scanned students already populated
 - Live/Standby status indicator
 - Face recognition overlay with student identification
 - Multi-face recognition support
@@ -229,46 +233,52 @@ The app uses React Navigation with a stack navigator, organized by user role:
 - Stats row (Detected, Not Yet, Total, Attendance %)
 - Image optimization (720px resize before upload)
 - Scan cooldown to prevent duplicate events
-- Session state persistence (restore active sessions)
 
-**Recognition Pipeline**:
-1. Capture photo every 2 seconds
-2. Resize to 720px width
-3. Upload to backend
-4. Backend performs face detection and recognition
-5. Display recognition results with overlay
-6. Update detected students list
+**Session Resume Flow**:
+1. Teacher taps "Start" after crash/restart
+2. Backend finds existing ACTIVE session for that class
+3. If session is not stale (same day + within scheduled_end + 60 min grace), returns `{ resumed: true, session_id, start_time, enrolled_students }`
+4. Frontend calls `fetchSessionStatus()` which recalculates `elapsed` from server `start_time` and repopulates detected students from prior attendance records
+5. "Session Resumed" alert shown to teacher
+
+**Stale Session Auto-Expiry**:
+- Session started on previous calendar day → auto-closed
+- Session today but past `scheduled_end_time + 60 minutes` → auto-closed
+- Auto-closed session triggers normal new-session creation
 
 **API Integration**:
-- `POST /api/session/start` - Initialize attendance session
-- `POST /api/attendance/scan` - Upload frame for recognition
-- `GET /api/session/status/{session_id}` - Restore active session
-- `POST /api/session/end` - Finalize attendance
-
-**UI Components**:
-- Camera box with corner decorations
-- Pulsing dot indicator
-- Scan line animation
-- Recognition flash overlay (green)
-- Status messages rotation
-- Detected student rows with avatars
-- Entry/Exit badges
+- `POST /api/session/start` — returns `resumed: true` if existing session found
+- `POST /api/attendance/scan` — face recognition
+- `GET /api/session/status/<session_id>` — restore session state
+- `POST /api/session/end` — finalize attendance
 
 ---
 
 #### 5. Other Key Screens
 
 **SubmitWaiverScreen**:
-- File upload for supporting documents
-- Reason text input
-- Session selection for absence
-- Waiver submission to backend
+- **Retroactive / Prior toggle**: "Report Absence" (blue) vs "Request in Advance" (orange)
+- **Retroactive flow**: pick from existing Absent records; file upload optional
+- **Prior flow**: class picker (optional — "All Classes / General Leave" is first option; selecting a specific class triggers enrollment check); start date picker; end date picker (auto-defaults to same day for single-day absence, can extend for week-long leave); date range covers today + 60 days
+- Real file picker via `expo-document-picker` (PDF, JPG, PNG, max 5 MB)
+- File saved to `uploads/waivers/<uuid>.<ext>` on backend
+- History section shows Prior badge + "Target Date" / date range for prior waivers
 
 **AttendanceHistoryScreen**:
-- Historical attendance records
-- Filter by date range
-- Status indicators (Present/Absent/Partial)
+- Historical attendance records from `GET /api/attendance/history`
+- Status indicators (Present/Absent/Partial) with colour coding
 - Duration tracking
+- Summary stats row (Total, Present, Absent, Partial)
+
+**WaiverStatusScreen**:
+- Prior / Retroactive type badge on each card
+- "Target Date" / "Leave Period" / "Absence Date" label switches by type
+- Date range display for multi-day prior waivers (e.g. "Jul 25, 2026 → Jul 29, 2026")
+
+**NotificationsScreen**:
+- Refreshes on every focus (useFocusEffect) — new notifications appear immediately after navigating back
+- Mark-as-read on open (bulk) + per-notification read via PUT /api/student/notifications/<id>/read
+- NPT timezone display
 
 **ManageSchedulesScreen**:
 - Class creation and editing
@@ -374,7 +384,8 @@ The backend uses Flask's application factory pattern in `app.py`:
 - `role` (String 20) - 'admin' | 'teacher' | 'student'
 - `phone` (String 30, Nullable) - Phone number
 - `device_token` (String 512, Nullable) - FCM push token
-- `is_active` (Boolean, Default True) - Soft-delete flag; deactivated users cannot log in *(new)*
+- `platform` (String 10, Nullable) - **NEW** — `android` | `ios`; set at login via `POST /api/auth/device-token`
+- `is_active` (Boolean, Default True) - Soft-delete flag; deactivated users cannot log in
 - `created_at` (DateTime) - Account creation timestamp
 
 **Relationships**:
@@ -519,18 +530,30 @@ The backend uses Flask's application factory pattern in `app.py`:
 **Fields**:
 - `request_id` (Integer, Primary Key) - Request identifier
 - `student_id` (Integer, Foreign Key) - Student reference
-- `session_id` (String 36, Foreign Key) - Session reference
+- `waiver_type` (String 20, NOT NULL, Default 'retroactive') - **NEW** — `retroactive` | `prior`
+- `session_id` (String 36, Foreign Key, **Nullable**) - Session reference — **CHANGED from NOT NULL**; NULL for prior waivers
+- `class_id` (Integer, Foreign Key, Nullable) - **NEW** — class for prior waivers (NULL = all classes)
+- `target_date` (String 10, Nullable) - Legacy single-date field (kept for old rows)
+- `start_date` (String 10, Nullable) - **NEW** — ISO date `YYYY-MM-DD`; required for prior waivers
+- `end_date` (String 10, Nullable) - **NEW** — ISO date `YYYY-MM-DD`; optional for multi-day prior waivers
 - `reason` (Text) - Absence reason
-- `supporting_doc_path` (String 512, Nullable) - Document file path
+- `supporting_doc_path` (String 512, Nullable) - Relative path to uploaded file (`uploads/waivers/<uuid>.<ext>`)
 - `status` (String 20, Default 'Pending') - 'Pending' | 'Approved' | 'Rejected'
 - `submitted_at` (DateTime) - Submission timestamp
 - `reviewed_at` (DateTime, Nullable) - Review timestamp
 
+**Waiver type behaviour**:
+- **Retroactive**: `session_id` required; approval flips `AttendanceRecord.status` → 'Present'
+- **Prior**: `session_id` NULL; `start_date` required; `class_id` optional (NULL = general leave); approval does NOT touch attendance (teacher handles manually — Option A)
+
 **Relationships**:
 - `student` - Many-to-One with Student
-- `session` - Many-to-One with Session
+- `session` - Many-to-One with Session (nullable)
+- `class_` - Many-to-One with Class (nullable)
 
-**Purpose**: Student absence excuse requests
+**Properties**:
+- `effective_start` — returns `start_date` or falls back to `target_date` for legacy rows
+- `effective_end` — returns `end_date` or falls back to `start_date` / `target_date`
 
 ---
 

@@ -2,8 +2,43 @@
 
 **Project Name:** Smart Attendance System (myTIMeS Direct V2)  
 **Project Type:** Automated classroom attendance management system with AI-powered face recognition  
-**Version:** 2.0  
+**Version:** 2.1  
 **Last Updated:** July 2026
+
+> **⚠️ CHANGE LOG — July 2026 Updates**
+> The sections below reflect the original v2.0 documentation. The following changes have been made since this document was written. For full details, see `PROJECT_CONTEXT.md`.
+>
+> **Schema changes:**
+> - `users.platform` (String 10) added — stores `android` / `ios` for FCM targeting
+> - `waiver_requests` major update: `session_id` made nullable; added `waiver_type` (retroactive/prior), `class_id`, `target_date`, `start_date`, `end_date`; `supporting_doc_path` now stores a real uploaded file path under `uploads/waivers/`
+>
+> **Backend changes:**
+> - `firebase_sync.py` deleted — FCM now handled entirely by `services/notifications.py`
+> - `services/notifications.py` rewritten — in-app DB rows + FCM push; background thread app-context bug fixed
+> - `POST /api/session/start` — now resumes existing ACTIVE session instead of creating duplicate; auto-expires stale sessions (previous day or past `scheduled_end_time + 60 min`)
+> - `POST /api/excuse/submit` — two paths: retroactive (session_id) and prior (class_id optional + start_date + end_date); multipart file upload supported
+> - `POST /api/auth/device-token` — now accepts `{ device_token, platform }`
+> - `GET /api/session/class/<class_id>` — new endpoint for TeacherReportsScreen weekly trend
+> - `GET /api/attendance/report/<class_id>` — used by TeacherReportsScreen
+> - `PUT /api/student/notifications/<id>/read` — new per-notification mark-read endpoint
+>
+> **Frontend changes:**
+> - `HomeScreen.js` — fully rewritten: live attendance %, live weekly trend chart, live recent status, live trend badge
+> - `ProfileScreen.js` — fully rewritten: live analytics, live monthly chart, dynamic risk assessment (Low/Mid/High), OS notification toggle, student-only sections guarded by role check
+> - `ClassesScreen.js` — date filter badge uses filtered count not total enrollment
+> - `SubmitWaiverScreen.js` — real file picker (expo-document-picker); retroactive/prior toggle; start+end date pickers; class optional
+> - `AdminWaiversScreen.js` — Prior Request / Retroactive badges
+> - `WaiverStatusScreen.js` — type badge, date range display
+> - `TeacherReportsScreen.js` — fully rewritten: all static/hardcoded data replaced with live API data; Waivers Pending + Top Attendance stat cards removed
+> - `AdminDashboardScreen.js` — "Add Student Face" and "Student Analytics" removed from quick actions
+> - `NotificationsScreen.js` — useFocusEffect for re-fetch on every navigation
+> - `AuthContext.js` — FCM token registration via `getDevicePushTokenAsync` on login
+> - `api.js` — added `attendanceReport`, `sessionByClass`, `studentNotificationsBase`, `updateMe`
+>
+> **Push notifications:**
+> - Expo Go blocks FCM push since SDK 53 — requires dev build (`npx expo run:android`)
+> - `android/` folder generated via `npx expo prebuild --clean`; dev build was in progress when interrupted
+> - In-app notifications (bell screen) work in Expo Go
 
 ---
 

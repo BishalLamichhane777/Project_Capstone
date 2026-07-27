@@ -6,7 +6,7 @@ Paste this into a new Kiro chat to continue development with full context.
 
 ## Project Overview
 
-**Smart Attendance System** — React Native (Expo SDK 54) frontend + Flask/SQLAlchemy/SQLite backend, Dockerized, with Firebase Realtime DB + FCM. Face recognition uses MTCNN + DeepFace (FaceNet) for enrollment and identification.
+**Smart Attendance System (myTIMeS)** — React Native (Expo SDK 54) frontend + Flask/SQLAlchemy/SQLite backend, Dockerized, with Firebase Admin SDK for FCM push notifications. Face recognition uses MTCNN + DeepFace (FaceNet) for enrollment and identification.
 
 ---
 
@@ -14,11 +14,11 @@ Paste this into a new Kiro chat to continue development with full context.
 
 | Layer | Technology |
 |---|---|
-| Frontend | React Native, Expo SDK 54, `expo-camera` v17, lucide-react-native |
-| Backend | Flask 3.0, Flask-SQLAlchemy, SQLite, Gunicorn 2 workers |
+| Frontend | React Native, Expo SDK 54, `expo-camera` v17, lucide-react-native, `expo-notifications` 0.32.17, `expo-document-picker` 14.0.8 |
+| Backend | Flask 3.0, Flask-SQLAlchemy, SQLite, Gunicorn |
 | AI | DeepFace (FaceNet, 128-dim embeddings), MTCNN, opencv-python-headless |
 | Auth | JWT (PyJWT), bcrypt |
-| Notifications | Firebase Admin SDK (FCM), Firebase Realtime DB |
+| Notifications | Firebase Admin SDK (FCM push + in-app SQLite rows) |
 | Container | Docker multi-stage build, docker-compose |
 
 ---
@@ -29,60 +29,53 @@ Paste this into a new Kiro chat to continue development with full context.
 Project_Capstone/
 ├── docker-compose.yml
 ├── .env                          # ROOT env — used by docker-compose
-├── firebase_credentials.json
+├── firebase_credentials.json     # capstone-project-attendanceapp (project in use)
 │
-├── Backend Sajak/backend/backend/      # MAIN FLASK BACKEND (live-mounted)
-│   ├── app.py                          # Flask factory
+├── Backend Sajak/backend/backend/      # MAIN FLASK BACKEND (live-mounted at /app)
+│   ├── app.py                          # Flask factory + runtime migrations
 │   ├── config.py
-│   ├── database.py                     # db = SQLAlchemy()
-│   ├── Dockerfile                      # gunicorn --reload (live reload)
+│   ├── database.py
+│   ├── Dockerfile
 │   ├── requirements.txt
-│   ├── migrate_add_is_active.py        # one-off migration: adds is_active column
-│   ├── backfill_batch_class_links.py   # one-off migration: backfills missing BCL rows
-│   ├── models/ ...
-│   ├── routes/
-│   │   ├── batch.py                    # UPDATED — added is_at_risk() and pick_worst_class() pure helpers
+│   ├── uploads/waivers/                # waiver supporting documents (volume-mounted)
+│   ├── models/
+│   │   ├── user.py                     # platform column added
+│   │   ├── excuse.py                   # waiver_type, class_id, target_date, start_date, end_date added; session_id nullable
+│   │   ├── notification.py
 │   │   └── ...
-│   ├── services/ ...
-│   ├── test/                           # API/integration tests (Flask test client)
-│   │   ├── __init__.py                 # makes test/ a package
-│   │   ├── test_helpers.py             # shared test infrastructure (make_app, auth_as, DB factories, AI stubs)
-│   │   ├── test_admin_routes.py        # admin class/user/dashboard/at-risk tests (27 tests)
-│   │   ├── test_student_routes.py      # student list/enrol/history/log/waiver/notif tests (28 tests)
-│   │   └── test_teacher_routes.py      # teacher class listing, session lifecycle, report tests (19 tests)
-│   └── tests/unit/                     # NEW — pure unit tests (no Flask, no DB, no HTTP)
-│       ├── __init__.py
-│       ├── test_attendance_engine.py   # 13 tests for _determine_status()
-│       ├── test_enroll_threshold.py    # 12 tests for _compute_adaptive_threshold()
-│       ├── test_recognizer_confidence.py # 16 tests for compute_confidence()
-│       └── test_batch_risk_logic.py    # 19 tests for is_at_risk() + pick_worst_class()
+│   ├── routes/
+│   │   ├── session.py                  # resume logic + _auto_expire_stale_session()
+│   │   ├── excuse.py                   # prior/retroactive waiver, multipart upload
+│   │   ├── auth.py                     # device-token endpoint accepts platform
+│   │   ├── student.py                  # notifications endpoints
+│   │   ├── notifications.py
+│   │   └── ...
+│   └── services/
+│       └── notifications.py            # rewritten — in-app DB row + FCM push; notify_absent_students_bulk_plain()
 │
 └── AttendanceApp/                      # REACT NATIVE FRONTEND
-    ├── api.js                          # BASE_URL + all API endpoints
-    ├── App.js                          # Navigator (all screens registered)
-    ├── context/AuthContext.js
-    ├── utils/
-    │   └── exportHelper.js             # shared triggerExport() utility (new)
-    ├── components/ ...
+    ├── api.js                          # BASE_URL + all API endpoints (attendanceReport, sessionByClass added)
+    ├── App.js
+    ├── context/AuthContext.js          # FCM token registration on login
+    ├── app.json                        # android.package, googleServicesFile, expo-notifications plugin
+    ├── google-services.json            # capstone-project-attendanceapp
+    ├── components/
     └── screens/
-        ├── LoginScreen.js
-        ├── AdminDashboardScreen.js     # REWRITTEN — live At Risk from API, removed hardcoded data + duplicate cards
-        ├── ManageSchedulesScreen.js    # duration_minutes fix (auto-calc from time pickers)
-        ├── ManageStudentsScreen.js     # REWRITTEN — deactivate/reactivate replaces hard-delete, inactive toggle added
-        ├── ManageTeachersScreen.js     # NEW — teacher CRUD + deactivate/reactivate
-        ├── ManageBatchesScreen.js
-        ├── ManageBatchDetailScreen.js
-        ├── BatchOverviewScreen.js      # NEW — batch analytics overview + per-batch export
-        ├── ClassListScreen.js          # NEW — classes within a batch
-        ├── ClassDetailScreen.js        # NEW — student roster with filters/sort/pagination + export
-        ├── StudentDetailScreen.js      # NEW — per-student attendance detail + export
-        ├── ExportReportsScreen.js      # existing (unchanged)
-        └── ... (other screens)
+        ├── HomeScreen.js               # REWRITTEN — live analytics, real weekly chart, real recent status
+        ├── ProfileScreen.js            # REWRITTEN — live analytics, real monthly chart, risk assessment, bell+badge, OS notif toggle
+        ├── ClassesScreen.js            # date filter counter fixed (filtered.length not classes.length)
+        ├── SubmitWaiverScreen.js       # real file picker, prior/retroactive toggle, date range
+        ├── NotificationsScreen.js      # useFocusEffect for re-fetch; per-notif mark-read
+        ├── AdminWaiversScreen.js       # Prior Request / Retroactive badge
+        ├── WaiverStatusScreen.js       # type badge, start/end date range display
+        ├── AdminDashboardScreen.js     # removed Add Student Face + Student Analytics quick actions
+        ├── TeacherReportsScreen.js     # REWRITTEN — all static data replaced with live API data; Waivers Pending + Top Attendance removed
+        └── ... (other screens unchanged)
 ```
 
 ---
 
-## Database Schema (SQLite — key tables)
+## Database Schema — Key Changes Since Last Context
 
 ### `users` (updated)
 | Column | Type | Notes |
@@ -94,348 +87,209 @@ Project_Capstone/
 | role | String(20) | `admin` / `teacher` / `student` |
 | phone | String(30) nullable | |
 | device_token | String(512) nullable | FCM token |
-| is_active | Boolean DEFAULT 1 | **NEW** — soft-delete; False blocks login |
+| platform | String(10) nullable | **NEW** — `android` / `ios` |
+| is_active | Boolean DEFAULT 1 | soft-delete |
 | created_at | DateTime | UTC |
 
-### `students`
+### `waiver_requests` (updated — major schema change)
 | Column | Type | Notes |
 |---|---|---|
-| student_id | Integer PK | |
-| user_id | Integer FK→users | UNIQUE |
-| roll_number | String(50) UNIQUE | |
-| program | String(100) | |
-| year_of_study | Integer nullable | |
-| face_label | String(50) UNIQUE nullable | **must match embedding key** |
-
-### `classes`
-| Column | Type | Notes |
-|---|---|---|
-| class_id | Integer PK | |
-| class_name | String(150) | |
-| subject | String(150) | |
-| room | String(50) nullable | |
-| teacher_id | Integer FK→users nullable | |
-| schedule_time | DateTime nullable | legacy combined datetime |
-| duration_minutes | Integer | |
-| scheduled_date | Date nullable | NEW — date of class (YYYY-MM-DD) |
-| scheduled_time | Time nullable | NEW — start time (HH:MM) |
-| scheduled_end_time | Time nullable | NEW — end time (HH:MM) |
-
-### `sessions`
-| Column | Type | Notes |
-|---|---|---|
-| session_id | String(36) PK | UUID |
-| class_id | Integer FK→classes | |
-| teacher_id | Integer FK→users | |
-| mode | String(20) | `Strict` / `Activity` |
-| start_time | DateTime | UTC naive |
-| end_time | DateTime nullable | UTC naive |
-| status | String(10) | `ACTIVE` / `CLOSED` |
-| threshold_percent | Float nullable | decimal fraction e.g. 0.80 |
-
-### `attendance_logs`
-| Column | Type | Notes |
-|---|---|---|
-| log_id | Integer PK | |
+| request_id | Integer PK | |
 | student_id | Integer FK→students | |
-| session_id | String(36) FK→sessions | |
-| event_type | String(10) | `ENTRY` / `EXIT` |
-| timestamp | DateTime | UTC naive (SQLite strips tz) |
-| confidence_score | Float nullable | |
+| waiver_type | String(20) NOT NULL DEFAULT 'retroactive' | **NEW** — `retroactive` / `prior` |
+| session_id | String(36) FK→sessions **NULLABLE** | **CHANGED** — was NOT NULL |
+| class_id | Integer FK→classes nullable | **NEW** — prior waivers only |
+| target_date | String(10) nullable | legacy single-date field |
+| start_date | String(10) nullable | **NEW** — ISO `YYYY-MM-DD` |
+| end_date | String(10) nullable | **NEW** — ISO `YYYY-MM-DD` |
+| reason | Text | |
+| supporting_doc_path | String(512) nullable | real file path under uploads/waivers/ |
+| status | String(20) DEFAULT 'Pending' | |
+| submitted_at | DateTime | |
+| reviewed_at | DateTime nullable | |
 
-### `attendance_records`
-| Column | Type | Notes |
-|---|---|---|
-| record_id | Integer PK | |
-| student_id | Integer FK→students | |
-| session_id | String(36) FK→sessions | |
-| total_duration_seconds | Float | |
-| threshold_required | Float nullable | seconds |
-| status | String(10) | `Present` / `Absent` |
-| finalized_at | DateTime nullable | UTC naive |
-| UNIQUE | (student_id, session_id) | |
-
-### `batches` (NEW)
-| Column | Type | Notes |
-|---|---|---|
-| batch_id | Integer PK | |
-| batch_name | String(150) | |
-| description | String(500) nullable | |
-| created_at | DateTime | UTC |
-
-### `batch_students` (NEW)
-| Column | Type | Notes |
-|---|---|---|
-| batch_id | Integer PK FK→batches | composite PK |
-| student_id | Integer PK FK→students | composite PK |
-| added_at | DateTime | UTC |
-
-### `enrollments`
-| Column | Type | Notes |
-|---|---|---|
-| enrollment_id | Integer PK | |
-| student_id | Integer FK→students | |
-| class_id | Integer FK→classes | |
-| enrolled_at | DateTime | UTC |
-| UNIQUE | (student_id, class_id) | |
+### `notifications`
+No schema change. In-app rows now reliably created — background thread bug was fixed.
 
 ---
 
-## API Endpoints
+## API Endpoints — Changes & Additions
 
 ### Auth
-| Method | URL | Role | Notes |
-|---|---|---|---|
-| POST | /api/auth/login | public | returns JWT |
-| POST | /api/auth/register | admin | creates user |
-| GET | /api/auth/me | any | current user |
+| Method | URL | Notes |
+|---|---|---|
+| POST | /api/auth/device-token | Now accepts `{ device_token, platform }` |
 
 ### Session
+| Method | URL | Notes |
+|---|---|---|
+| POST | /api/session/start | **UPDATED** — returns existing ACTIVE session with `resumed: true` instead of creating duplicate |
+| GET | /api/session/class/`<class_id>` | Used by TeacherReportsScreen for weekly trend data |
+
+### Excuse / Waiver
+| Method | URL | Notes |
+|---|---|---|
+| POST | /api/excuse/submit | **UPDATED** — two paths: retroactive (`session_id`) and prior (`waiver_type=prior`, `class_id` optional, `start_date` required, `end_date` optional); accepts multipart/form-data for file upload |
+| GET | /api/excuse/pending | Returns `waiver_type`, `start_date`, `end_date`, `class_name` |
+| GET | /api/excuse/my-excuses | Same additional fields |
+| PUT | /api/excuse/decide/`<id>` | Only auto-flips attendance for retroactive+Approved |
+
+### Student Notifications
 | Method | URL | Role | Notes |
 |---|---|---|---|
-| GET | /api/session/classes | teacher | includes `schedule_status` |
-| POST | /api/session/start | teacher | enforces schedule window |
-| POST | /api/session/end | teacher | finalizes attendance |
-| GET | /api/session/status/{id} | teacher/admin | |
-| GET | /api/session/my-sessions | teacher | |
+| GET | /api/student/notifications | student | returns notifications newest-first |
+| PUT | /api/student/notifications/`<id>`/read | student | mark single notification read |
+
+### Notifications (shared)
+| Method | URL | Notes |
+|---|---|---|
+| GET | /api/notifications/my-notifications | all roles |
+| PUT | /api/notifications/mark-read | all roles |
+| GET | /api/notifications/unread-count | all roles |
 
 ### Attendance
-| Method | URL | Role | Notes |
-|---|---|---|---|
-| POST | /api/attendance/scan | teacher/admin | **face scan endpoint** |
-| POST | /api/attendance/log | student | manual entry |
-| GET | /api/attendance/history | student | |
-| GET | /api/attendance/analytics | any | |
-| PUT | /api/attendance/manual-override | admin | |
-
-### Admin — Dashboard
-| Method | URL | Role | Notes |
-|---|---|---|---|
-| GET | /api/admin/stats | admin | total_students, present_today, absent_today, waivers_pending, sessions_today, attendance_rate — **casing bug fixed (was always returning 0)** |
-| GET | /api/admin/recent-sessions | admin | last 5 sessions with present/absent counts |
-| GET | /api/admin/dashboard/at-risk-students | admin | **NEW** — top N students below 75% across all classes; params: `limit` (default 8, max 20); sorted lowest first |
-
-### Admin — Classes
-| Method | URL | Role | Notes |
-|---|---|---|---|
-| POST | /api/admin/class/create | admin | `duration_minutes` required; optional `batch_id` also creates BatchClassLink |
-| GET | /api/admin/class/list | admin/teacher | |
-| PUT | /api/admin/class/{id} | admin | |
-| DELETE | /api/admin/class/{id} | admin | |
-| PUT | /api/admin/class/{id}/schedule | admin | set schedule fields |
-| GET | /api/admin/classes/{id}/students | admin | roster; params: search, risk, sort, page, page_size |
-
-### Admin — Users / Teachers
-| Method | URL | Role | Notes |
-|---|---|---|---|
-| GET | /api/admin/users | admin | optional `?role=teacher` filter; includes `is_active` |
-| PUT | /api/admin/user/{id} | admin | fullname, email, phone, password, device_token |
-| PUT | /api/admin/user/{id}/deactivate | admin | sets `is_active=False`; blocks login |
-| PUT | /api/admin/user/{id}/reactivate | admin | sets `is_active=True`; restores login |
-
-### Admin — Batches
-| Method | URL | Role | Notes |
-|---|---|---|---|
-| POST | /api/admin/batches | admin | create batch |
-| GET | /api/admin/batches | admin | list all |
-| GET | /api/admin/batches/summary | admin | **NEW** per-batch analytics summary |
-| GET | /api/admin/batches/{id} | admin | detail + students |
-| PUT | /api/admin/batches/{id} | admin | rename/edit |
-| DELETE | /api/admin/batches/{id} | admin | **never cascades to enrollments** |
-| POST | /api/admin/batches/{id}/students | admin | add students; auto-enrolls to linked classes |
-| DELETE | /api/admin/batches/{id}/students/{sid} | admin | remove from batch + unenroll from linked classes |
-| GET | /api/admin/batches/{id}/classes/summary | admin | **NEW** per-class analytics for a batch |
-| POST | /api/admin/classes/{id}/enroll-batch | admin | bulk enroll; creates BatchClassLink |
-
-### Admin — Students
-| Method | URL | Role | Notes |
-|---|---|---|---|
-| GET | /api/student/list | admin/teacher | list all students; includes `is_active` and `user_id` per student *(updated)* |
-| GET | /api/student/{id} | admin/teacher | student + enrollments |
-| PUT | /api/student/{id} | admin | update student profile |
-| DELETE | /api/student/{id} | admin | hard delete with cascade (fixed) |
-| GET | /api/admin/students/{id}/detail | admin | **NEW** full attendance detail for drill-down |
-
-### Admin — Export
-| Method | URL | Role | Notes |
-|---|---|---|---|
-| POST | /api/admin/export-report | admin | report_type: full/atrisk/class/waiver/weekly/monthly/**batch**/**class_roster**/**student** (new); format: csv/excel/pdf; scoped params: batch_id, class_id, student_id, risk, search |
-
----
-
-## Key Invariants & Rules
-
-### Face Recognition
-- Embedding key = `student.face_label` = `student.roll_number`
-- File: `services/face_recognition/embeddings/{roll_number}_mean.npy`
-- On scan: `recognize_student()` → returns `face_label` → DB lookup `Student.query.filter_by(face_label=...)` → `student_id`
-- **Enrollment check**: scan only logs attendance if student is enrolled in the session's `class_id`
-- Startup: `validate_embeddings.py` warns if face_label ↔ .npy mismatch
-- `reload_embeddings()` called after API enrollment — only refreshes current gunicorn worker
-
-### Datetime / Timezone
-- All `session.start_time`, `session.end_time`, `AttendanceLog.timestamp` stored as **naive UTC** in SQLite
-- Schedule enforcement uses **`ZoneInfo("Asia/Kathmandu")` (UTC+5:45)** for "is today?" and time-window checks
-- `SERVER_TIMEZONE = "Asia/Kathmandu"` in `config.py`
-- `SESSION_START_BUFFER_MINUTES = 15` — teacher can start 15 min early
-- Never subtract naive from aware datetime — strip tzinfo before arithmetic
-
-### Threshold
-- Stored as decimal fraction: `0.80` = Strict, `0.55` = Activity
-- `threshold_required` in `attendance_records` = `threshold_percent × session_duration_seconds`
-- `.env` must use `STRICT_MODE_THRESHOLD=0.80` (not `80`)
-
-### Batch Enrollment
-- `batches` / `batch_students` are a **template** — enrollments table is the source of truth
-- Deleting a batch NEVER touches the `enrollments` table
-- Removing a student from a batch NEVER removes their class enrollment
-
-### CSRF
-- `admin/__init__.py` initializes `CSRFProtect(app)` for Flask-Admin
-- **Every API blueprint must be explicitly exempted** with `csrf.exempt(blueprint_name)`
-- Currently exempted: `auth_bp`, `session_bp`, `attendance_bp`, `excuse_bp`, `student_bp`, `admin_bp`, `batch_bp`
-- Forgetting this causes silent `400 Bad Request` on all POST/PUT/DELETE
-
----
-
-## Frontend Key Patterns
-
-### API Base
-```js
-// AttendanceApp/api.js
-export const BASE_URL = 'http://<YOUR_WIFI_IP>:5000';
-```
-Update `BASE_URL` whenever the PC's WiFi IP changes.
-
-### Auth context
-```js
-const { token, user, loginState, logoutState } = useAuth();
-```
-`user.token` also available for dashboard screens.
-
-### Schedule status values (from backend)
-| Value | Meaning | Start button |
+| Method | URL | Notes |
 |---|---|---|
-| `"unscheduled"` | No date set | disabled |
-| `"future_date"` | Scheduled for future date | disabled |
-| `"not_started"` | Today but before open window | disabled |
-| `"ready"` | Today, within window | **enabled** |
-| `"ended"` | Time has passed | disabled |
-| `"ongoing"` | Active session exists | **enabled** (Take Attendance) |
-
-### TeacherClassesScreen time display
-- `buildTimeLabel(cls)` — reads `scheduled_date` + `scheduled_time` first, falls back to legacy `schedule_time`
-- Format: `"Jun 14, 2026 • 09:00 AM – 10:30 AM"`
-- Day-strip bucketing: uses `scheduled_date` (new) or `schedule_time` (legacy), fallback to Today
+| GET | /api/attendance/report/`<class_id>` | teacher/admin — used by TeacherReportsScreen |
 
 ---
 
-## Running Tests
+## Notification System Architecture
 
-### API / Integration tests (Flask test client)
-```bash
-# From inside the container (recommended — all deps available)
-docker exec -w /app/test attendance_backend python -m unittest test_admin_routes test_student_routes test_teacher_routes -v
+### Two delivery paths per notification event:
+1. **In-app DB row** — always created for all platforms. Stored in `notifications` table. Read via bell screen.
+2. **FCM push** — only for Android + token present. Sent via `firebase_admin.messaging.send()`.
 
-# From your local machine (must be in the test/ directory — no Docker needed)
-cd "Backend Sajak/backend/backend/test"
-python -m unittest test_admin_routes test_student_routes test_teacher_routes -v
-```
+### Background thread fix (critical):
+- `end_session` spawns a daemon thread for absent notifications
+- Thread was failing silently with two errors:
+  - `Working outside of application context` — fixed by passing `app._get_current_object()` and using `with app.app_context()`
+  - `Parent instance not bound to Session; lazy load cannot proceed` — fixed by pre-extracting all ORM data into plain dicts before spawning thread
+- New function: `notify_absent_students_bulk_plain(absent_data: list, class_name)` — thread-safe version
 
-**Important**: The test files use bare `from test_helpers import ...` so the working directory must be `test/` when running. Running from `backend/` with `python -m unittest test.test_admin_routes` will fail with `ModuleNotFoundError: No module named 'test_helpers'`.
-
-**Local run works without Docker**: `test_helpers.py` stubs out `cv2`, `deepface`, `mtcnn`, and `tensorflow` at the `sys.modules` level before any imports happen, so heavy AI packages (Docker-only) are never actually loaded during tests.
-
-**Current results**: 73/73 tests pass (27 admin + 28 student + 19 teacher).
-
-### Pure unit tests (no Flask, no DB, no Docker needed)
-```bash
-# From your local machine — must be in the tests/unit/ directory
-cd "Backend Sajak/backend/backend/tests/unit"
-python -m unittest test_attendance_engine test_recognizer_confidence test_batch_risk_logic test_enroll_threshold -v
-```
-
-**Design**: Each file stubs its own import chain using `importlib.util.spec_from_file_location` to load only the target module, completely bypassing `routes/__init__.py` and `services/face_recognition/__init__.py`. No Flask app, no SQLAlchemy session, no JWT, no cv2, no DeepFace. Runs in ~70 ms.
-
-**Current results**: 62/62 tests pass across 4 files.
+### Push notification limitation:
+- **Expo Go blocks FCM push since SDK 53** — requires a development build (`npx expo run:android`)
+- In-app notifications (bell screen) work in Expo Go
+- Dev build was attempted; `android/` folder generated via `npx expo prebuild --clean`
+- Build ran successfully but was interrupted before completion
 
 ---
 
-## Docker
+## Session Resume Fix
+
+`POST /api/session/start` now:
+1. Checks for existing `ACTIVE` session on the same `class_id`
+2. If found and **not stale** → returns it with `{ resumed: true, start_time, session_id, enrolled_students }`
+3. If found and **stale** → auto-closes it (via `_auto_expire_stale_session()`), then creates new session
+4. Stale = started on a previous calendar day, OR started today but past `scheduled_end_time + 60 min`
+
+Frontend (`StartClassScreen.handleStart`): when `data.resumed === true`, calls `fetchSessionStatus()` which recalculates elapsed time from server `start_time` and repopulates detected students list.
+
+---
+
+## Prior Waiver Feature
+
+Two waiver types now supported:
+
+**Retroactive** (original flow):
+- Student was already marked Absent
+- Requires `session_id`
+- Approval auto-flips attendance to Present
+
+**Prior** (new):
+- Requested before the session happens
+- Requires `start_date` (ISO), optional `end_date` (multi-day leave), optional `class_id`
+- `class_id = null` means "All Classes / General Leave"
+- Enrollment check only runs when a specific class is given
+- Approval does NOT flip attendance (Option A — teacher handles manually)
+
+### Frontend flow:
+- Toggle: "Report Absence" (blue) / "Request in Advance" (orange)
+- Prior flow: class picker (optional, "All Classes" first option), start date picker, end date picker (auto-defaults to same as start)
+- Date range (60 days from today shown in pickers)
+- History cards show range `"Jul 25 → Jul 29"` for multi-day prior waivers
+
+### Admin review:
+- "Prior Request" (orange, Clock icon) vs "Retroactive" (grey, AlertTriangle) badge on each card
+- Orange info bar on prior cards: "no attendance record exists yet"
+
+---
+
+## Hardcoded Data Fixes (Student Screens)
+
+### HomeScreen.js — fully rewritten:
+- **Attendance circle**: live from `GET /api/attendance/analytics → data.percentage`
+- **Good Standing badge**: conditional — ≥75% green "Good Standing", <75% red "At Risk"
+- **Weekly trend chart**: real data from attendance history, grouped by NPT calendar day, last 7 days
+- **+X.X% trend badge**: calculated as this week avg − last week avg; hidden if no data
+- **Recent Status**: live from attendance history (was fake hardcoded array with Oct 21 dates)
+- Single `fetchAll()` call on focus fetches analytics + history + unread count in parallel
+
+### ProfileScreen.js — fully rewritten:
+- **88% attendance stat**: live from analytics
+- **Risk Assessment card**: dynamic — ≥80% Low (green), 60–79% Mid (amber), <60% High (red)
+- **Monthly chart**: real data from attendance history grouped by month; period picker actually changes chart
+- **Bell button**: navigates to Notifications + unread badge
+- **Notifications toggle**: reads/requests real OS permission via `expo-notifications`
+- All student-only endpoints guarded by `user?.role === 'student'` — no 403 for teachers
+
+### ClassesScreen.js:
+- Header badge and subtitle now show `filtered.length` (classes on selected date) not `classes.length`
+
+### TeacherReportsScreen.js — fully rewritten:
+- **Overall Attendance %**: real average across teacher's classes from `/api/attendance/report/<id>`
+- **At-Risk count**: real from same report data
+- **Waivers Pending** and **Top Attendance** stat cards: **removed**
+- **Weekly trend chart**: real session data from `/api/session/class/<id>`, grouped by NPT day
+- **Student Distribution bar chart**: real enrollment counts from `/api/session/classes`
+- **At-Risk students list**: real students < 75%, sorted lowest first, up to 5
+- Hardcoded `▲ 4.2%` trend badge: **removed**
+
+---
+
+## Firebase Projects
+
+| File | Project | Used for |
+|---|---|---|
+| `firebase_credentials.json` (root) | mytimes-direct-v2 | NOT USED by backend |
+| `Backend Sajak/.../firebase_credentials.json` | capstone-project-attendanceapp | **Backend FCM** (mounted at /app/) |
+| `AttendanceApp/google-services.json` | capstone-project-attendanceapp | **Frontend FCM** |
+
+Both backend credentials and google-services.json use the **same project**: `capstone-project-attendanceapp`.
+
+---
+
+## Running the Project
 
 ```bash
-# First build (or after requirements.txt / Dockerfile changes)
-docker compose up --build -d
-
-# Subsequent runs — source is live-mounted, no rebuild needed for .py changes
+# Start backend
 docker compose up -d
 
-# Logs
+# Start frontend
+cd AttendanceApp
+npx expo start --clear
+
+# Check backend logs
 docker logs attendance_backend --tail 50
 
-# Stop
-docker compose stop
+# Compile-check backend files
+docker exec attendance_backend python -c "import py_compile; [py_compile.compile(f, doraise=True) for f in ['/app/routes/session.py','/app/routes/excuse.py','/app/services/notifications.py']]"
 ```
 
-**Important**: Source code is **volume-mounted** into the container (`./Backend Sajak/backend/backend:/app`) and gunicorn runs with `--reload`. Python file changes are live within ~2 seconds. Only `requirements.txt` or `Dockerfile` changes require `--build`.
-
-**DB lock issue**: If DB Browser for SQLite is open, it locks `attendance.db` and causes `sqlite3.OperationalError: disk I/O error`. Close DB Browser before starting the container.
-
-**"Frontend not working" checklist** (in order):
-1. Is the backend container running? → `docker ps` or `docker compose ps`. If empty, run `docker compose up -d`.
-2. Is `BASE_URL` in `api.js` set to the PC's current WiFi IP? → `ipconfig` to check. Update if IP changed.
-3. Is the device/emulator on the **same WiFi network** as the PC?
-4. Is `npx expo start` running in the `AttendanceApp` folder?
+**Important**: Update `BASE_URL` in `api.js` to your PC's current WiFi IP whenever it changes.
 
 ---
 
-## Postman Collection
+## Known Pending Work
 
-Two files at the project root (`Project_Capstone/`):
+1. **Dev build for FCM push** — `npx expo prebuild --clean` + `npx expo run:android` generates the native build. The splashscreen_logo error was resolved by prebuild. Build was running (CMake step) when interrupted. Re-run to complete.
 
-| File | Description |
-|---|---|
-| `myTIMeS.postman_collection.json` | **72 requests** across 4 folders (0. Auth, 1. Admin, 2. Teacher, 3. Student) — full coverage of every endpoint |
-| `myTIMeS.postman_environment.json` | 10 environment variables; `base_url` defaults to `http://localhost:5000`, all others auto-populated by test scripts |
+2. **Profile screen static data** — ProfileScreen fixes (#1-6) are complete for students. Teachers/admins correctly skip student-only sections.
 
-**Run order for end-to-end testing**:
-`Auth (Admin Login)` → `Admin (1–6)` → `Teacher (all)` → `Student (all)` → `Admin → Waivers → Approve Waiver`
+3. **Export Reports "Recent Exports" section** — still hardcoded static dummy data (cosmetic, low priority).
 
-Every request has a `pm.test()` status check and `pm.environment.set()` to chain variables automatically. See `myTIMeS_postman_README.md` for full instructions.
+4. **`reload_embeddings()` only refreshes one gunicorn worker** — container restart guarantees consistency.
 
----
+5. **TeacherDashboard quickStats** — `{ '4 Classes Today', '68 Total Students', '91% Avg Attendance' }` are still hardcoded static values in `TeacherDashboardScreen.js`.
 
-## Agent Hooks
-
-Located at `.kiro/hooks/`:
-
-| Hook file | Trigger | Action |
-|---|---|---|
-| `session-context-loader.json` | SessionStart | Reads `PROJECT_CONTEXT.md` then `PROJECT_DOCUMENTATION.md` at the start of every session |
-| `session-doc-updater.json` | Stop | Updates both docs at the end of every session to reflect all changes made |
-
----
-
-## Current Known Issues / Pending Work
-
-### Fixed this session ✅
-1. **Student DELETE was 405** — `delete_student()` missing `@student_bp.route` decorator. Fixed.
-2. **`routes/admin.py` crashed on startup** — missing `from flask import Blueprint, g, jsonify, request`. Fixed.
-3. **Add Class always failed** — `duration_minutes` never sent from frontend. Fixed: auto-calculated from start/end time pickers with validation.
-4. **`BatchClassLink` not created on class creation** — analytics endpoints couldn't see classes created via the form. Fixed + backfill run (no orphans in existing data).
-5. **`GET /api/admin/stats` always returned 0 for present_today, absent_today, waivers_pending** — status filter used lowercase `'present'`/`'absent'`/`'pending'` but the model stores title-case. Also `attendance_rate` defaulted to `100` when no sessions — now correctly defaults to `0`. Fixed.
-6. **`AdminDashboardScreen` hardcoded fake data** — removed `atRiskStudents` array, `weekData` array, `WeeklyChart` component, and the duplicate "Today's Overview" card. At-risk section now fetches from `GET /api/admin/dashboard/at-risk-students`. All orphaned styles removed.
-7. **`ManageStudentsScreen` hard-delete replaced with deactivate/reactivate** — frontend now mirrors the teacher pattern: inactive toggle, grayed-out cards, "Inactive" badge, Deactivate/Reactivate buttons. Backend `GET /api/student/list` updated to include `is_active` and `user_id` per student. Hard-delete route preserved in backend but not exposed in UI. Full 10-test end-to-end loop verified.
-8. **Missing test infrastructure** — `test/test_helpers.py` and `test/__init__.py` created. Provides `make_app()` (isolated in-memory Flask app), `auth_as()` (JWT injection context manager), and all DB factory helpers. 55/55 tests pass across both suites.
-9. **Test suite expanded + infrastructure restored** — `test_teacher_routes.py` (19 tests: teacher class listing, session lifecycle, attendance report) added and passing. `test_helpers.py` now stubs `cv2`/`deepface`/`mtcnn`/`tensorflow` in `sys.modules` so the full suite runs locally without Docker. **73/73 tests pass** (27 admin + 28 student + 19 teacher).
-10. **Postman collection rebuilt** — replaced old 13-request minimal collection with a full **72-request** collection covering every endpoint across 4 folders (Auth, Admin, Teacher, Student). Every request has status assertions and automatic `pm.environment.set()` variable chaining. Environment file (`myTIMeS.postman_environment.json`) unchanged.
-11. **`BASE_URL` IP updated** — `AttendanceApp/api.js` updated from stale `10.200.30.101` → `192.168.1.66` (current WiFi IP). Login `AbortError` resolved.
-
-### Still pending
-1. **`reload_embeddings()` only refreshes one gunicorn worker** — with multiple workers, the other worker keeps the old cache until restarted. Container restart guarantees consistency. Acceptable for low-traffic.
-
-2. **Face enrollment via API produces `{roll_number}_mean.npy`** but three test students have `face_label = Student_1/2/3` (manually patched). New students enrolled via the API are consistent automatically.
-
-3. **Schedule date picker** — currently plain TextInput (ISO format). Could be improved with a date picker library.
-
-4. **`AddStudentFaceScreen`** — the face photo UI is functional but actual enrollment goes through `POST /api/admin/enroll-face`; the screen calls `POST /api/admin/register-student` for full registration with face data.
+6. **WaiverStatusScreen feedback text** — "ADMIN FEEDBACK" section still shows hardcoded text like "Medical certificate verified. Stay safe!" regardless of actual admin decision.

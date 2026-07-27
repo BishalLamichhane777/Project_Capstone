@@ -2,8 +2,35 @@
 
 **Project Name:** Smart Attendance System (myTIMeS Direct V2)  
 **Project Type:** Automated classroom attendance management system with AI-powered face recognition  
-**Version:** 2.0  
-**Last Updated:** June 2026
+**Version:** 2.1  
+**Last Updated:** July 2026
+
+> **⚠️ CHANGE LOG — July 2026 Updates**
+> The sections below reflect the original v2.0 documentation. The following changes have been made since this document was written. For full details, see `PROJECT_CONTEXT.md`.
+>
+> **Schema changes:**
+> - `users.platform` (String 10) added — `android` / `ios`
+> - `waiver_requests`: `session_id` now nullable; added `waiver_type`, `class_id`, `target_date`, `start_date`, `end_date`
+>
+> **New features:**
+> - **Prior waiver** — student can request an advance excuse (future date range, optional class) before being marked absent
+> - **Session resume** — `POST /api/session/start` returns existing ACTIVE session with `resumed: true` instead of creating a duplicate; stale sessions auto-expire
+> - **Real-time home/profile analytics** — HomeScreen and ProfileScreen pull live data from analytics and history endpoints
+> - **Dynamic risk assessment** — Low (≥80%) / Mid (60–79%) / High (<60%) with correct colours
+> - **Real weekly/monthly charts** — no more hardcoded bar values
+> - **Working file upload** — waiver documents stored at `uploads/waivers/<uuid>.<ext>`
+> - **OS notification toggle** — ProfileScreen toggle reflects real Android permission state
+> - **Teacher Reports dynamic** — TeacherReportsScreen fully replaced static data with live API calls
+>
+> **Removed:**
+> - `firebase_sync.py` — deleted; replaced by `services/notifications.py`
+> - "Add Student Face" quick action from AdminDashboard
+> - "Student Analytics" quick action from AdminDashboard
+> - "Waivers Pending" and "Top Attendance" stat cards from TeacherReports
+>
+> **Push notifications:**
+> - FCM push requires dev build — Expo Go (SDK 53+) does not support remote notifications
+> - In-app notifications (bell screen) work in Expo Go
 
 ---
 
