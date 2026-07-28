@@ -42,9 +42,7 @@
 - **Authentication:**
   - JWT (PyJWT) for API authentication
   - bcrypt for password hashing
-  - Firebase Admin SDK for optional Firebase Auth integration
-- **Real-time Sync:** Firebase Realtime Database (optional, graceful degradation)
-- **Push Notifications:** Firebase Cloud Messaging (FCM) via Expo push tokens
+- **Push Notifications:** Expo Push Notifications
 - **CORS:** Flask-CORS for cross-origin requests
 - **Admin Panel:** Flask-Admin with CSRF protection
 - **Production Server:** Gunicorn WSGI server with multiple workers
@@ -83,7 +81,6 @@ Project_Capstone_New/
 ├── docker-compose.yml              # Docker orchestration configuration
 ├── .env                           # Root environment variables
 ├── .env.example                   # Environment variable template
-├── firebase_credentials.json      # Firebase service account credentials
 ├── .gitignore                     # Git ignore patterns
 ├── PROJECT_CONTEXT.md             # Existing project context (legacy)
 ├── package.json                   # Root package dependencies
@@ -176,7 +173,6 @@ backend/
 ├── services/                      # Business logic services
 │   ├── __init__.py
 │   ├── attendance_engine.py      # Attendance calculation engine
-│   ├── firebase_sync.py          # Firebase synchronization
 │   ├── notifications.py          # Push notification service
 │   └── face_recognition/         # Face recognition pipeline
 │       ├── __init__.py          # Face recognition service initialization

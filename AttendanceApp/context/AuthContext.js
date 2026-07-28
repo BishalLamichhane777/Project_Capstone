@@ -1,21 +1,22 @@
 /**
  * AuthContext.js
  *
- * Global authentication state + FCM device token registration.
+ * Global authentication state + Expo push token registration.
  *
  * On login:
  *   1. Sets token + user in context (synchronous — navigation happens immediately).
  *   2. In the background:
  *      a. Requests notification permission from the OS.
- *      b. Calls getDevicePushTokenAsync() to get the NATIVE FCM token
- *         (NOT getExpoPushTokenAsync — we use firebase_admin.messaging, not Expo Push).
+ *      b. Calls getExpoPushTokenAsync() to get an Expo push token
+ *         (format: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]).
  *      c. POSTs { device_token, platform } to /api/auth/device-token so the
- *         backend can send FCM pushes to this device.
+ *         backend can send Expo push notifications to this device.
  *
  * Token registration is fire-and-forget:
  *   - Only runs on real physical devices (Device.isDevice).
  *   - Errors are logged, never shown to the user, never block login.
- *   - iOS: no APNs — skips push registration silently, in-app notifications still work.
+ *   - iOS: Expo push works on iOS too (Expo manages APNs), so we register
+ *     on both platforms.
  */
 
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
@@ -23,6 +24,9 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { API } from '../api';
+
+// Expo project ID from app.json extra.eas.projectId
+const EXPO_PROJECT_ID = '5defca78-788a-4f38-bdca-615425b8ec08';
 
 // ─── Foreground notification display ────────────────────────────────────────
 // Show banner + play sound even when the app is open.
@@ -34,23 +38,16 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// ─── Permission + native FCM token ───────────────────────────────────────────
+// ─── Permission + Expo push token ────────────────────────────────────────────
 
 async function _requestPermissionAndGetToken() {
   // Push only works on real devices
   if (!Device.isDevice) {
-    console.log('[FCM] Skipping token registration — not a physical device.');
+    console.log('[Push] Skipping token registration — not a physical device.');
     return null;
   }
 
-  // iOS: skip push registration (no Apple Developer account / APNs)
-  // In-app notifications still work for iOS via the SQLite row.
-  if (Platform.OS === 'ios') {
-    console.log('[FCM] iOS detected — skipping push token (no APNs configured).');
-    return null;
-  }
-
-  // Request Android notification permission (required on Android 13+)
+  // Request notification permission (required on Android 13+, and iOS)
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
   if (existingStatus !== 'granted') {
@@ -58,7 +55,7 @@ async function _requestPermissionAndGetToken() {
     finalStatus = status;
   }
   if (finalStatus !== 'granted') {
-    console.warn('[FCM] Notification permission denied — push will not be delivered.');
+    console.warn('[Push] Notification permission denied — push will not be delivered.');
     return null;
   }
 
@@ -73,21 +70,23 @@ async function _requestPermissionAndGetToken() {
     });
   }
 
-  // Get native FCM token — this is what firebase_admin.messaging.send() uses
+  // Get Expo push token — used by the backend to send via Expo Push API
   try {
-    const tokenData = await Notifications.getDevicePushTokenAsync();
-    console.log('[FCM] Native device push token obtained:', tokenData.data?.slice(0, 20), '...');
-    return tokenData.data;   // raw FCM registration token string
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: EXPO_PROJECT_ID,
+    });
+    console.log('[Push] Expo push token obtained:', tokenData.data?.slice(0, 30), '...');
+    return tokenData.data;   // ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
   } catch (err) {
-    console.error('[FCM] getDevicePushTokenAsync failed:', err.message);
+    console.error('[Push] getExpoPushTokenAsync failed:', err.message);
     return null;
   }
 }
 
 // ─── Save token to backend ───────────────────────────────────────────────────
 
-async function _saveTokenToBackend(fcmToken, authToken) {
-  if (!fcmToken || !authToken) return;
+async function _saveTokenToBackend(expoToken, authToken) {
+  if (!expoToken || !authToken) return;
   try {
     const res = await fetch(API.deviceToken, {
       method:  'POST',
@@ -96,18 +95,18 @@ async function _saveTokenToBackend(fcmToken, authToken) {
         Authorization:  `Bearer ${authToken}`,
       },
       body: JSON.stringify({
-        device_token: fcmToken,
-        platform:     Platform.OS,   // 'android' | 'ios'
+        device_token: expoToken,          // ExponentPushToken[...]
+        platform:     Platform.OS,        // 'android' | 'ios'
       }),
     });
     if (res.ok) {
-      console.log('[FCM] Device token saved to backend (platform=' + Platform.OS + ').');
+      console.log('[Push] Expo push token saved to backend (platform=' + Platform.OS + ').');
     } else {
       const body = await res.json().catch(() => ({}));
-      console.warn('[FCM] Backend rejected device token:', res.status, body);
+      console.warn('[Push] Backend rejected push token:', res.status, body);
     }
   } catch (err) {
-    console.error('[FCM] Failed to save device token to backend:', err.message);
+    console.error('[Push] Failed to save push token to backend:', err.message);
   }
 }
 
@@ -129,16 +128,16 @@ export const AuthProvider = ({ children }) => {
    * POST /api/auth/login response.
    *
    * Sets token + user synchronously (navigation is not delayed).
-   * Registers FCM token in the background (fire-and-forget).
+   * Registers Expo push token in the background (fire-and-forget).
    */
   const loginState = (newToken, newUser) => {
     setToken(newToken);
     setUser(newUser);
 
-    // Background: request permission, get native FCM token, save to backend
+    // Background: request permission, get Expo push token, save to backend
     _requestPermissionAndGetToken()
-      .then(fcmToken => _saveTokenToBackend(fcmToken, newToken))
-      .catch(err => console.error('[FCM] Background token registration error:', err));
+      .then(expoToken => _saveTokenToBackend(expoToken, newToken))
+      .catch(err => console.error('[Push] Background token registration error:', err));
   };
 
   const logoutState = () => {
@@ -154,7 +153,7 @@ export const AuthProvider = ({ children }) => {
     notifReceivedRef.current = Notifications.addNotificationReceivedListener(
       notification => {
         const { title, body } = notification.request.content;
-        console.log('[FCM] Notification received (foreground):', title, body);
+        console.log('[Push] Notification received (foreground):', title, body);
         // Banner is already shown by setNotificationHandler above.
         // Add any in-app badge update here if needed.
       }
@@ -164,7 +163,7 @@ export const AuthProvider = ({ children }) => {
     notifResponseRef.current = Notifications.addNotificationResponseReceivedListener(
       response => {
         const { title } = response.notification.request.content;
-        console.log('[FCM] User tapped notification:', title);
+        console.log('[Push] User tapped notification:', title);
         // Navigate to NotificationsScreen here if needed:
         // navigationRef.current?.navigate('Notifications');
       }

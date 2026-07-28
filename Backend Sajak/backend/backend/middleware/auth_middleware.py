@@ -1,8 +1,7 @@
 """Authentication and authorization middleware.
 
 Provides:
-- Firebase ID token verification
-- JWT token verification (fallback / primary for this API)
+- JWT token verification
 - Role-based access control decorator
 """
 
@@ -22,21 +21,6 @@ def _extract_token() -> str | None:
     if auth_header.startswith("Bearer "):
         return auth_header[7:]
     return None
-
-
-def verify_firebase_token(token: str) -> dict | None:
-    """Decode a Firebase ID token using the Admin SDK.
-
-    Returns decoded claims dict or None on failure.
-    """
-    try:
-        from firebase_admin import auth as firebase_auth
-
-        decoded = firebase_auth.verify_id_token(token)
-        return decoded
-    except Exception as exc:
-        logger.warning("Firebase token verification failed: %s", exc)
-        return None
 
 
 def _decode_jwt(token: str) -> dict | None:
@@ -60,34 +44,21 @@ def _decode_jwt(token: str) -> dict | None:
 
 
 def authenticate():
-    """Authenticate the current request.
+    """Authenticate the current request using application JWT.
 
-    Tries application JWT first, then Firebase ID token.
     On success sets ``g.current_user`` with ``user_id``, ``role``, ``email``.
-
     Returns an error response tuple if authentication fails, else None.
     """
     token = _extract_token()
     if not token:
         return jsonify({"error": "Authorization token is missing", "status": 401}), 401
 
-    # Try application JWT first
     payload = _decode_jwt(token)
     if payload:
         g.current_user = {
             "user_id": payload["user_id"],
             "role": payload["role"],
             "email": payload.get("email", ""),
-        }
-        return None
-
-    # Fallback: Firebase ID token
-    fb_claims = verify_firebase_token(token)
-    if fb_claims:
-        g.current_user = {
-            "user_id": fb_claims.get("uid"),
-            "role": fb_claims.get("role", "student"),
-            "email": fb_claims.get("email", ""),
         }
         return None
 

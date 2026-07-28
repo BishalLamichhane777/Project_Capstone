@@ -78,7 +78,6 @@ def register():
     """Register a new user (admin-only).
 
     If role is 'student', also creates a Student profile.
-    Optionally creates the user in Firebase Auth.
     """
     data = request.get_json(silent=True)
     if not data:
@@ -271,17 +270,17 @@ def update_me():
 
 @auth_bp.route("/device-token", methods=["POST"])
 def register_device_token():
-    """Save the caller's native FCM device token and platform to their user record.
+    """Save the caller's Expo push token and platform to their user record.
 
     Requires a valid JWT in the Authorization header.
     Body: {
-        "device_token": "<native FCM token>",
-        "platform":     "android" | "ios"
+        "device_token": "<Expo push token>",   e.g. ExponentPushToken[xxxxxx]
+        "platform":     "android" | "ios"      (optional but recommended)
     }
 
     The token is stored on users.device_token and used by
-    services/notifications.py to send FCM push notifications (Android only).
-    platform is stored on users.platform to gate push delivery.
+    services/notifications.py to send Expo push notifications.
+    platform is stored on users.platform for informational purposes.
     """
     auth_error = authenticate()
     if auth_error:
@@ -297,6 +296,20 @@ def register_device_token():
     if not device_token:
         return jsonify({"error": "device_token is required", "status": 400}), 400
 
+    # Validate it looks like an Expo push token
+    if not (
+        device_token.startswith("ExponentPushToken[")
+        or device_token.startswith("ExpoPushToken[")
+    ):
+        return (
+            jsonify({
+                "error": "device_token must be a valid Expo push token "
+                         "(e.g. ExponentPushToken[...])",
+                "status": 422,
+            }),
+            422,
+        )
+
     if platform not in ("android", "ios", ""):
         return jsonify({"error": "platform must be 'android' or 'ios'", "status": 422}), 422
 
@@ -311,7 +324,7 @@ def register_device_token():
     db.session.commit()
 
     logger.info(
-        "Device token saved: user_id=%s role=%s platform=%s",
+        "Expo push token saved: user_id=%s role=%s platform=%s",
         user_id, user.role, platform or "unspecified",
     )
 

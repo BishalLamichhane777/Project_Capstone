@@ -212,7 +212,6 @@ def delete_student(student_id):
 
     Cascade deletes: enrollments, attendance_logs, attendance_records,
     waiver_requests, notifications, student profile, and user account.
-    Also removes user from Firebase Auth.
     """
     student = Student.query.get(student_id)
     if not student:
@@ -238,15 +237,6 @@ def delete_student(student_id):
         db.session.delete(user)
 
     db.session.commit()
-
-    # Remove from Firebase Auth (best-effort)
-    try:
-        from firebase_admin import auth as firebase_auth
-
-        firebase_auth.delete_user(str(user_id))
-        logger.info("Firebase Auth user %s deleted", user_id)
-    except Exception as exc:
-        logger.warning("Firebase Auth deletion failed for user %s: %s", user_id, exc)
 
     return jsonify({"message": "Student deleted"}), 200
 

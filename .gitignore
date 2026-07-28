@@ -2,7 +2,6 @@
 .env
 *.env
 !.env.example
-firebase_credentials.json
 *.json.key
 *.pem
 *.key

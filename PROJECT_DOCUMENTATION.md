@@ -43,7 +43,6 @@
 - SQLAlchemy ORM with SQLite database
 - Flask-Login for authentication
 - Flask-CORS for cross-origin requests
-- Firebase Admin SDK for push notifications
 
 **AI/ML:**
 - DeepFace (FaceNet model for face embeddings)
@@ -72,8 +71,7 @@ Project_Capstone/
 │   ├── services/                 # Business logic & AI services
 │   │   ├── face_recognition/     # Face recognition pipeline
 │   │   ├── attendance_engine.py # Attendance calculation logic
-│   │   ├── firebase_sync.py      # Firebase integration
-│   │   └── notifications.py      # Notification service
+│   │   ├── notifications.py      # Notification service
 │   ├── middleware/               # Custom middleware
 │   ├── admin/                    # Flask-Admin panel
 │   ├── templates/                # Admin panel templates
@@ -85,7 +83,7 @@ Project_Capstone/
 │
 ├── docker-compose.yml            # Docker orchestration
 ├── .env                          # Environment variables
-└── firebase_credentials.json     # Firebase configuration
+└── .gitignore                    # Git ignore patterns
 ```
 
 ---
@@ -336,9 +334,8 @@ The backend uses Flask's application factory pattern in `app.py`:
 1. Create Flask app instance
 2. Load configuration from environment variables
 3. Initialize extensions (SQLAlchemy, CORS)
-4. Initialize Firebase Admin SDK
-5. Initialize Flask-Admin panel
-6. Register blueprints (API routes)
+4. Initialize Flask-Admin panel
+5. Register blueprints (API routes)
 7. Create database tables
 8. Validate face embedding consistency
 9. Register global error handlers
@@ -351,7 +348,6 @@ The backend uses Flask's application factory pattern in `app.py`:
 - `SECRET_KEY` - Flask session encryption
 - `SQLALCHEMY_DATABASE_URI` - Database connection (SQLite default)
 - `JWT_EXPIRY_HOURS` - Token expiration (24 hours default)
-- `FIREBASE_CREDENTIALS_PATH` - Firebase service account JSON
 - `STRICT_MODE_THRESHOLD` - Face recognition threshold (0.80)
 - `ACTIVITY_MODE_THRESHOLD` - Activity mode threshold (0.55)
 - `CORS_ORIGINS` - Allowed CORS origins
@@ -1068,21 +1064,21 @@ confidence = max(0, (1.0 - (distance / threshold)) * 100)
 
 ---
 
-### Firebase Integration
+### Notifications
 
-**File**: `services/firebase_sync.py`
+**File**: `services/notifications.py`
 
 **Push Notifications**:
-- FCM token storage in User model
-- Broadcast notifications to roles
+- Expo push token storage in User model
+- Push notification sending via Expo Push API
 - Individual notifications to users
-- Token refresh handling
+- Token validation handling
 
 **Features**:
 - Attendance alerts to students
 - Waiver decision notifications
 - System announcements
-- Notification read status tracking
+- In-app notification fallback
 
 ---
 
@@ -1670,7 +1666,6 @@ docker compose down
 **Required**:
 - `SECRET_KEY` - Flask secret key
 - `SQLALCHEMY_DATABASE_URI` - Database connection string
-- `FIREBASE_CREDENTIALS_PATH` - Path to Firebase JSON
 
 **Optional**:
 - `JWT_EXPIRY_HOURS` - Token expiration (default: 24)

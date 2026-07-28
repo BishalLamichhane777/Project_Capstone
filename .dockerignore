@@ -48,7 +48,6 @@ instance/
 models_storage/
 
 # Credentials
-firebase_credentials.json
 *.json.key
 
 # IDE folders

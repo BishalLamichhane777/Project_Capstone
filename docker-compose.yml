@@ -16,12 +16,19 @@ services:
       - "./Backend Sajak/backend/backend:/app"
       - "./Backend Sajak/backend/backend/database:/app/database"
       - "./Backend Sajak/backend/backend/services/face_recognition/embeddings:/app/services/face_recognition/embeddings"
-      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
-    env_file:
-      - .env
     environment:
-      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_ENV=production
+      - SQLALCHEMY_DATABASE_URI=sqlite:////app/database/attendance.db
       - DATABASE_URL=sqlite:////app/database/attendance.db
+      - SECRET_KEY=${SECRET_KEY:-mysecretkey123}
+      - JWT_EXPIRY_HOURS=24
+      - STRICT_MODE_THRESHOLD=0.80
+      - ACTIVITY_MODE_THRESHOLD=0.55
+      - CORS_ORIGINS=http://localhost:19006,http://localhost:8081,http://10.0.2.2:5000
+      - RECOGNITION_THRESHOLD=70
+      - SCAN_COOLDOWN_SECONDS=15
+      - SERVER_TIMEZONE=Asia/Kathmandu
+      - SESSION_START_BUFFER_MINUTES=15
     # Healthcheck is defined natively within the backend Dockerfile
     networks:
       - attendance_network

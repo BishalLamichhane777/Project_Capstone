@@ -45,7 +45,6 @@ Docker containerized backend with React Native mobile frontend, designed for on-
 - Configurable attendance thresholds (Strict/Activity modes)
 - Schedule enforcement with time windows
 - Excuse request workflow with admin approval
-- Real-time synchronization via Firebase
 - Push notifications for attendance alerts
 - Comprehensive reporting and analytics
 
@@ -76,9 +75,7 @@ Docker containerized backend with React Native mobile frontend, designed for on-
 - **Authentication:**
   - JWT (PyJWT) for API authentication
   - bcrypt for password hashing
-  - Firebase Admin SDK for optional Firebase Auth integration
-- **Real-time Sync:** Firebase Realtime Database (optional, graceful degradation)
-- **Push Notifications:** Firebase Cloud Messaging (FCM) via Expo push tokens
+- **Push Notifications:** Expo Push Notifications via HTTPS API
 - **CORS:** Flask-CORS for cross-origin requests
 - **Admin Panel:** Flask-Admin with CSRF protection
 - **Production Server:** Gunicorn WSGI server with multiple workers
@@ -117,7 +114,6 @@ Project_Capstone_New/
 ├── docker-compose.yml              # Docker orchestration configuration
 ├── .env                           # Root environment variables
 ├── .env.example                   # Environment variable template
-├── firebase_credentials.json      # Firebase service account credentials
 ├── .gitignore                     # Git ignore patterns
 ├── PROJECT_CONTEXT.md             # Existing project context (legacy)
 ├── COMPREHENSIVE_PROJECT_CONTEXT.md  # Comprehensive context documentation
@@ -212,7 +208,6 @@ backend/
 ├── services/                      # Business logic services
 │   ├── __init__.py
 │   ├── attendance_engine.py      # Attendance calculation engine
-│   ├── firebase_sync.py          # Firebase synchronization
 │   ├── notifications.py          # Push notification service
 │   └── face_recognition/         # Face recognition pipeline
 │       ├── __init__.py          # Face recognition service initialization
@@ -499,7 +494,6 @@ def create_app(config_class=Config) -> Flask:
     # Initialize extensions
     db.init_app(app)
     CORS(app)
-    _init_firebase(app)
     
     # Register blueprints
     from routes.auth import auth_bp
@@ -570,8 +564,7 @@ def require_role(*allowed_roles):
 Business logic is separated into service modules:
 
 - **attendance_engine.py** - Attendance calculation and finalization
-- **firebase_sync.py** - Firebase Realtime Database synchronization
-- **notifications.py** - FCM push notification service
+- **notifications.py** - Expo push notification service
 - **face_recognition/** - Face recognition pipeline
 
 ### Admin Panel
@@ -1117,7 +1110,6 @@ _embeddings = {
 **Side Effects:**
 - Calculates final attendance for all enrolled students
 - Sends push notifications to absent students
-- Syncs results to Firebase Realtime Database
 
 #### GET /api/session/status/<session_id>
 **Purpose:** Get session details and current attendance summary  
@@ -1214,7 +1206,6 @@ _embeddings = {
 - Enforces cooldown period (default 15 seconds) to prevent duplicate logs
 - Checks enrollment before logging attendance
 - Toggles ENTRY/EXIT based on last event
-- Syncs to Firebase in background thread
 
 #### POST /api/attendance/log
 **Purpose:** Manual entry/exit logging (student self-service)  
@@ -1794,7 +1785,6 @@ _embeddings = {
 - Flask-JWT for token generation
 - Custom middleware for authentication
 - Role decorators for endpoint protection
-- Firebase Auth integration (optional)
 
 #### 2. Face Recognition Attendance
 **Functionality:**
@@ -1825,7 +1815,6 @@ _embeddings = {
 - UUID-based session identification
 - Threshold-based attendance calculation
 - Schedule validation with timezone support
-- Firebase real-time sync
 - Push notifications for session events
 
 #### 4. Attendance Calculation
@@ -1885,7 +1874,6 @@ _embeddings = {
 **Implementation:**
 - WaiverRequest model
 - Status workflow (pending→approved/rejected)
-- Firebase sync for real-time updates
 - Admin decision interface
 
 #### 8. Reporting and Analytics
@@ -1913,26 +1901,23 @@ _embeddings = {
 - Device token management
 
 **Implementation:**
-- Firebase Cloud Messaging (FCM)
+- Expo Push Notifications (https://exp.host/--/api/v2/push/send)
 - Expo push token integration
 - Background notification sending
 - Token registration endpoint
-- Graceful degradation without Firebase
 
-#### 10. Real-time Synchronization
+#### 10. Real-time Updates
 **Functionality:**
-- Live attendance updates
-- Session status sync
+- Live attendance updates via API polling
+- Session status tracking
 - Attendance log sync
 - Excuse decision sync
 - Manual override sync
 
 **Implementation:**
-- Firebase Realtime Database
-- Background thread sync
-- Non-blocking operations
+- Frontend polls REST API for updates
 - SQLite as source of truth
-- Graceful degradation
+- Non-blocking background operations
 
 ### Advanced Features
 
@@ -2017,8 +2002,7 @@ _embeddings = {
 3. Backend validates schedule (if set)
 4. Backend creates Session record
 5. Backend creates AttendanceRecord for all enrolled students
-6. Backend syncs to Firebase
-7. Frontend navigates to StartClassScreen
+6. Frontend navigates to StartClassScreen
 
 **Live attendance scanning:**
 1. Frontend captures camera frame
@@ -2029,8 +2013,7 @@ _embeddings = {
 6. Backend applies cooldown check
 7. Backend toggles ENTRY/EXIT
 8. Backend creates AttendanceLog
-9. Backend syncs to Firebase (background)
-10. Frontend updates UI with result
+9. Frontend updates UI with result
 
 **Session ends:**
 1. Teacher clicks "End Session"
@@ -2038,8 +2021,7 @@ _embeddings = {
 3. Backend calculates final attendance
 4. Backend updates AttendanceRecord status
 5. Backend sends push notifications to absent students
-6. Backend syncs to Firebase
-7. Frontend shows summary
+6. Frontend shows summary
 
 ### Face Recognition Flow
 
@@ -2071,21 +2053,18 @@ _embeddings = {
 
 ### Data Synchronization Flow
 
-**Firebase Sync (Non-blocking):**
+**Notification Flow (Non-blocking):**
 1. Backend operation completes (SQLite commit)
 2. Backend spawns daemon thread
-3. Thread syncs data to Firebase
+3. Thread sends Expo push notification
 4. Thread logs success/failure
 5. Main thread returns response immediately
-6. Frontend receives response without Firebase delay
+6. Frontend receives response without notification delay
 
-**Real-time Updates:**
+**Frontend Updates:**
 1. Backend writes to SQLite
-2. Backend syncs to Firebase
-3. Firebase triggers update
-4. Frontend listens to Firebase
-5. Frontend updates UI in real-time
-6. If Firebase fails, frontend polls API
+2. Frontend polls REST API
+3. Frontend updates UI with response data
 
 ### Excuse Request Flow
 
@@ -2096,7 +2075,6 @@ _embeddings = {
 4. Backend creates WaiverRequest record
 5. Backend creates notifications for admins
 6. Backend sends push notifications to admins
-7. Backend syncs to Firebase
 
 **Decision:**
 1. Admin reviews pending requests
@@ -2105,7 +2083,6 @@ _embeddings = {
 4. If approved, backend updates AttendanceRecord to Present
 5. Backend creates notification for student
 6. Backend sends push notification to student
-7. Backend syncs to Firebase
 
 ---
 
@@ -2124,10 +2101,6 @@ SQLALCHEMY_DATABASE_URI=sqlite:///database/attendance.db
 
 # JWT Configuration
 JWT_EXPIRY_HOURS=24
-
-# Firebase Configuration
-FIREBASE_CREDENTIALS_PATH=firebase_credentials.json
-FIREBASE_DATABASE_URL=https://your-project.firebaseio.com
 
 # Attendance Thresholds
 STRICT_MODE_THRESHOLD=0.80
@@ -2171,7 +2144,6 @@ services:
     volumes:
       - "./Backend Sajak/backend/backend/database:/app/database"
       - "./Backend Sajak/backend/backend/services/face_recognition/embeddings:/app/services/face_recognition/embeddings"
-      - ./firebase_credentials.json:/app/firebase_credentials.json:ro
     env_file:
       - .env
     environment:
@@ -2188,7 +2160,6 @@ networks:
 **Volume Mounting:**
 - Database persistence outside container
 - Face embeddings persistence outside container
-- Firebase credentials read-only mount
 
 ---
 
@@ -2206,8 +2177,7 @@ networks:
 - ✅ Session management with schedule enforcement
 - ✅ Batch management system
 - ✅ Excuse request workflow
-- ✅ Firebase Realtime Database sync
-- ✅ FCM push notifications
+- ✅ Expo push notifications
 - ✅ Flask-Admin panel with CSRF protection
 - ✅ Docker containerization
 - ✅ Health check endpoints
@@ -2410,7 +2380,6 @@ networks:
 ### Prerequisites
 
 - Docker and Docker Compose installed
-- Firebase project (optional, for sync and notifications)
 - Python 3.8+ (for local development)
 - Node.js 16+ (for frontend development)
 
@@ -2428,10 +2397,7 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
-#### 3. Set Up Firebase (Optional)
-Place your Firebase service account JSON file as `firebase_credentials.json` in the root directory.
-
-#### 4. Start the Backend
+#### 3. Start the Backend
 ```bash
 docker-compose up --build
 ```
@@ -2526,13 +2492,6 @@ curl http://localhost:5000/health
 2. Verify face_labels match embedding filenames
 3. Check TensorFlow and DeepFace installation
 4. Review face recognition logs
-
-#### Issue: Firebase Sync Failing
-**Solution:**
-1. Verify firebase_credentials.json is present
-2. Check Firebase project configuration
-3. Ensure Firebase Realtime Database is enabled
-4. Review sync logs for specific errors
 
 #### Issue: Mobile App Cannot Connect to Backend
 **Solution:**

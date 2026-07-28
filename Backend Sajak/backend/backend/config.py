@@ -18,10 +18,6 @@ class Config:
 
     JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", "24"))
 
-    FIREBASE_CREDENTIALS_PATH = os.getenv(
-        "FIREBASE_CREDENTIALS_PATH", "firebase-credentials.json"
-    )
-
     STRICT_MODE_THRESHOLD = float(os.getenv("STRICT_MODE_THRESHOLD", "0.80"))
     ACTIVITY_MODE_THRESHOLD = float(os.getenv("ACTIVITY_MODE_THRESHOLD", "0.55"))
 

@@ -5,7 +5,6 @@ and configures global error handlers.
 """
 
 import logging
-import os
 
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -20,38 +19,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _init_firebase(app: Flask) -> None:
-    """Initialize Firebase Admin SDK if credentials are available."""
-    try:
-        import firebase_admin
-        from firebase_admin import credentials
-
-        cred_path = app.config.get("FIREBASE_CREDENTIALS_PATH", "firebase-credentials.json")
-
-        if not os.path.isabs(cred_path):
-            cred_path = os.path.join(os.path.dirname(__file__), cred_path)
-
-        if os.path.exists(cred_path):
-            if not firebase_admin._apps:
-                cred = credentials.Certificate(cred_path)
-                firebase_admin.initialize_app(cred, {
-                    "databaseURL": os.getenv("FIREBASE_DATABASE_URL", ""),
-                })
-                logger.info("Firebase Admin SDK initialized")
-        else:
-            logger.warning(
-                "Firebase credentials not found at %s — Firebase features disabled",
-                cred_path,
-            )
-    except Exception as exc:
-        logger.error("Firebase initialization failed: %s", exc)
-
-
 def create_app(config_class=Config) -> Flask:
     """Application factory.
 
     Returns a fully configured Flask app with all blueprints,
-    database, CORS, Firebase, and error handlers set up.
+    database, CORS, and error handlers set up.
     """
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -59,9 +31,6 @@ def create_app(config_class=Config) -> Flask:
     # ── Extensions ─────────────────────────────────────────────────────
     db.init_app(app)
     CORS(app, origins=app.config.get("CORS_ORIGINS", ["*"]))
-
-    # ── Firebase ───────────────────────────────────────────────────────
-    _init_firebase(app)
 
     # ── Admin Panel ────────────────────────────────────────────────────
     from admin import init_admin
@@ -101,6 +70,9 @@ def create_app(config_class=Config) -> Flask:
     # ── Database Tables ────────────────────────────────────────────────
     with app.app_context():
         import models  # noqa: F401 — triggers model registration
+        import os
+        print(f'DEBUG cwd: {os.getcwd()}')
+        print(f'DEBUG db uri: {app.config["SQLALCHEMY_DATABASE_URI"]}')
         db.create_all()
         logger.info("Database tables created / verified")
 

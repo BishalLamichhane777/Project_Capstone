@@ -1,10 +1,13 @@
-"""Notification service — in-app DB rows + Android FCM push.
+"""Notification service — in-app DB rows + Expo push notifications.
 
-Strategy (decided, do not change):
+Strategy:
   ALL platforms  → insert a Notification row into SQLite (universal fallback).
-  Android only   → also send a native FCM push via firebase_admin.messaging.send()
-                   using the native device token from users.device_token.
-  iOS            → in-app only (no APNs — no Apple Developer account).
+  Any platform   → also send an Expo push notification if the user has a valid
+                   Expo push token (starts with "ExponentPushToken[" or "ExpoPushToken[")
+                   stored on users.device_token.
+
+Push delivery uses the Expo Push API (https://exp.host/--/api/v2/push/send)
+via a plain HTTPS POST — no SDK required, just the standard `requests` library.
 
 All push operations are wrapped in try/except.
 A failed push NEVER blocks the in-app notification or crashes session-end.
@@ -13,37 +16,78 @@ A failed push NEVER blocks the in-app notification or crashes session-end.
 import logging
 from datetime import datetime, timezone
 
+import requests
+
 logger = logging.getLogger(__name__)
 
+EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
-# ─── FCM push (Android only) ─────────────────────────────────────────────────
 
-def _send_android_fcm(device_token: str, title: str, body: str) -> bool:
-    """Send a single native FCM push to an Android device token.
+def _is_expo_token(token: str) -> bool:
+    """Return True if the token looks like a valid Expo push token."""
+    return bool(token) and (
+        token.startswith("ExponentPushToken[") or token.startswith("ExpoPushToken[")
+    )
 
-    Uses firebase_admin.messaging.send() — requires the Firebase Admin SDK
-    to be already initialised (done in app.py _init_firebase).
-    Returns True on success, False on any failure.
+
+# ─── Expo push ────────────────────────────────────────────────────────────────
+
+def _send_expo_push(expo_token: str, title: str, body: str) -> bool:
+    """Send a single push notification via the Expo Push API.
+
+    Uses a plain HTTPS POST — no Firebase SDK required.
+    Returns True on success (HTTP 200 with no delivery error), False otherwise.
+
+    Expo push token format: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+    Docs: https://docs.expo.dev/push-notifications/sending-notifications/
     """
-    try:
-        from firebase_admin import messaging
+    if not _is_expo_token(expo_token):
+        logger.warning("_send_expo_push: invalid or missing Expo token: %s", expo_token)
+        return False
 
-        message = messaging.Message(
-            notification=messaging.Notification(title=title, body=body),
-            token=device_token,
-            android=messaging.AndroidConfig(
-                priority="high",
-                notification=messaging.AndroidNotification(
-                    sound="default",
-                    channel_id="default",
-                ),
-            ),
+    payload = {
+        "to": expo_token,
+        "title": title,
+        "body": body,
+        "sound": "default",
+        "priority": "high",
+    }
+
+    try:
+        response = requests.post(
+            EXPO_PUSH_URL,
+            json=payload,
+            headers={
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip, deflate",
+                "Content-Type": "application/json",
+            },
+            timeout=10,
         )
-        response = messaging.send(message)
-        logger.info("FCM push sent: message_id=%s token=%s", response, device_token[:20])
+        response.raise_for_status()
+
+        data = response.json()
+        # Expo wraps results in {"data": [{"status": "ok"|"error", ...}]}
+        results = data.get("data", [])
+        if results and results[0].get("status") == "error":
+            details = results[0].get("details", {})
+            err_msg = results[0].get("message", "unknown error")
+            logger.error(
+                "Expo push delivery error (token=%s): %s %s",
+                expo_token[:30],
+                err_msg,
+                details,
+            )
+            return False
+
+        logger.info("Expo push sent: token=%s title=%r", expo_token[:30], title)
         return True
+
+    except requests.exceptions.Timeout:
+        logger.error("Expo push timed out (token=%s)", expo_token[:30])
+        return False
     except Exception as exc:
-        logger.error("FCM push failed (token=%s): %s", device_token[:20] if device_token else "None", exc)
+        logger.error("Expo push failed (token=%s): %s", expo_token[:30] if expo_token else "None", exc)
         return False
 
 
@@ -87,7 +131,7 @@ def notify_absent_student(
     """Notify a student they were marked absent.
 
     Always creates an in-app Notification row.
-    Also sends Android FCM push if platform == 'android' and token present.
+    Also sends an Expo push notification if device_token is a valid Expo token.
     """
     title   = "Attendance Alert"
     message = f"You were marked absent from {class_name}"
@@ -95,9 +139,9 @@ def notify_absent_student(
     # Step 1 — in-app row (all platforms)
     _create_inapp_notification(user_id, "Absent", message)
 
-    # Step 2 — Android FCM push
-    if platform == "android" and device_token:
-        _send_android_fcm(device_token, title, message)
+    # Step 2 — Expo push (any platform, token-gated)
+    if _is_expo_token(device_token):
+        _send_expo_push(device_token, title, message)
 
     return True
 
@@ -168,7 +212,7 @@ def notify_excuse_decision(
 ) -> bool:
     """Notify student of waiver approval or rejection.
 
-    Always creates in-app row. Android gets FCM push too.
+    Always creates in-app row. Sends Expo push if token is valid.
     """
     if decision == "Approved":
         title   = "Excuse Approved"
@@ -179,8 +223,8 @@ def notify_excuse_decision(
 
     _create_inapp_notification(user_id, "Waiver", message)
 
-    if platform == "android" and device_token:
-        _send_android_fcm(device_token, title, message)
+    if _is_expo_token(device_token):
+        _send_expo_push(device_token, title, message)
 
     return True
 
@@ -194,7 +238,7 @@ def notify_admins_new_waiver(
 
     admin_users: list of User ORM objects with role == 'admin'.
     Creates in-app row for every admin.
-    Sends Android FCM push to any admin on Android with a device token.
+    Sends Expo push to any admin with a valid Expo push token.
     """
     title   = "New Excuse Request"
     message = f"{student_name} submitted an excuse for {class_name}"
@@ -202,8 +246,8 @@ def notify_admins_new_waiver(
     for admin in admin_users:
         try:
             _create_inapp_notification(admin.id, "Waiver", message)
-            if (admin.platform or "") == "android" and admin.device_token:
-                _send_android_fcm(admin.device_token, title, message)
+            if _is_expo_token(admin.device_token or ""):
+                _send_expo_push(admin.device_token, title, message)
         except Exception as exc:
             logger.error(
                 "notify_admins_new_waiver: failed for admin_id=%s error=%s",

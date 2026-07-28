@@ -1,6 +1,6 @@
 # myTIMeS Direct V2 — Backend API
 
-Automated classroom attendance system REST API built with Flask + SQLAlchemy + Firebase.
+Automated classroom attendance system REST API built with Flask + SQLAlchemy.
 
 ## Tech Stack
 
@@ -9,9 +9,8 @@ Automated classroom attendance system REST API built with Flask + SQLAlchemy + F
 | Framework | Flask 3.0 |
 | ORM | SQLAlchemy 2.0 + Flask-SQLAlchemy |
 | Database | SQLite (local) |
-| Auth | bcrypt + PyJWT + Firebase Admin SDK |
-| Real-time Sync | Firebase Realtime Database |
-| Push Notifications | Firebase Cloud Messaging (FCM) |
+| Auth | bcrypt + PyJWT |
+| Push Notifications | Expo Push Notifications |
 | CORS | Flask-CORS |
 
 ## Quick Start
@@ -44,16 +43,10 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env with your values — especially SECRET_KEY and Firebase credentials
+# Edit .env with your values — especially SECRET_KEY
 ```
 
-### 5. Set up Firebase (optional)
-
-Place your Firebase service account JSON file in the backend directory as `firebase-credentials.json`, or update `FIREBASE_CREDENTIALS_PATH` in `.env`.
-
-> Firebase features (real-time sync, push notifications, Auth) degrade gracefully — the API runs fully without Firebase configured.
-
-### 6. Run the server
+### 5. Run the server
 
 ```bash
 python app.py
@@ -267,11 +260,10 @@ backend/
 ├── services/
 │   ├── __init__.py
 │   ├── attendance_engine.py        # Duration calculation & finalization
-│   ├── firebase_sync.py            # Firebase Realtime DB sync
-│   └── notifications.py            # FCM push notifications
+│   └── notifications.py            # Expo push notifications
 └── middleware/
     ├── __init__.py
-    └── auth_middleware.py           # JWT + Firebase token auth & RBAC
+    └── auth_middleware.py           # JWT auth & RBAC
 ```
 
 ---
@@ -279,6 +271,5 @@ backend/
 ## Notes
 
 - **Face Recognition** modules (`services/face_recognition.py`, `services/preprocessing.py`) and their endpoints (`POST /admin/enroll-face/{student_id}`, `POST /attendance/frame`) are not included — they will be added separately.
-- Firebase is optional; the API runs fully with SQLite-only when Firebase credentials are absent.
 - All timestamps are stored and returned as ISO 8601 strings.
 - Passwords are never exposed in API responses.

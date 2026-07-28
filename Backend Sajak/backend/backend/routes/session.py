@@ -176,6 +176,7 @@ def _auto_expire_stale_session(session: "Session") -> bool:
     return False
 
 
+@session_bp.route("/start", methods=["POST"])
 @require_role("teacher")
 def start_session():
     """Start a new attendance session for a class.
@@ -371,8 +372,6 @@ def start_session():
         db.session.add(record)
 
     db.session.commit()
-
-    # Sync to Firebase removed — Realtime DB sync deprecated
 
     return (
         jsonify(

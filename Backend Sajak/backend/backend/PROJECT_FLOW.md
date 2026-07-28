@@ -16,9 +16,8 @@
 8. [Attendance Calculation Engine](#8-attendance-calculation-engine)
 9. [Excuse / Waiver Workflow](#9-excuse--waiver-workflow)
 10. [Notifications System](#10-notifications-system)
-11. [Firebase Sync Flow](#11-firebase-sync-flow)
-12. [Complete Request Lifecycle](#12-complete-request-lifecycle)
-13. [Entity Relationship Overview](#13-entity-relationship-overview)
+11. [Complete Request Lifecycle](#11-complete-request-lifecycle)
+12. [Entity Relationship Overview](#12-entity-relationship-overview)
 
 ---
 
@@ -183,12 +182,7 @@ sequenceDiagram
         MW->>MW: Extract {user_id, role, email} from payload
         MW->>Route: Set g.current_user, proceed
     else JWT invalid
-        MW->>MW: Try decode as Firebase ID token
-        alt Firebase token valid
-            MW->>Route: Set g.current_user, proceed
-        else Both invalid
-            MW-->>Client: 401 "Invalid or expired token"
-        end
+        MW-->>Client: 401 "Invalid or expired token"
     end
 
     Route->>Route: Check g.current_user.role ∈ allowed_roles
@@ -240,9 +234,8 @@ flowchart TD
     H --> U["INSERT into users table"]
     U --> C{role == 'student'?}
     C -->|Yes| S["INSERT into students table\n(roll_number, program, year)"]
-    C -->|No| F["Try create Firebase Auth user"]
-    S --> F
-    F --> D["Return {user_id, message}"]
+    C -->|No| D["Return {user_id, message}"]
+    S --> D
 ```
 
 > [!NOTE]
@@ -298,7 +291,6 @@ sequenceDiagram
     participant T as Teacher
     participant API as Session Route
     participant DB as SQLite
-    participant FB as Firebase
 
     T->>API: POST /api/session/start<br/>{class_id: 1, mode: "Strict"}
     
@@ -312,7 +304,6 @@ sequenceDiagram
         API->>DB: INSERT attendance_record<br/>(student_id, session_id, status=Absent)
     end
     
-    API->>FB: Push /sessions/{id} = {status, class_id, mode, liveCount: 0}
     API-->>T: {session_id, threshold_percent, enrolled_count}
 ```
 
@@ -323,7 +314,6 @@ sequenceDiagram
    - **Strict mode** → student must be present for **80%** of class duration
    - **Activity mode** → student must be present for **55%** of class duration
 4. Creates an `attendance_record` for **every enrolled student** with `status=Absent` (default)
-5. Pushes session info to Firebase for real-time monitoring
 
 ### 7.2 During a Session (Face Recognition — Not Yet Implemented)
 
@@ -342,8 +332,7 @@ sequenceDiagram
     participant API as Session Route
     participant Engine as Attendance Engine
     participant DB as SQLite
-    participant FB as Firebase
-    participant FCM as FCM Push
+    participant Push as Expo Push
 
     T->>API: POST /api/session/end<br/>{session_id: "uuid..."}
     
@@ -363,10 +352,9 @@ sequenceDiagram
     Engine-->>API: {present: 38, absent: 4, total: 42}
     
     API->>DB: UPDATE session (status=CLOSED)
-    API->>FB: Sync session end + attendance summary
     
     loop For each absent student
-        API->>FCM: Send "Attendance Alert" push notification
+        API->>Push: Send "Attendance Alert" via Expo Push API
     end
     
     API-->>T: {session_id, summary: {present, absent, total}}
@@ -435,9 +423,8 @@ sequenceDiagram
     participant S as Student
     participant API as Excuse Route
     participant DB as SQLite
-    participant FB as Firebase
     participant A as Admin
-    participant FCM as FCM Push
+    participant Push as Expo Push
 
     Note over S: Student sees they're "Absent"
 
@@ -446,7 +433,7 @@ sequenceDiagram
     API->>DB: Check no duplicate excuse exists
     API->>DB: INSERT waiver_request (status=Pending)
     API->>DB: INSERT notification for each admin user
-    API->>FCM: Push "New Excuse Request" to admin devices
+    API->>Push: Send "New Excuse Request" to admin devices
     API-->>S: {request_id, message}
 
     Note over A: Admin sees pending excuses
@@ -460,11 +447,10 @@ sequenceDiagram
     
     alt Decision = Approved
         API->>DB: UPDATE attendance_record → status=Present
-        API->>FB: Sync updated attendance
     end
     
     API->>DB: INSERT notification for student
-    API->>FCM: Push "Excuse Approved" to student device
+    API->>Push: Send "Excuse Approved" to student device
     API-->>A: {message, decision}
 ```
 
@@ -485,38 +471,21 @@ Two notification channels work in parallel:
 - Retrieved via `GET /api/admin/notifications` or `GET /api/student/notifications`
 - **Marked as read on fetch** — once you GET them, `is_read` flips to `true`
 
-### FCM Push Notifications (Firebase Cloud Messaging)
-- Sent to device via `device_token` stored on the user
-- Real-time push to mobile/web
-- **Best-effort** — if FCM fails, the API doesn't crash
+### Expo Push Notifications
+- Sent to device via Expo push token stored on the user
+- Real-time push to mobile devices
+- **Best-effort** — if push fails, the API doesn't crash
 
 | Event | Who Gets Notified | Notification Type |
 |-------|-------------------|-------------------|
-| Session ends, student absent | Student (FCM + in-app) | "Attendance Alert" |
-| Student submits excuse | All admins (FCM + in-app) | "New Excuse Request" |
-| Admin approves excuse | Student (FCM + in-app) | "Excuse Approved" |
-| Admin rejects excuse | Student (FCM + in-app) | "Excuse Rejected" |
+| Session ends, student absent | Student (Expo push + in-app) | "Attendance Alert" |
+| Student submits excuse | All admins (Expo push + in-app) | "New Excuse Request" |
+| Admin approves excuse | Student (Expo push + in-app) | "Excuse Approved" |
+| Admin rejects excuse | Student (Expo push + in-app) | "Excuse Rejected" |
 
 ---
 
-## 11. Firebase Sync Flow
-
-Firebase Realtime Database is used for **live dashboards / mobile apps** to see real-time data. The SQLite database is the **source of truth**.
-
-| Event | Firebase Path | Data |
-|-------|--------------|------|
-| Session starts | `/sessions/{session_id}` | `{status, class_id, mode, liveCount: 0}` |
-| Session ends | `/sessions/{session_id}` | `{status: "CLOSED", summary: {present, absent, total}}` |
-| Attendance finalized | `/sessions/{session_id}/attendance/{student_id}` | `{status, total_duration_seconds}` |
-| Excuse decided | `/excuse/{request_id}` | `{decision, student_id, session_id}` |
-| Manual override | `/sessions/{session_id}/attendance/{student_id}` | `{status: "Present"}` |
-
-> [!NOTE]
-> **Firebase is 100% optional.** Every Firebase call is wrapped in try/except. If Firebase credentials are missing or the service is down, the API continues working with SQLite only. Errors are logged but never crash the server.
-
----
-
-## 12. Complete Request Lifecycle
+## 11. Complete Request Lifecycle
 
 Here's what happens for **every single API request**, start to finish:
 
@@ -535,10 +504,7 @@ flowchart TD
     
     G --> G1{"JWT valid?"}
     G1 -->|Yes| G2["Set g.current_user"]
-    G1 -->|No| G3["Try Firebase ID token"]
-    G3 --> G4{"Firebase valid?"}
-    G4 -->|Yes| G2
-    G4 -->|No| X2["401: Invalid token"]
+    G1 -->|No| X2["401: Invalid token"]
     
     G2 --> G5{"Role ∈ allowed roles?"}
     G5 -->|No| X3["403: Forbidden"]
@@ -549,9 +515,8 @@ flowchart TD
     J -->|No| X4["400/422: Validation error"]
     J -->|Yes| K["SQLAlchemy DB operations"]
     
-    K --> L["Firebase sync (try/except)"]
-    L --> M["FCM notifications (try/except)"]
-    M --> N["Return JSON response"]
+    K --> L["Expo push notifications (try/except)"]
+    L --> N["Return JSON response"]
     
     X1 --> Z["Global error handler\nformats JSON error"]
     X2 --> Z
@@ -566,7 +531,7 @@ flowchart TD
 
 ---
 
-## 13. Entity Relationship Overview
+## 12. Entity Relationship Overview
 
 ```mermaid
 erDiagram

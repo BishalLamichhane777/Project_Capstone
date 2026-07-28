@@ -6,7 +6,7 @@ Paste this into a new Kiro chat to continue development with full context.
 
 ## Project Overview
 
-**Smart Attendance System** — React Native (Expo SDK 54) frontend + Flask/SQLAlchemy/SQLite backend, Dockerized, with Firebase Realtime DB + FCM. Face recognition uses MTCNN + DeepFace (FaceNet) for enrollment and identification.
+**Smart Attendance System** — React Native (Expo SDK 54) frontend + Flask/SQLAlchemy/SQLite backend, Dockerized, with Expo push notifications and face recognition using MTCNN + DeepFace (FaceNet) for enrollment and identification.
 
 ---
 
@@ -18,7 +18,7 @@ Paste this into a new Kiro chat to continue development with full context.
 | Backend | Flask 3.0, Flask-SQLAlchemy, SQLite, Gunicorn 2 workers |
 | AI | DeepFace (FaceNet, 128-dim embeddings), MTCNN, opencv-python-headless |
 | Auth | JWT (PyJWT), bcrypt |
-| Notifications | Firebase Admin SDK (FCM), Firebase Realtime DB |
+| Notifications | Expo Push Notifications, SQLite notifications table |
 | Container | Docker multi-stage build, docker-compose |
 
 ---
@@ -29,8 +29,7 @@ Paste this into a new Kiro chat to continue development with full context.
 Project_Capstone/
 ├── docker-compose.yml
 ├── .env                          # ROOT env — used by docker-compose
-├── firebase_credentials.json
-│
+├── .gitignore
 ├── Backend Sajak/backend/backend/      # MAIN FLASK BACKEND (live-mounted)
 │   ├── app.py                          # Flask factory
 │   ├── config.py
