@@ -548,7 +548,7 @@ export default function StartClassScreen({ navigation, route }) {
         <CameraView
           ref={cameraRef}
           style={StyleSheet.absoluteFill}
-          facing="back"
+          facing="front"
         />
         {/* Scan status overlay — above live feed */}
         <View style={styles.cameraActiveOverlay} pointerEvents="none">
