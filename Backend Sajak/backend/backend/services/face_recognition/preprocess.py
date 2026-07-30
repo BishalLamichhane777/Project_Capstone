@@ -32,9 +32,8 @@ def preprocess_for_enrollment(image_bgr):
 
     Steps:
       1. Check image is valid and large enough
-      2. Apply GaussianBlur for noise reduction (replaces bilateralFilter —
-         same noise-reduction goal, ~10x faster on CPU, acceptable for
-         enrollment where the image is a clean still photo)
+      2. Apply bilateralFilter for noise reduction while preserving edges
+         (CRITICAL: Must match preprocess_for_recognition() exactly)
       3. Apply histogram equalisation on the Y channel to normalise
          exposure across photos taken in different lighting conditions
 
@@ -53,16 +52,13 @@ def preprocess_for_enrollment(image_bgr):
     if w < MIN_IMAGE_WIDTH or h < MIN_IMAGE_HEIGHT:
         return None, f"Image too small: {w}x{h}"
 
-    # GaussianBlur — fast noise reduction for enrollment stills.
-    # kernel (3,3) with sigma=1 is equivalent in noise-reduction effect
-    # to bilateralFilter(d=5, sigmaColor=30, sigmaSpace=30) for clean
-    # JPEG photos, but runs ~10x faster because it is a separable linear
-    # filter (O(n) per axis vs O(n²) for bilateral).
-    # NOTE: preprocess_for_recognition (scan path) is unchanged and still
-    # uses bilateralFilter — enrollment and scan preprocessing can differ
-    # because recognition accuracy depends on the cosine distance between
-    # two independently preprocessed embeddings, not identical pipelines.
-    filtered = cv2.GaussianBlur(image_bgr, (3, 3), sigmaX=1)
+    # bilateralFilter — noise reduction while preserving edges.
+    # Parameters: d=5 (filter diameter), sigmaColor=30, sigmaSpace=30
+    # CRITICAL (Change #4): This MUST match preprocess_for_recognition()
+    # exactly so enrollment embeddings and recognition embeddings are
+    # generated under identical conditions. Previously used GaussianBlur
+    # here which created a preprocessing mismatch.
+    filtered = cv2.bilateralFilter(image_bgr, 5, 30, 30)
 
     # Histogram equalisation on the Y (luminance) channel
     yuv        = cv2.cvtColor(filtered, cv2.COLOR_BGR2YUV)
@@ -76,7 +72,10 @@ def preprocess_for_recognition(frame_bgr):
     """
     Same preprocessing applied to every live webcam frame
     before MTCNN detection and DeepFace recognition.
-    Must match the enrollment preprocessing for best accuracy.
+    
+    CRITICAL (Change #4): This MUST match preprocess_for_enrollment()
+    exactly to ensure enrollment and recognition embeddings are comparable.
+    Both now use bilateralFilter with identical parameters.
     """
     if frame_bgr is None:
         return None

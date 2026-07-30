@@ -52,6 +52,66 @@ def crop_face(frame_bgr, detection, padding=0.1):
     return frame_bgr[y1:y2, x1:x2]
 
 
+def align_face(face_crop, keypoints):
+    """
+    Aligns a face by rotating it so that the eyes are horizontal.
+    
+    This corrects for head tilt, ensuring that faces tilted during scanning
+    match the upright enrollment photos. Alignment is applied to both
+    enrollment and recognition paths to maintain consistency.
+    
+    Args:
+        face_crop: BGR image containing a cropped face
+        keypoints: Dictionary with 'left_eye' and 'right_eye' coordinates from MTCNN
+                   Format: {'left_eye': (x, y), 'right_eye': (x, y), ...}
+    
+    Returns:
+        Aligned face image (BGR) with eyes horizontal, or original crop if
+        keypoints are missing/invalid.
+    """
+    if face_crop is None or face_crop.size == 0:
+        return face_crop
+    
+    if not keypoints or 'left_eye' not in keypoints or 'right_eye' not in keypoints:
+        # No keypoints available - return unaligned (fallback for edge cases)
+        return face_crop
+    
+    left_eye = keypoints['left_eye']
+    right_eye = keypoints['right_eye']
+    
+    # Calculate the angle between the eyes
+    delta_x = right_eye[0] - left_eye[0]
+    delta_y = right_eye[1] - left_eye[1]
+    
+    # Angle in degrees (counterclockwise from horizontal)
+    angle = np.degrees(np.arctan2(delta_y, delta_x))
+    
+    # Calculate the center point between the eyes for rotation pivot
+    eye_center_x = (left_eye[0] + right_eye[0]) / 2.0
+    eye_center_y = (left_eye[1] + right_eye[1]) / 2.0
+    
+    # Get the rotation matrix
+    # Note: OpenCV's coordinate system has origin at top-left, so we rotate
+    # in the opposite direction of the calculated angle to make eyes horizontal
+    h, w = face_crop.shape[:2]
+    rotation_matrix = cv2.getRotationMatrix2D(
+        (eye_center_x, eye_center_y),
+        angle,
+        scale=1.0
+    )
+    
+    # Apply the rotation with border padding to avoid cropping
+    aligned = cv2.warpAffine(
+        face_crop,
+        rotation_matrix,
+        (w, h),
+        flags=cv2.INTER_CUBIC,
+        borderMode=cv2.BORDER_REPLICATE
+    )
+    
+    return aligned
+
+
 def draw_detections(frame_bgr, detections, label="", color=(0, 255, 0)):
     display = frame_bgr.copy()
     for det in detections:

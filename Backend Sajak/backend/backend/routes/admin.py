@@ -947,6 +947,15 @@ def enroll_face():
     photo_files = request.files.getlist("photos")
     if not photo_files or all(f.filename == "" for f in photo_files):
         return jsonify({"error": "At least one photo file is required", "status": 400}), 400
+    
+    # ── CHANGE #5: Minimum 5 photos required for quality enrollment ──────
+    valid_photos = [f for f in photo_files if f.filename != ""]
+    if len(valid_photos) < 5:
+        return jsonify({
+            "error": "Minimum 5 photos required for enrollment",
+            "details": "Please provide at least 5 photos with variety: front-facing, left/right angles, different lighting, with/without glasses if applicable.",
+            "status": 400
+        }), 400
 
     # ── 2. Resolve student ────────────────────────────────────────────
     student = Student.query.get(student_id)

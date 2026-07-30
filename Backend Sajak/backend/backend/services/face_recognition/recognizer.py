@@ -32,13 +32,23 @@ from services.face_recognition.preprocess import preprocess_for_recognition
 EMBEDDINGS_FOLDER = os.path.join(_DIR, "embeddings")
 LABELS_FILE       = os.path.join(EMBEDDINGS_FOLDER, "labels.json")
 
-MODEL_NAME       = "Facenet"
+# ── MODEL CONFIGURATION ──
+# CHANGE #7: Ensemble recognition with two independent models.
+# FaceNet512: Trained with triplet loss (anchor-positive-negative)
+# ArcFace:    Trained with angular margin loss (arc cosine separation)
+# Both must agree on student identity for recognition.
+MODEL_FACENET = "Facenet512"
+MODEL_ARCFACE = "ArcFace"
 DETECTOR_BACKEND = "mtcnn"
 
-# Cosine distance threshold
-# score < 0.40 → recognized (same person)
-# score ≥ 0.40 → unknown
+# Cosine distance threshold (fallback for old single-model embeddings)
 COSINE_THRESHOLD = 0.40
+
+# ── CHANGE #6: Minimum confidence floor ──────────────────────────────────
+# Reject matches below this confidence percentage even if distance passes.
+# Prevents false positives from "barely below threshold" matches.
+# Example: distance=0.39, threshold=0.40 → confidence=2.5% → REJECTED
+MIN_CONFIDENCE_PERCENT = 40.0
 
 # Cooldown in seconds to prevent duplicate events
 COOLDOWN_SECONDS = 5
@@ -83,18 +93,30 @@ def compute_confidence(distance: float, threshold: float) -> float:
 def load_all_embeddings():
     """
     Loads ALL student data into memory.
-    Called ONCE when the backend starts (replaces the old flat-array version).
+    Called ONCE when the backend starts.
 
     Lookup order per student:
-      1. {student_id}_data.npz  — new format: mean_embedding + per-student threshold
-      2. {student_id}_mean.npy  — legacy format: mean_embedding only (threshold → 0.40)
+      1. {student_id}_data.npz with "embeddings_facenet" and "embeddings_arcface" keys
+         — NEW format (Change #7 Ensemble): Arrays of embeddings from BOTH models
+      2. {student_id}_data.npz with "embeddings" key — Format from Change #3:
+         Contains array of embeddings (N×512) from single model + threshold
+      3. {student_id}_data.npz with "mean_embedding" key — OLD format:
+         Contains single mean embedding (512,) + threshold
+      4. {student_id}_mean.npy — Legacy format: Single mean (512,), threshold → 0.40
 
     Returns:
         dict: {
-            "Student_1": {"embedding": np.array(128,), "threshold": 0.35},
-            "Student_2": {"embedding": np.array(128,), "threshold": 0.40},
+            "Student_1": {
+                "embeddings_facenet": np.array([[emb1], [emb2], ...]),  # Shape: (N, 512)
+                "embeddings_arcface": np.array([[emb1], [emb2], ...]),  # Shape: (N, 512)
+                "threshold_facenet": 0.35,
+                "threshold_arcface": 0.38
+            },
             ...
         }
+        
+    NOTE: For backward compatibility, old formats are supported but only use FaceNet.
+    Full ensemble requires re-enrollment with both models.
     """
     embeddings = {}
 
@@ -127,25 +149,79 @@ def load_all_embeddings():
         npy_path  = os.path.join(EMBEDDINGS_FOLDER, f"{student_id}_mean.npy")
 
         if os.path.exists(npz_path):
-            # New format — has per-student threshold
-            data      = np.load(npz_path, allow_pickle=False)
-            embedding = data["mean_embedding"]
-            threshold = float(data["threshold"])
-            source    = "npz"
+            data = np.load(npz_path, allow_pickle=False)
+            
+            # Check format priority: ensemble > all photos > mean > legacy
+            if "embeddings_facenet" in data and "embeddings_arcface" in data:
+                # NEW ENSEMBLE format (Change #7): Both models' embeddings
+                embeddings_facenet = data["embeddings_facenet"]
+                embeddings_arcface = data["embeddings_arcface"]
+                threshold_facenet = float(data["threshold_facenet"])
+                threshold_arcface = float(data["threshold_arcface"])
+                source = "npz (ensemble)"
+                
+                embeddings[student_id] = {
+                    "embeddings_facenet": embeddings_facenet,
+                    "embeddings_arcface": embeddings_arcface,
+                    "threshold_facenet": threshold_facenet,
+                    "threshold_arcface": threshold_arcface,
+                }
+                print(f"Loaded: {student_id}  "
+                      f"FaceNet: {len(embeddings_facenet)} photos, threshold={threshold_facenet:.4f}  "
+                      f"ArcFace: {len(embeddings_arcface)} photos, threshold={threshold_arcface:.4f}  [{source}]")
+            
+            elif "embeddings" in data:
+                # Format from Change #3: Array of all embeddings (single model)
+                embeddings_array = data["embeddings"]
+                threshold = float(data["threshold"])
+                source = "npz (all photos, single model)"
+                
+                embeddings[student_id] = {
+                    "embeddings_facenet": embeddings_array,  # Only FaceNet available
+                    "embeddings_arcface": None,  # No ArcFace - will skip ensemble
+                    "threshold_facenet": threshold,
+                    "threshold_arcface": None,
+                }
+                print(f"Loaded: {student_id}  "
+                      f"photos={len(embeddings_array)}  dim={len(embeddings_array[0])}  "
+                      f"threshold={threshold:.4f}  [{source}] (single model only)")
+            
+            elif "mean_embedding" in data:
+                # OLD format (pre-Change #3): Single mean embedding
+                mean_embedding = data["mean_embedding"]
+                threshold = float(data["threshold"])
+                source = "npz (mean only - OLD)"
+                
+                # Wrap single mean in array for compatibility
+                embeddings[student_id] = {
+                    "embeddings_facenet": np.array([mean_embedding]),
+                    "embeddings_arcface": None,
+                    "threshold_facenet": threshold,
+                    "threshold_arcface": None,
+                }
+                print(f"Loaded: {student_id}  "
+                      f"photos=1 (averaged)  dim={len(mean_embedding)}  "
+                      f"threshold={threshold:.4f}  [{source}]")
+            else:
+                print(f"WARNING: {student_id}_data.npz missing required keys")
+                continue
+                
         elif os.path.exists(npy_path):
-            # Legacy format — fall back to global default threshold
-            embedding = np.load(npy_path)
+            # Legacy format — single mean embedding
+            mean_embedding = np.load(npy_path)
             threshold = COSINE_THRESHOLD
-            source    = "npy (legacy)"
+            source = "npy (legacy)"
+            
+            embeddings[student_id] = {
+                "embeddings_facenet": np.array([mean_embedding]),
+                "embeddings_arcface": None,
+                "threshold_facenet": threshold,
+                "threshold_arcface": None,
+            }
+            print(f"Loaded: {student_id}  "
+                  f"photos=1  dim={len(mean_embedding)}  threshold={threshold:.4f}  [{source}]")
         else:
-            continue   # file disappeared between listing and loading
-
-        embeddings[student_id] = {
-            "embedding" : embedding,
-            "threshold" : threshold,
-        }
-        print(f"Loaded: {student_id}  "
-              f"dim={len(embedding)}  threshold={threshold:.4f}  [{source}]")
+            continue
 
     if not embeddings:
         print("ERROR: No embeddings found! Run enroll.py first.")
@@ -155,30 +231,66 @@ def load_all_embeddings():
     return embeddings
 
 
-def get_face_embedding(face_bgr):
+def get_face_embedding(face_bgr, detection=None):
     """
-    Generates a DeepFace embedding from a cropped face BGR image.
-    Returns numpy array (128,) or None if it fails.
+    Generates face embeddings from BOTH models (FaceNet512 and ArcFace).
+    
+    CHANGE #7 (Ensemble): Returns embeddings from two independent models.
+    
+    Args:
+        face_bgr: Cropped face image (BGR format)
+        detection: Optional MTCNN detection dict containing keypoints for alignment
+        
+    Returns:
+        tuple: (facenet_embedding, arcface_embedding) as numpy arrays (512,) each
+               or (None, None) if processing fails
     """
     from deepface import DeepFace
     import warnings
     warnings.filterwarnings('ignore')
+    
+    from services.face_recognition.detector import align_face
 
     try:
-        result = DeepFace.represent(
-            img_path         = face_bgr,
-            model_name       = MODEL_NAME,
+        # Step 1 — align the face if keypoints are available
+        if detection and 'keypoints' in detection:
+            face_aligned = align_face(face_bgr, detection['keypoints'])
+        else:
+            face_aligned = face_bgr
+        
+        if face_aligned is None or face_aligned.size == 0:
+            return None, None
+        
+        # Step 2 — resize to 160×160 for FaceNet input
+        face_160 = cv2.resize(face_aligned, (160, 160), interpolation=cv2.INTER_AREA)
+        
+        # Step 3a — generate FaceNet512 embedding
+        result_facenet = DeepFace.represent(
+            img_path         = face_160,
+            model_name       = MODEL_FACENET,
             detector_backend = "skip",
             enforce_detection= False,
             align            = False
         )
-        embedding = np.array(result[0]['embedding'])
-        # L2-normalise to match how we stored mean embeddings
-        embedding /= (np.linalg.norm(embedding) + 1e-10)
-        return embedding
+        embedding_facenet = np.array(result_facenet[0]['embedding'])
+        embedding_facenet /= (np.linalg.norm(embedding_facenet) + 1e-10)
+        
+        # Step 3b — generate ArcFace embedding
+        result_arcface = DeepFace.represent(
+            img_path         = face_160,
+            model_name       = MODEL_ARCFACE,
+            detector_backend = "skip",
+            enforce_detection= False,
+            align            = False
+        )
+        embedding_arcface = np.array(result_arcface[0]['embedding'])
+        embedding_arcface /= (np.linalg.norm(embedding_arcface) + 1e-10)
+        
+        return embedding_facenet, embedding_arcface
 
-    except Exception:
-        return None
+    except Exception as e:
+        print(f"Embedding generation error: {e}")
+        return None, None
 
 
 def recognize_face(frame_bgr, embeddings_dict):
@@ -190,25 +302,29 @@ def recognize_face(frame_bgr, embeddings_dict):
       Step 1: Preprocess frame
       Step 2: MTCNN face detection (all faces)
       Step 3: Loop every detected face; skip faces narrower than MIN_FACE_WIDTH
-      Step 4: Generate DeepFace embedding per face
-      Step 5: Compare with all student embeddings (cosine distance)
-      Step 6: Apply threshold — collect all recognized hits into a list
+      Step 4: Generate embeddings from BOTH models (FaceNet512 + ArcFace)
+      Step 5: ENSEMBLE COMPARISON — For each model, compare against ALL
+              enrollment photos and use MINIMUM distance (closest match).
+              NEW (Change #7): Both models must identify the SAME student.
+      Step 6: Apply thresholds and confidence floors for BOTH models
+              Both models must pass their respective checks for recognition.
+              If models disagree on identity, reject the match (impostor detection).
 
     Returns list of dicts (one entry per recognized face):
         [
           {
             "status"     : "recognized",
             "student_id" : str,
-            "distance"   : float,   ← cosine distance (lower = better)
-            "confidence" : float,   ← 0-100 for display
+            "distance"   : float,   ← average of both models' distances
+            "confidence" : float,   ← average of both models' confidences (≥40% each)
             "face_coords": (x,y,w,h),
-            "message"    : str
+            "message"    : str (includes "ensemble" if both models used)
           },
           ...
         ]
 
     Returns an empty list when no face is detected or no face passes the
-    threshold.  Returns [{"status": "error", ...}] on hard failures.
+    ensemble checks. Returns [{"status": "error", ...}] on hard failures.
     """
     # Minimum bounding-box width to attempt recognition.
     # Faces narrower than this are too small / too far away to produce a
@@ -244,59 +360,124 @@ def recognize_face(frame_bgr, embeddings_dict):
         if w < MIN_FACE_WIDTH:
             continue
 
-        # Step 4: Crop face and generate embedding
+        # Step 4: Crop face and generate embeddings from BOTH models (with alignment)
         face_crop = crop_face(preprocessed, detection, padding=0.1)
-        embedding = get_face_embedding(face_crop)
+        emb_facenet, emb_arcface = get_face_embedding(face_crop, detection=detection)
 
-        if embedding is None:
+        if emb_facenet is None:
             # DeepFace couldn't process this crop — skip silently
             continue
 
-        # Step 5: Compare against all student embeddings using per-student thresholds
-        best_match     = None
-        best_distance  = float('inf')
-        best_threshold = COSINE_THRESHOLD  # fallback, replaced when a match is found
+        # Step 5: ENSEMBLE COMPARISON - both models must agree
+        # CHANGE #7: Compare against all enrollment photos with BOTH models.
+        # For recognition, BOTH models must identify the same student AND
+        # both must pass their respective thresholds and confidence floors.
+        
+        best_match_facenet = None
+        best_distance_facenet = float('inf')
+        best_threshold_facenet = COSINE_THRESHOLD
+        
+        best_match_arcface = None
+        best_distance_arcface = float('inf')
+        best_threshold_arcface = COSINE_THRESHOLD
+        
+        # Flag to track if this student has ArcFace embeddings
+        has_arcface_embeddings = False
 
         for student_id, student_data in embeddings_dict.items():
-            # Support both new dict format and legacy plain-array format
-            if isinstance(student_data, dict):
-                ref_embedding      = student_data["embedding"]
-                student_threshold  = student_data["threshold"]
-            else:
-                ref_embedding      = student_data
-                student_threshold  = COSINE_THRESHOLD
-
-            dist = cosine_distance(embedding, ref_embedding)
-            if dist < best_distance:
-                best_distance  = dist
-                best_match     = student_id
-                best_threshold = student_threshold
-
-        # ── Prompt 3D: confidence relative to per-student threshold ──
-        # distance=0.0          → confidence=100%
-        # distance=threshold    → confidence=0%
-        # This makes the score mean the same thing for every student
-        # regardless of how tight or loose their threshold is.
-        display_confidence = compute_confidence(best_distance, best_threshold)
-
-        # Step 6: Apply per-student threshold — only collect recognized hits
-        if best_distance <= best_threshold:
-            recognized_results.append({
-                "status"     : "recognized",
-                "student_id" : best_match,
-                "distance"   : round(best_distance, 4),
-                "confidence" : display_confidence,
-                "face_coords": (x, y, w, h),
-                "message"    : f"Recognized: {best_match}",
-            })
-        # Unknown faces are skipped silently
+            ref_embeddings_facenet = student_data.get("embeddings_facenet")
+            ref_embeddings_arcface = student_data.get("embeddings_arcface")
+            threshold_facenet = student_data.get("threshold_facenet", COSINE_THRESHOLD)
+            threshold_arcface = student_data.get("threshold_arcface", COSINE_THRESHOLD)
+            
+            if ref_embeddings_facenet is None:
+                continue
+            
+            # Handle both new format (2D array) and old format (1D array)
+            if ref_embeddings_facenet.ndim == 1:
+                ref_embeddings_facenet = np.array([ref_embeddings_facenet])
+            
+            # Compare with FaceNet512
+            min_dist_facenet = float('inf')
+            for ref_emb in ref_embeddings_facenet:
+                dist = cosine_distance(emb_facenet, ref_emb)
+                if dist < min_dist_facenet:
+                    min_dist_facenet = dist
+            
+            if min_dist_facenet < best_distance_facenet:
+                best_distance_facenet = min_dist_facenet
+                best_match_facenet = student_id
+                best_threshold_facenet = threshold_facenet
+            
+            # Compare with ArcFace (if available for this student)
+            if ref_embeddings_arcface is not None and emb_arcface is not None:
+                has_arcface_embeddings = True
+                
+                if ref_embeddings_arcface.ndim == 1:
+                    ref_embeddings_arcface = np.array([ref_embeddings_arcface])
+                
+                min_dist_arcface = float('inf')
+                for ref_emb in ref_embeddings_arcface:
+                    dist = cosine_distance(emb_arcface, ref_emb)
+                    if dist < min_dist_arcface:
+                        min_dist_arcface = dist
+                
+                if min_dist_arcface < best_distance_arcface:
+                    best_distance_arcface = min_dist_arcface
+                    best_match_arcface = student_id
+                    best_threshold_arcface = threshold_arcface
+        
+        # ── ENSEMBLE DECISION LOGIC ──────────────────────────────────────
+        # For students with both models: BOTH must agree on identity
+        # For students with only FaceNet: Use FaceNet alone (backward compat)
+        
+        if has_arcface_embeddings and emb_arcface is not None:
+            # ENSEMBLE MODE: Both models available
+            # Check if both models agree on the same student
+            if best_match_facenet == best_match_arcface and best_match_facenet is not None:
+                # Both models agree - check thresholds and confidence floors
+                conf_facenet = compute_confidence(best_distance_facenet, best_threshold_facenet)
+                conf_arcface = compute_confidence(best_distance_arcface, best_threshold_arcface)
+                
+                # Both must pass distance threshold AND confidence floor
+                if (best_distance_facenet <= best_threshold_facenet and
+                    best_distance_arcface <= best_threshold_arcface and
+                    conf_facenet >= MIN_CONFIDENCE_PERCENT and
+                    conf_arcface >= MIN_CONFIDENCE_PERCENT):
+                    
+                    # RECOGNIZED - both models agree with high confidence
+                    recognized_results.append({
+                        "status": "recognized",
+                        "student_id": best_match_facenet,
+                        "distance": round((best_distance_facenet + best_distance_arcface) / 2, 4),
+                        "confidence": round((conf_facenet + conf_arcface) / 2, 1),
+                        "face_coords": (x, y, w, h),
+                        "message": f"Recognized: {best_match_facenet} (ensemble)",
+                    })
+            # else: Models disagree or one/both failed checks → REJECTED (silent)
+        
+        else:
+            # SINGLE MODEL MODE: Only FaceNet available (backward compatibility)
+            conf_facenet = compute_confidence(best_distance_facenet, best_threshold_facenet)
+            
+            if (best_distance_facenet <= best_threshold_facenet and
+                conf_facenet >= MIN_CONFIDENCE_PERCENT):
+                
+                recognized_results.append({
+                    "status": "recognized",
+                    "student_id": best_match_facenet,
+                    "distance": round(best_distance_facenet, 4),
+                    "confidence": conf_facenet,
+                    "face_coords": (x, y, w, h),
+                    "message": f"Recognized: {best_match_facenet}",
+                })
 
     return recognized_results
 
 
 if __name__ == "__main__":
     print("=" * 55)
-    print("  RECOGNITION TEST — DeepFace + MTCNN")
+    print("  RECOGNITION TEST — Ensemble (FaceNet512 + ArcFace)")
     print("=" * 55)
 
     print("\nLoading student embeddings...")
@@ -307,7 +488,16 @@ if __name__ == "__main__":
         print("Please run enroll.py first.")
         exit()
 
-    print(f"\nThreshold : cosine distance < {COSINE_THRESHOLD}")
+    # Check if any students have ensemble embeddings
+    ensemble_count = sum(1 for s in embeddings.values() if s.get("embeddings_arcface") is not None)
+    single_count = len(embeddings) - ensemble_count
+    
+    print(f"\nModel       : FaceNet512 + ArcFace (ensemble)")
+    print(f"Students    : {len(embeddings)} total")
+    print(f"  Ensemble  : {ensemble_count} (both models)")
+    print(f"  Single    : {single_count} (FaceNet only)")
+    print(f"Threshold   : per-student adaptive")
+    print(f"Conf Floor  : {MIN_CONFIDENCE_PERCENT}%")
     print("Starting webcam recognition test...")
     print("Press Q to quit\n")
 

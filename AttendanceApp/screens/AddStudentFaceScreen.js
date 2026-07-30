@@ -39,6 +39,10 @@ const LABEL   = '#2C3E50';
 const BG      = '#f5f7fa';
 const CARD_BG = '#ffffff';
 
+// ── CHANGE #5: Minimum photos required for enrollment ──────────────────────
+const MIN_PHOTOS = 5;
+const MAX_PHOTOS = 10;
+
 // ─────────────────────────────────────────────────────────────────────────
 
 export default function AddStudentFaceScreen({ navigation }) {
@@ -74,7 +78,7 @@ export default function AddStudentFaceScreen({ navigation }) {
     password        !== '' &&
     rollNumber.trim() !== '';
 
-  const hasEnoughPhotos = photos.length >= 3;
+  const hasEnoughPhotos = photos.length >= MIN_PHOTOS;
   const canSubmit = hasRequiredFields && hasEnoughPhotos && !isLoading;
 
   // ── Photo picker ─────────────────────────────────────────────────────
@@ -89,10 +93,10 @@ export default function AddStudentFaceScreen({ navigation }) {
       return;
     }
 
-    const remaining = 10 - photos.length;
+    const remaining = MAX_PHOTOS - photos.length;
     console.log('Remaining slots:', remaining);
     if (remaining <= 0) {
-      Alert.alert('Limit reached', 'Maximum 10 photos allowed. Remove some to add new ones.');
+      Alert.alert('Limit reached', `Maximum ${MAX_PHOTOS} photos allowed. Remove some to add new ones.`);
       return;
     }
 
@@ -123,7 +127,7 @@ export default function AddStudentFaceScreen({ navigation }) {
       }));
 
       setPhotos(prev => {
-        const updated = [...prev, ...converted].slice(0, 10);
+        const updated = [...prev, ...converted].slice(0, MAX_PHOTOS);
         console.log('Updated photos count:', updated.length);
         return updated;
       });
@@ -345,7 +349,52 @@ export default function AddStudentFaceScreen({ navigation }) {
           {/* ── PHOTO SECTION CARD ───────────────────────────────── */}
           <View style={[styles.card, { backgroundColor: cardBg }]}>
             <Text style={[styles.cardTitle, { color: textPri }]}>Student Photos</Text>
-            <Text style={[styles.cardSubtitle, { color: textSub }]}>3–10 clear, well-lit, front-facing photos required</Text>
+            <Text style={[styles.cardSubtitle, { color: textSub }]}>
+              {MIN_PHOTOS}–{MAX_PHOTOS} clear, well-lit photos required
+            </Text>
+
+            {/* ── CHANGE #5: Photo Guidelines Box ────────────────── */}
+            <View style={[styles.guidelinesBox, { backgroundColor: isDarkMode ? '#1e2a3a' : '#e8f4f8', borderColor: isDarkMode ? '#2a3f52' : '#b8dce8' }]}>
+              <Text style={[styles.guidelinesTitle, { color: isDarkMode ? '#6fb8e0' : '#2980b9' }]}>📸 Photo Guidelines</Text>
+              <View style={styles.guidelinesList}>
+                <View style={styles.guidelineItem}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={[styles.guidelineText, { color: isDarkMode ? '#b8c5d6' : '#34495e' }]}>
+                    <Text style={styles.guidelineBold}>1-2 photos:</Text> front-facing, neutral expression
+                  </Text>
+                </View>
+                <View style={styles.guidelineItem}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={[styles.guidelineText, { color: isDarkMode ? '#b8c5d6' : '#34495e' }]}>
+                    <Text style={styles.guidelineBold}>1 photo:</Text> head tilted slightly left
+                  </Text>
+                </View>
+                <View style={styles.guidelineItem}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={[styles.guidelineText, { color: isDarkMode ? '#b8c5d6' : '#34495e' }]}>
+                    <Text style={styles.guidelineBold}>1 photo:</Text> head tilted slightly right
+                  </Text>
+                </View>
+                <View style={styles.guidelineItem}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={[styles.guidelineText, { color: isDarkMode ? '#b8c5d6' : '#34495e' }]}>
+                    <Text style={styles.guidelineBold}>1 photo:</Text> looking slightly upward
+                  </Text>
+                </View>
+                <View style={styles.guidelineItem}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={[styles.guidelineText, { color: isDarkMode ? '#b8c5d6' : '#34495e' }]}>
+                    <Text style={styles.guidelineBold}>Optional:</Text> with glasses (if student wears them)
+                  </Text>
+                </View>
+                <View style={styles.guidelineItem}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={[styles.guidelineText, { color: isDarkMode ? '#b8c5d6' : '#34495e' }]}>
+                    <Text style={styles.guidelineBold}>Vary lighting</Text> if possible (bright, normal, dim)
+                  </Text>
+                </View>
+              </View>
+            </View>
 
             {/* Add Photos button */}
             <TouchableOpacity
@@ -387,7 +436,9 @@ export default function AddStudentFaceScreen({ navigation }) {
 
             {/* Minimum warning */}
             {photos.length > 0 && !hasEnoughPhotos && (
-              <Text style={styles.photoWarning}>Minimum 3 photos required</Text>
+              <Text style={styles.photoWarning}>
+                Minimum {MIN_PHOTOS} photos required ({MIN_PHOTOS - photos.length} more needed)
+              </Text>
             )}
           </View>
 
@@ -525,6 +576,47 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  
+  // ── CHANGE #5: Photo Guidelines Styles ────────────────────────────────
+  guidelinesBox: {
+    backgroundColor: '#e8f4f8',
+    borderWidth: 1,
+    borderColor: '#b8dce8',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  guidelinesTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2980b9',
+    marginBottom: 10,
+  },
+  guidelinesList: {
+    gap: 6,
+  },
+  guidelineItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingLeft: 4,
+  },
+  bullet: {
+    fontSize: 14,
+    color: '#2980b9',
+    marginRight: 8,
+    marginTop: 1,
+  },
+  guidelineText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#34495e',
+    lineHeight: 19,
+  },
+  guidelineBold: {
+    fontWeight: '700',
+  },
+  // ───────────────────────────────────────────────────────────────────────
+  
   thumbnailScroll: {
     marginBottom: 10,
   },
