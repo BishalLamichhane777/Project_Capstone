@@ -31,7 +31,14 @@ class Config:
     # ── Face Recognition ──────────────────────────────────────────────
     # Minimum seconds between accepted scans for the same student in the
     # same session. Prevents rapid duplicate logs from a single pass.
-    SCAN_COOLDOWN_SECONDS = int(os.getenv("SCAN_COOLDOWN_SECONDS", "15"))
+    SCAN_COOLDOWN_SECONDS = int(os.getenv("SCAN_COOLDOWN_SECONDS", "5"))
+    
+    # Separate cooldown for EXIT events (ENTRY→EXIT transition).
+    # Shorter than SCAN_COOLDOWN_SECONDS to enable faster exit detection.
+    # Tradeoff: Lower value = faster exit capture but slightly higher risk
+    # of false toggles from camera flicker or momentary mis-detection.
+    # Recommended: 3-5 seconds for walk-through scenarios.
+    EXIT_COOLDOWN_SECONDS = int(os.getenv("EXIT_COOLDOWN_SECONDS", "3"))
 
     # ── Scheduling ────────────────────────────────────────────────────
     # Timezone used for all scheduling checks (is-today, time-window).

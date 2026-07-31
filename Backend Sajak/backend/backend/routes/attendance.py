@@ -428,7 +428,10 @@ def scan_attendance():
       Non-recognition outcomes (cooldown, not_enrolled, error):
         {"status": "<reason>", "student_id": ..., "message": "..."}
     """
+    import time
     from flask import current_app
+    
+    t_request_start = time.perf_counter()
 
     session_id = request.form.get("session_id", "").strip()
     if not session_id:
@@ -442,21 +445,28 @@ def scan_attendance():
         return jsonify({"error": "No selected image file", "status": 400}), 400
 
     # ── 1. Validate active session ────────────────────────────────────
+    t_validation_start = time.perf_counter()
     session = Session.query.get(session_id)
     if not session:
         return jsonify({"error": "Session not found", "status": 404}), 404
     if session.status != "ACTIVE":
         return jsonify({"error": "Session is not active", "status": 400}), 400
+    t_validation_end = time.perf_counter()
 
     # ── 2. Read image bytes ───────────────────────────────────────────
+    t_read_start = time.perf_counter()
     try:
         image_bytes = image_file.read()
+        image_size_kb = len(image_bytes) / 1024
     except Exception as e:
         logger.error("Failed to read scan image: %s", e)
         return jsonify({"error": f"Failed to read image: {str(e)}", "status": 400}), 400
+    t_read_end = time.perf_counter()
 
     # ── 3. Face recognition — returns list of recognized hits ─────────
+    t_recognition_start = time.perf_counter()
     rec_results = recognize_student(image_bytes)
+    t_recognition_end = time.perf_counter()
 
     # Hard error from the recognition service
     if (
@@ -481,7 +491,8 @@ def scan_attendance():
         }), 200
 
     # ── 4. Process each recognized face ───────────────────────────────
-    cooldown_seconds = current_app.config.get("SCAN_COOLDOWN_SECONDS", 15)
+    entry_cooldown_seconds = current_app.config.get("SCAN_COOLDOWN_SECONDS", 5)
+    exit_cooldown_seconds = current_app.config.get("EXIT_COOLDOWN_SECONDS", 3)
     now = datetime.now(timezone.utc)
     logged_results = []
 
@@ -516,7 +527,7 @@ def scan_attendance():
             )
             continue
 
-        # ── 4c. Cooldown check ────────────────────────────────────────
+        # ── 4c. Cooldown check with separate ENTRY/EXIT timings ──────
         latest_log = (
             AttendanceLog.query
             .filter_by(student_id=student_id, session_id=session_id)
@@ -524,20 +535,29 @@ def scan_attendance():
             .first()
         )
 
+        # Determine next event type FIRST to choose correct cooldown
+        if latest_log is None or latest_log.event_type == "EXIT":
+            next_event_type = "ENTRY"
+            applicable_cooldown = entry_cooldown_seconds
+        else:
+            next_event_type = "EXIT"
+            applicable_cooldown = exit_cooldown_seconds
+
         if latest_log:
             log_time = latest_log.timestamp
             if log_time.tzinfo is None:
                 log_time = log_time.replace(tzinfo=timezone.utc)
             elapsed = (now - log_time).total_seconds()
-            if elapsed < cooldown_seconds:
+            if elapsed < applicable_cooldown:
                 # Still in cooldown — skip this student silently
+                logger.debug(
+                    "Student %s in cooldown: elapsed=%.1fs < %ds (%s cooldown)",
+                    student_id, elapsed, applicable_cooldown, next_event_type
+                )
                 continue
 
-        # ── 4d. Toggle ENTRY / EXIT ───────────────────────────────────
-        if latest_log is None or latest_log.event_type == "EXIT":
-            event_type = "ENTRY"
-        else:
-            event_type = "EXIT"
+        # ── 4d. Log the event ─────────────────────────────────────────
+        event_type = next_event_type
 
         # ── 4e. Persist attendance log ────────────────────────────────
         log_entry = AttendanceLog(
@@ -569,8 +589,23 @@ def scan_attendance():
         })
 
     # Commit all logged entries in one shot
+    t_db_start = time.perf_counter()
     if logged_results:
         db.session.commit()
+    t_db_end = time.perf_counter()
+    
+    t_request_end = time.perf_counter()
+    
+    # Log complete request timing breakdown
+    logger.info(
+        f"[TIMING] /scan COMPLETE | "
+        f"validation={1000*(t_validation_end-t_validation_start):.1f}ms, "
+        f"read_image={1000*(t_read_end-t_read_start):.1f}ms ({image_size_kb:.1f}KB), "
+        f"recognition={1000*(t_recognition_end-t_recognition_start):.1f}ms, "
+        f"db_commit={1000*(t_db_end-t_db_start):.1f}ms, "
+        f"TOTAL={1000*(t_request_end-t_request_start):.1f}ms, "
+        f"recognized={len(logged_results)}"
+    )
 
     # ── 6. Response ───────────────────────────────────────────────────
     if not logged_results:

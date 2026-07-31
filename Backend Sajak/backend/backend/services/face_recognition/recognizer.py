@@ -23,6 +23,10 @@ import numpy as np
 import os
 import json
 import sys
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -48,7 +52,7 @@ COSINE_THRESHOLD = 0.40
 # Reject matches below this confidence percentage even if distance passes.
 # Prevents false positives from "barely below threshold" matches.
 # Example: distance=0.39, threshold=0.40 → confidence=2.5% → REJECTED
-MIN_CONFIDENCE_PERCENT = 40.0
+MIN_CONFIDENCE_PERCENT = 25.0
 
 # Cooldown in seconds to prevent duplicate events
 COOLDOWN_SECONDS = 5
@@ -253,18 +257,23 @@ def get_face_embedding(face_bgr, detection=None):
 
     try:
         # Step 1 — align the face if keypoints are available
+        t_align_start = time.perf_counter()
         if detection and 'keypoints' in detection:
             face_aligned = align_face(face_bgr, detection['keypoints'])
         else:
             face_aligned = face_bgr
+        t_align_end = time.perf_counter()
         
         if face_aligned is None or face_aligned.size == 0:
             return None, None
         
         # Step 2 — resize to 160×160 for FaceNet input
+        t_resize_start = time.perf_counter()
         face_160 = cv2.resize(face_aligned, (160, 160), interpolation=cv2.INTER_AREA)
+        t_resize_end = time.perf_counter()
         
         # Step 3a — generate FaceNet512 embedding
+        t_facenet_start = time.perf_counter()
         result_facenet = DeepFace.represent(
             img_path         = face_160,
             model_name       = MODEL_FACENET,
@@ -274,8 +283,10 @@ def get_face_embedding(face_bgr, detection=None):
         )
         embedding_facenet = np.array(result_facenet[0]['embedding'])
         embedding_facenet /= (np.linalg.norm(embedding_facenet) + 1e-10)
+        t_facenet_end = time.perf_counter()
         
         # Step 3b — generate ArcFace embedding
+        t_arcface_start = time.perf_counter()
         result_arcface = DeepFace.represent(
             img_path         = face_160,
             model_name       = MODEL_ARCFACE,
@@ -285,6 +296,16 @@ def get_face_embedding(face_bgr, detection=None):
         )
         embedding_arcface = np.array(result_arcface[0]['embedding'])
         embedding_arcface /= (np.linalg.norm(embedding_arcface) + 1e-10)
+        t_arcface_end = time.perf_counter()
+        
+        # Log timing details
+        logger.info(
+            f"[TIMING] get_face_embedding: "
+            f"align={1000*(t_align_end-t_align_start):.1f}ms, "
+            f"resize={1000*(t_resize_end-t_resize_start):.1f}ms, "
+            f"FaceNet512={1000*(t_facenet_end-t_facenet_start):.1f}ms, "
+            f"ArcFace={1000*(t_arcface_end-t_arcface_start):.1f}ms"
+        )
         
         return embedding_facenet, embedding_arcface
 
@@ -326,6 +347,8 @@ def recognize_face(frame_bgr, embeddings_dict):
     Returns an empty list when no face is detected or no face passes the
     ensemble checks. Returns [{"status": "error", ...}] on hard failures.
     """
+    t_total_start = time.perf_counter()
+    
     # Minimum bounding-box width to attempt recognition.
     # Faces narrower than this are too small / too far away to produce a
     # reliable FaceNet embedding — skip them rather than risk false matches.
@@ -342,56 +365,109 @@ def recognize_face(frame_bgr, embeddings_dict):
         }]
 
     # Step 1: Preprocess frame
+    t_preprocess_start = time.perf_counter()
     preprocessed = preprocess_for_recognition(frame_bgr)
+    t_preprocess_end = time.perf_counter()
 
     # Step 2: Detect ALL faces with MTCNN
+    t_detection_start = time.perf_counter()
     detections = detect_faces(preprocessed)
+    t_detection_end = time.perf_counter()
+    
+    logger.info(
+        f"[TIMING] recognize_face: "
+        f"preprocess={1000*(t_preprocess_end-t_preprocess_start):.1f}ms, "
+        f"MTCNN_detection={1000*(t_detection_end-t_detection_start):.1f}ms, "
+        f"faces_detected={len(detections)}"
+    )
 
     if not detections:
+        t_total_end = time.perf_counter()
+        logger.info(f"[TIMING] recognize_face: total={1000*(t_total_end-t_total_start):.1f}ms (no faces)")
         return []   # caller interprets empty list as "no_face"
 
     recognized_results = []
 
     # Step 3: Loop every detected face
-    for detection in detections:
+    for idx, detection in enumerate(detections):
+        t_face_start = time.perf_counter()
         x, y, w, h = detection['box']
 
         # Skip faces that are too small to recognise reliably
         if w < MIN_FACE_WIDTH:
+            logger.info(f"[TIMING] Face {idx+1}: skipped (width={w} < {MIN_FACE_WIDTH})")
             continue
 
-        # Step 4: Crop face and generate embeddings from BOTH models (with alignment)
+        # Step 4a: Crop face and generate FaceNet512 embedding ONLY (not ArcFace yet)
+        t_crop_start = time.perf_counter()
         face_crop = crop_face(preprocessed, detection, padding=0.1)
-        emb_facenet, emb_arcface = get_face_embedding(face_crop, detection=detection)
-
-        if emb_facenet is None:
-            # DeepFace couldn't process this crop — skip silently
+        t_crop_end = time.perf_counter()
+        
+        # Generate only FaceNet512 embedding initially
+        from deepface import DeepFace
+        import warnings
+        warnings.filterwarnings('ignore')
+        from services.face_recognition.detector import align_face
+        
+        # Align and resize
+        t_align_start = time.perf_counter()
+        if detection and 'keypoints' in detection:
+            face_aligned = align_face(face_crop, detection['keypoints'])
+        else:
+            face_aligned = face_crop
+        t_align_end = time.perf_counter()
+        
+        if face_aligned is None or face_aligned.size == 0:
+            logger.info(f"[TIMING] Face {idx+1}: alignment failed")
             continue
+        
+        t_resize_start = time.perf_counter()
+        face_160 = cv2.resize(face_aligned, (160, 160), interpolation=cv2.INTER_AREA)
+        t_resize_end = time.perf_counter()
+        
+        # Generate FaceNet512 embedding
+        t_facenet_start = time.perf_counter()
+        try:
+            result_facenet = DeepFace.represent(
+                img_path         = face_160,
+                model_name       = MODEL_FACENET,
+                detector_backend = "skip",
+                enforce_detection= False,
+                align            = False
+            )
+            emb_facenet = np.array(result_facenet[0]['embedding'])
+            emb_facenet /= (np.linalg.norm(emb_facenet) + 1e-10)
+        except Exception as e:
+            logger.info(f"[TIMING] Face {idx+1}: FaceNet512 embedding failed: {e}")
+            continue
+        t_facenet_end = time.perf_counter()
+        
+        logger.info(
+            f"[TIMING] Face {idx+1} FaceNet512: "
+            f"crop={1000*(t_crop_end-t_crop_start):.1f}ms, "
+            f"align={1000*(t_align_end-t_align_start):.1f}ms, "
+            f"resize={1000*(t_resize_end-t_resize_start):.1f}ms, "
+            f"FaceNet512={1000*(t_facenet_end-t_facenet_start):.1f}ms"
+        )
 
-        # Step 5: ENSEMBLE COMPARISON - both models must agree
-        # CHANGE #7: Compare against all enrollment photos with BOTH models.
-        # For recognition, BOTH models must identify the same student AND
-        # both must pass their respective thresholds and confidence floors.
+        # Step 5a: Compare FaceNet512 against all students FIRST
+        t_compare_facenet_start = time.perf_counter()
         
         best_match_facenet = None
         best_distance_facenet = float('inf')
         best_threshold_facenet = COSINE_THRESHOLD
-        
-        best_match_arcface = None
-        best_distance_arcface = float('inf')
-        best_threshold_arcface = COSINE_THRESHOLD
-        
-        # Flag to track if this student has ArcFace embeddings
         has_arcface_embeddings = False
 
         for student_id, student_data in embeddings_dict.items():
             ref_embeddings_facenet = student_data.get("embeddings_facenet")
-            ref_embeddings_arcface = student_data.get("embeddings_arcface")
             threshold_facenet = student_data.get("threshold_facenet", COSINE_THRESHOLD)
-            threshold_arcface = student_data.get("threshold_arcface", COSINE_THRESHOLD)
             
             if ref_embeddings_facenet is None:
                 continue
+            
+            # Check if this student has ArcFace embeddings
+            if student_data.get("embeddings_arcface") is not None:
+                has_arcface_embeddings = True
             
             # Handle both new format (2D array) and old format (1D array)
             if ref_embeddings_facenet.ndim == 1:
@@ -408,10 +484,62 @@ def recognize_face(frame_bgr, embeddings_dict):
                 best_distance_facenet = min_dist_facenet
                 best_match_facenet = student_id
                 best_threshold_facenet = threshold_facenet
+        
+        t_compare_facenet_end = time.perf_counter()
+        
+        # SHORT-CIRCUIT: If FaceNet512's best match is not even close to any threshold,
+        # skip the expensive ArcFace model entirely. Use a generous margin (1.5x threshold)
+        # to avoid false negatives while still catching obvious non-matches.
+        if best_distance_facenet > best_threshold_facenet * 1.5:
+            t_face_end = time.perf_counter()
+            logger.info(
+                f"[TIMING] Face {idx+1}: SHORT-CIRCUIT (FaceNet512 too far) | "
+                f"compare_facenet={1000*(t_compare_facenet_end-t_compare_facenet_start):.1f}ms, "
+                f"total_face={1000*(t_face_end-t_face_start):.1f}ms | "
+                f"best_match={best_match_facenet}, dist={best_distance_facenet:.4f}, "
+                f"threshold={best_threshold_facenet:.4f} (ArcFace SKIPPED)"
+            )
+            continue  # Skip this face - not even close to any student
+        
+        # Step 5b: FaceNet512 found a plausible match - generate ArcFace embedding
+        # ONLY if students have ArcFace embeddings enrolled
+        emb_arcface = None
+        if has_arcface_embeddings:
+            t_arcface_start = time.perf_counter()
+            try:
+                result_arcface = DeepFace.represent(
+                    img_path         = face_160,
+                    model_name       = MODEL_ARCFACE,
+                    detector_backend = "skip",
+                    enforce_detection= False,
+                    align            = False
+                )
+                emb_arcface = np.array(result_arcface[0]['embedding'])
+                emb_arcface /= (np.linalg.norm(emb_arcface) + 1e-10)
+            except Exception as e:
+                logger.warning(f"[TIMING] Face {idx+1}: ArcFace embedding failed: {e}")
+                emb_arcface = None
+            t_arcface_end = time.perf_counter()
             
-            # Compare with ArcFace (if available for this student)
-            if ref_embeddings_arcface is not None and emb_arcface is not None:
-                has_arcface_embeddings = True
+            logger.info(
+                f"[TIMING] Face {idx+1} ArcFace: "
+                f"ArcFace={1000*(t_arcface_end-t_arcface_start):.1f}ms"
+            )
+        
+        # Step 5c: Compare ArcFace (if available)
+        best_match_arcface = None
+        best_distance_arcface = float('inf')
+        best_threshold_arcface = COSINE_THRESHOLD
+        
+        if emb_arcface is not None:
+            t_compare_arcface_start = time.perf_counter()
+            
+            for student_id, student_data in embeddings_dict.items():
+                ref_embeddings_arcface = student_data.get("embeddings_arcface")
+                threshold_arcface = student_data.get("threshold_arcface", COSINE_THRESHOLD)
+                
+                if ref_embeddings_arcface is None:
+                    continue
                 
                 if ref_embeddings_arcface.ndim == 1:
                     ref_embeddings_arcface = np.array([ref_embeddings_arcface])
@@ -426,6 +554,18 @@ def recognize_face(frame_bgr, embeddings_dict):
                     best_distance_arcface = min_dist_arcface
                     best_match_arcface = student_id
                     best_threshold_arcface = threshold_arcface
+            
+            t_compare_arcface_end = time.perf_counter()
+            t_compare_end = t_compare_arcface_end
+            
+            logger.info(
+                f"[TIMING] Face {idx+1} comparison: "
+                f"FaceNet={1000*(t_compare_facenet_end-t_compare_facenet_start):.1f}ms, "
+                f"ArcFace={1000*(t_compare_arcface_end-t_compare_arcface_start):.1f}ms"
+            )
+        else:
+            t_compare_end = t_compare_facenet_end
+        
         
         # ── ENSEMBLE DECISION LOGIC ──────────────────────────────────────
         # For students with both models: BOTH must agree on identity
@@ -445,6 +585,14 @@ def recognize_face(frame_bgr, embeddings_dict):
                     conf_facenet >= MIN_CONFIDENCE_PERCENT and
                     conf_arcface >= MIN_CONFIDENCE_PERCENT):
                     
+                    t_face_end = time.perf_counter()
+                    logger.info(
+                        f"[TIMING] Face {idx+1}: RECOGNIZED {best_match_facenet} | "
+                        f"total_face={1000*(t_face_end-t_face_start):.1f}ms | "
+                        f"FaceNet_dist={best_distance_facenet:.4f} conf={conf_facenet:.1f}%, "
+                        f"ArcFace_dist={best_distance_arcface:.4f} conf={conf_arcface:.1f}%"
+                    )
+                    
                     # RECOGNIZED - both models agree with high confidence
                     recognized_results.append({
                         "status": "recognized",
@@ -454,7 +602,21 @@ def recognize_face(frame_bgr, embeddings_dict):
                         "face_coords": (x, y, w, h),
                         "message": f"Recognized: {best_match_facenet} (ensemble)",
                     })
-            # else: Models disagree or one/both failed checks → REJECTED (silent)
+                else:
+                    t_face_end = time.perf_counter()
+                    logger.info(
+                        f"[TIMING] Face {idx+1}: REJECTED (ensemble checks failed) | "
+                        f"total_face={1000*(t_face_end-t_face_start):.1f}ms | "
+                        f"FaceNet: {best_match_facenet} dist={best_distance_facenet:.4f} conf={conf_facenet:.1f}%, "
+                        f"ArcFace: {best_match_arcface} dist={best_distance_arcface:.4f} conf={conf_arcface:.1f}%"
+                    )
+            else:
+                t_face_end = time.perf_counter()
+                logger.info(
+                    f"[TIMING] Face {idx+1}: REJECTED (models disagree) | "
+                    f"total_face={1000*(t_face_end-t_face_start):.1f}ms | "
+                    f"FaceNet: {best_match_facenet}, ArcFace: {best_match_arcface}"
+                )
         
         else:
             # SINGLE MODEL MODE: Only FaceNet available (backward compatibility)
@@ -462,6 +624,13 @@ def recognize_face(frame_bgr, embeddings_dict):
             
             if (best_distance_facenet <= best_threshold_facenet and
                 conf_facenet >= MIN_CONFIDENCE_PERCENT):
+                
+                t_face_end = time.perf_counter()
+                logger.info(
+                    f"[TIMING] Face {idx+1}: RECOGNIZED {best_match_facenet} | "
+                    f"total_face={1000*(t_face_end-t_face_start):.1f}ms | "
+                    f"FaceNet_dist={best_distance_facenet:.4f} conf={conf_facenet:.1f}% (single model)"
+                )
                 
                 recognized_results.append({
                     "status": "recognized",
@@ -471,6 +640,20 @@ def recognize_face(frame_bgr, embeddings_dict):
                     "face_coords": (x, y, w, h),
                     "message": f"Recognized: {best_match_facenet}",
                 })
+            else:
+                t_face_end = time.perf_counter()
+                logger.info(
+                    f"[TIMING] Face {idx+1}: REJECTED (single model checks failed) | "
+                    f"total_face={1000*(t_face_end-t_face_start):.1f}ms | "
+                    f"FaceNet: {best_match_facenet} dist={best_distance_facenet:.4f} conf={conf_facenet:.1f}%"
+                )
+
+    t_total_end = time.perf_counter()
+    logger.info(
+        f"[TIMING] recognize_face: COMPLETE | "
+        f"total={1000*(t_total_end-t_total_start):.1f}ms, "
+        f"recognized={len(recognized_results)}/{len(detections)} faces"
+    )
 
     return recognized_results
 

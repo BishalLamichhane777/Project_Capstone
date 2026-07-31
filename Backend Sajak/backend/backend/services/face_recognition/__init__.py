@@ -19,26 +19,61 @@ except Exception as e:
     _EMBEDDINGS = {}
     logger.error("Failed to load face recognition embeddings: %s", e)
 
-# Warm-up DeepFace + FaceNet at startup so the first real scan doesn't
-# pay the model-load penalty (typically 2–5 s on first call).
+# Warm-up DeepFace (FaceNet512 + ArcFace) and MTCNN at startup so the first
+# real scan doesn't pay the model-load penalty (typically 2–5 s per model on first call).
 def _warmup_deepface():
     try:
         from deepface import DeepFace
         import warnings
         warnings.filterwarnings('ignore')
+        
+        # Create a blank 160x160 image for warmup
         blank = np.zeros((160, 160, 3), dtype=np.uint8)
+        
+        # Warm up FaceNet512 (used in production)
         DeepFace.represent(
             img_path=blank,
-            model_name="Facenet",
+            model_name="Facenet512",
             detector_backend="skip",
             enforce_detection=False,
             align=False,
         )
-        logger.info("DeepFace FaceNet model warmed up successfully.")
+        logger.info("DeepFace FaceNet512 model warmed up successfully.")
+        
+        # Warm up ArcFace (used in production for ensemble)
+        DeepFace.represent(
+            img_path=blank,
+            model_name="ArcFace",
+            detector_backend="skip",
+            enforce_detection=False,
+            align=False,
+        )
+        logger.info("DeepFace ArcFace model warmed up successfully.")
+        
     except Exception as e:
         logger.warning("DeepFace warm-up failed (non-fatal): %s", e)
 
+def _warmup_mtcnn():
+    """Warm up MTCNN detector at startup so first scan doesn't pay load penalty."""
+    try:
+        from services.face_recognition.detector import detect_faces, get_haar_cascade
+        
+        # Warm up Haar cascade first (very fast)
+        cascade = get_haar_cascade()
+        if cascade is not None:
+            logger.info("Haar cascade pre-filter loaded successfully.")
+        else:
+            logger.warning("Haar cascade not available - pre-filter disabled (non-fatal)")
+        
+        # Create a small blank frame for MTCNN warmup
+        blank_frame = np.zeros((240, 320, 3), dtype=np.uint8)
+        detect_faces(blank_frame, use_precheck=False)  # Disable precheck for warmup
+        logger.info("MTCNN detector warmed up successfully.")
+    except Exception as e:
+        logger.warning("MTCNN warm-up failed (non-fatal): %s", e)
+
 _warmup_deepface()
+_warmup_mtcnn()
 
 
 def reload_embeddings() -> None:
@@ -87,10 +122,17 @@ def recognize_student(image_bytes: bytes) -> list:
     Returns an empty list when no face is detected.
     Returns [{"status": "error", ...}] on hard decode/recognition failures.
     """
+    import time
+    
+    t_func_start = time.perf_counter()
+    
     try:
         # Decode image bytes to BGR numpy array
+        t_decode_start = time.perf_counter()
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        t_decode_end = time.perf_counter()
+        
         if img is None:
             logger.error("Failed to decode image bytes with cv2.imdecode")
             return [{
@@ -102,23 +144,41 @@ def recognize_student(image_bytes: bytes) -> list:
                 "message"   : "Failed to decode image",
             }]
 
+        original_size = f"{img.shape[1]}x{img.shape[0]}"
+
         # Downscale if the frame is larger than 640px wide.
         # FaceNet operates on a 160×160 face crop, so anything beyond
         # ~640px wide wastes MTCNN inference time with no accuracy gain.
         # The frontend already resizes to 720px; this guard handles any
         # client that skips that step.
+        t_resize_start = time.perf_counter()
         MAX_WIDTH = 640
         h, w = img.shape[:2]
         if w > MAX_WIDTH:
             scale = MAX_WIDTH / w
             img = cv2.resize(img, (MAX_WIDTH, int(h * scale)),
                              interpolation=cv2.INTER_AREA)
+        resized_size = f"{img.shape[1]}x{img.shape[0]}"
+        t_resize_end = time.perf_counter()
+
+        logger.info(
+            f"[TIMING] recognize_student: "
+            f"decode={1000*(t_decode_end-t_decode_start):.1f}ms, "
+            f"resize={1000*(t_resize_end-t_resize_start):.1f}ms "
+            f"({original_size} → {resized_size})"
+        )
 
         # Perform recognition — returns list of recognized-face dicts
+        t_recognize_start = time.perf_counter()
         raw_results = recognize_face(img, _EMBEDDINGS)
+        t_recognize_end = time.perf_counter()
 
         # Empty list = no face detected or no face above threshold
         if not raw_results:
+            t_func_end = time.perf_counter()
+            logger.info(
+                f"[TIMING] recognize_student: TOTAL={1000*(t_func_end-t_func_start):.1f}ms (no faces)"
+            )
             return []
 
         # Hard error from recognizer (no embeddings loaded, etc.)
@@ -126,6 +186,7 @@ def recognize_student(image_bytes: bytes) -> list:
             return raw_results
 
         # Resolve face_label → DB student_id for each recognized hit
+        t_resolve_start = time.perf_counter()
         resolved = []
         for hit in raw_results:
             face_label = hit.get("student_id")   # recognizer stores label here
@@ -146,6 +207,16 @@ def recognize_student(image_bytes: bytes) -> list:
                     "Recognized face_label '%s' but no matching student found in DB",
                     face_label,
                 )
+        t_resolve_end = time.perf_counter()
+        
+        t_func_end = time.perf_counter()
+        logger.info(
+            f"[TIMING] recognize_student: "
+            f"recognize_face={1000*(t_recognize_end-t_recognize_start):.1f}ms, "
+            f"db_resolve={1000*(t_resolve_end-t_resolve_start):.1f}ms, "
+            f"TOTAL={1000*(t_func_end-t_func_start):.1f}ms, "
+            f"resolved={len(resolved)}/{len(raw_results)}"
+        )
 
         return resolved
 

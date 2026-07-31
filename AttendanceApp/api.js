@@ -1,5 +1,5 @@
 // UPDATE THIS to your PC's current IPv4 address (run `ipconfig` in terminal to find it)
-export const BASE_URL = 'http://192.168.1.67:5000';
+export const BASE_URL = 'http://10.200.29.106:5000';
 
 export const API = {
   login: `${BASE_URL}/api/auth/login`,

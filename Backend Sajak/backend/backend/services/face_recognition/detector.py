@@ -3,11 +3,16 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import cv2
 import numpy as np
+import time
+import logging
 from mtcnn import MTCNN
+
+logger = logging.getLogger(__name__)
 
 MIN_DETECTION_CONFIDENCE = 0.80
 
 _detector = None
+_haar_cascade = None
 
 def get_detector():
     global _detector
@@ -17,17 +22,173 @@ def get_detector():
     return _detector
 
 
-def detect_faces(frame_bgr):
+def get_haar_cascade():
+    """Load Haar cascade for fast pre-filtering (cheap face detection)."""
+    global _haar_cascade
+    
+    # Return cached result (None means unavailable, actual cascade object means available)
+    if _haar_cascade is not None:
+        return _haar_cascade if _haar_cascade is not False else None
+    
+    # First load attempt - check if OpenCV supports Haar cascades
+    try:
+        # Check if cv2.CascadeClassifier exists first
+        if not hasattr(cv2, 'CascadeClassifier'):
+            logger.warning("cv2.CascadeClassifier not available, pre-filter disabled")
+            _haar_cascade = False
+            return None
+        
+        # Check if cv2.data exists
+        if not hasattr(cv2, 'data'):
+            logger.warning("cv2.data not available, pre-filter disabled")
+            _haar_cascade = False
+            return None
+        
+        # Check if cv2.data.haarcascades exists
+        if not hasattr(cv2.data, 'haarcascades'):
+            logger.warning("cv2.data.haarcascades not available, pre-filter disabled")
+            _haar_cascade = False
+            return None
+        
+        # Try multiple common paths for Haar cascade
+        cascade_paths = [
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml',
+            '/usr/local/lib/python3.12/dist-packages/cv2/data/haarcascade_frontalface_default.xml',
+            'haarcascade_frontalface_default.xml',
+        ]
+        
+        for path in cascade_paths:
+            if os.path.exists(path):
+                _haar_cascade = cv2.CascadeClassifier(path)
+                if _haar_cascade.empty():
+                    continue
+                logger.info(f"Haar cascade loaded from: {path}")
+                return _haar_cascade
+        
+        # No valid cascade found
+        logger.warning("Haar cascade file not found, pre-filter will be disabled")
+        _haar_cascade = False
+        return None
+        
+    except (AttributeError, Exception) as e:
+        # OpenCV doesn't support Haar cascades in this build
+        logger.warning(f"Haar cascade unavailable ({type(e).__name__}), pre-filter disabled")
+        _haar_cascade = False
+        return None
+
+
+def fast_face_precheck(frame_bgr):
+    """
+    Fast pre-filter using Haar cascade to check if there's any face-like region.
+    
+    Returns:
+        bool: True if potential face found (run full MTCNN), False if empty (skip MTCNN)
+    
+    This is a cheap check (~5-20ms) that can save ~250-400ms of MTCNN time
+    when no one is in frame. Haar is prone to false positives (which is fine,
+    we'll catch them with MTCNN), but has very few false negatives.
+    """
+    # Check if cascade is available (only get it once at module level)
+    if _haar_cascade is False:
+        # Cascade unavailable - skip precheck, always run full MTCNN
+        return True
+    
+    cascade = get_haar_cascade()
+    
+    # If Haar cascade failed to load, always return True (fail-safe: run full pipeline)
+    if cascade is None:
+        return True
+    
+    t_start = time.perf_counter()
+    
+    # Convert to grayscale for Haar
+    gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+    
+    # Detect faces with Haar (very fast, not very accurate)
+    # Parameters tuned for speed over accuracy - we just need "any face-like blob"
+    faces = cascade.detectMultiScale(
+        gray,
+        scaleFactor=1.1,
+        minNeighbors=3,      # Lower = more false positives (good for pre-filter)
+        minSize=(40, 40),    # Smaller than MIN_FACE_WIDTH (60) to avoid missing faces
+        flags=cv2.CASCADE_SCALE_IMAGE
+    )
+    
+    t_end = time.perf_counter()
+    has_face = len(faces) > 0
+    
+    logger.info(
+        f"[TIMING] fast_face_precheck: "
+        f"{1000*(t_end-t_start):.1f}ms, "
+        f"result={'FACE_FOUND' if has_face else 'EMPTY'} "
+        f"(Haar detected {len(faces)} candidate(s))"
+    )
+    
+    return has_face
+
+
+def detect_faces(frame_bgr, use_precheck=True):
+    """
+    Detect faces in a frame using MTCNN, with optional fast pre-filter.
+    
+    Args:
+        frame_bgr: BGR image from camera
+        use_precheck: If True, run cheap Haar cascade first to skip MTCNN on empty frames
+    
+    Returns:
+        List of detection dicts from MTCNN, or empty list if no faces
+    """
     if frame_bgr is None or frame_bgr.size == 0:
         return []
     
+    t_start = time.perf_counter()
+    
+    # Step 1: Fast pre-check (optional, can be disabled for testing)
+    if use_precheck:
+        t_precheck_start = time.perf_counter()
+        has_candidate = fast_face_precheck(frame_bgr)
+        t_precheck_end = time.perf_counter()
+        
+        if not has_candidate:
+            # No face-like regions detected by Haar - skip expensive MTCNN
+            t_end = time.perf_counter()
+            logger.info(
+                f"[TIMING] detect_faces: SKIPPED MTCNN (precheck=EMPTY) | "
+                f"precheck={1000*(t_precheck_end-t_precheck_start):.1f}ms, "
+                f"total={1000*(t_end-t_start):.1f}ms | "
+                f"SAVED ~300ms by skipping MTCNN ✅"
+            )
+            return []
+    
     detector = get_detector()
+    
+    t_convert_start = time.perf_counter()
     frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    t_convert_end = time.perf_counter()
     
     try:
+        t_detect_start = time.perf_counter()
         results = detector.detect_faces(frame_rgb)
+        t_detect_end = time.perf_counter()
+        
         # Filter low confidence detections
-        return [r for r in results if r.get('confidence', 0) >= MIN_DETECTION_CONFIDENCE]
+        filtered = [r for r in results if r.get('confidence', 0) >= MIN_DETECTION_CONFIDENCE]
+        
+        t_end = time.perf_counter()
+        
+        precheck_time = f"precheck={1000*(t_precheck_end-t_precheck_start):.1f}ms, " if use_precheck else ""
+        
+        logger.info(
+            f"[TIMING] detect_faces: "
+            f"{precheck_time}"
+            f"BGR->RGB={1000*(t_convert_end-t_convert_start):.1f}ms, "
+            f"MTCNN_raw={1000*(t_detect_end-t_detect_start):.1f}ms, "
+            f"total={1000*(t_end-t_start):.1f}ms, "
+            f"faces_found={len(results)}, "
+            f"faces_filtered={len(filtered)} (conf>={MIN_DETECTION_CONFIDENCE})"
+        )
+        
+        return filtered
     except Exception as e:
         print(f"Detection error: {e}")
         return []
