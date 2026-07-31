@@ -122,6 +122,8 @@ def _auto_expire_stale_session(session: "Session") -> bool:
          on the *same date* the session started.  (Sessions that started on a
          different calendar day are always considered stale regardless of time.)
 
+    Sets ended_reason='auto_expired' when closing.
+
     Returns True if the session was closed (caller should commit), False if it
     is still within its valid window and should be resumed.
     """
@@ -155,6 +157,7 @@ def _auto_expire_stale_session(session: "Session") -> bool:
             hour=23, minute=59, second=59, microsecond=0
         )
         session.status = "CLOSED"
+        session.ended_reason = "auto_expired"
         return True
 
     # Session started today — only expire if past scheduled_end_time + grace
@@ -170,6 +173,7 @@ def _auto_expire_stale_session(session: "Session") -> bool:
             )
             session.end_time = end_dt.astimezone(timezone.utc)
             session.status = "CLOSED"
+            session.ended_reason = "auto_expired"
             return True
 
     # Still within valid window
@@ -186,6 +190,12 @@ def start_session():
       2. scheduled_date must be today (Nepal local time)
       3. Current time >= scheduled_time - SESSION_START_BUFFER_MINUTES
       4. Current time <= scheduled_end_time (if set)
+
+    Also blocks restarting a class that was manually ended earlier today.
+    If the teacher explicitly ended the session (ended_reason='manual'),
+    starting again on the same calendar day is forbidden. Auto-expired
+    sessions (ended_reason='auto_expired') may be restarted.
+
     Classes without a scheduled_date are unrestricted (backward compat).
     """
     data = request.get_json(silent=True)
@@ -258,19 +268,50 @@ def start_session():
                 200,
             )
 
+    # ── Manual-end block check ────────────────────────────────────────
+    # If this class was manually ended by a teacher earlier today, block
+    # starting a new session. Auto-expired sessions are allowed to restart
+    # (existing behavior preserved).
+    from flask import current_app
+    from zoneinfo import ZoneInfo
+
+    tz_name = current_app.config.get("SERVER_TIMEZONE", "Asia/Kathmandu")
+    tz = ZoneInfo(tz_name)
+    now_local = datetime.now(tz)
+    today_local = now_local.date()
+
+    # Query for any CLOSED session with ended_reason='manual' whose start_time
+    # falls on today's local date
+    manually_ended_today = Session.query.filter_by(
+        class_id=class_id,
+        status="CLOSED",
+        ended_reason="manual"
+    ).all()
+
+    for sess in manually_ended_today:
+        # Convert session start_time to local date
+        start_aware = sess.start_time
+        if start_aware.tzinfo is None:
+            start_aware = start_aware.replace(tzinfo=timezone.utc)
+        session_date_local = start_aware.astimezone(tz).date()
+
+        if session_date_local == today_local:
+            return (
+                jsonify({
+                    "error": (
+                        "This class was already ended earlier today and cannot be restarted. "
+                        "Contact an admin if you need to reopen it."
+                    ),
+                    "status": 403,
+                }),
+                403,
+            )
+
     # ── Schedule enforcement ──────────────────────────────────────────
     # Only enforced when a scheduled_date has been set by admin.
     # Classes with no scheduled_date are unrestricted (backward compat).
     if cls.scheduled_date is not None:
-        from flask import current_app
-        from zoneinfo import ZoneInfo
-
-        tz_name = current_app.config.get("SERVER_TIMEZONE", "Asia/Kathmandu")
         buffer_min = current_app.config.get("SESSION_START_BUFFER_MINUTES", _DEFAULT_BUFFER)
-        tz = ZoneInfo(tz_name)
-
-        now_local = datetime.now(tz)
-        today_local = now_local.date()
 
         # Check 1 — scheduled_time must also be set
         if cls.scheduled_time is None:
@@ -420,6 +461,7 @@ def end_session():
     summary = attendance_engine.calculate_all(session_id)
 
     session.status = "CLOSED"
+    session.ended_reason = "manual"
     db.session.commit()
 
     absent_records = AttendanceRecord.query.filter_by(

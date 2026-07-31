@@ -83,6 +83,8 @@ def create_app(config_class=Config) -> Flask:
         _migrations = [
             # users table
             "ALTER TABLE users ADD COLUMN platform VARCHAR(10)",
+            # sessions table — track why session ended
+            "ALTER TABLE sessions ADD COLUMN ended_reason VARCHAR(20)",
             # waiver_requests table — prior waiver support
             "ALTER TABLE waiver_requests ADD COLUMN waiver_type VARCHAR(20) NOT NULL DEFAULT 'retroactive'",
             "ALTER TABLE waiver_requests ADD COLUMN class_id INTEGER REFERENCES classes(class_id)",

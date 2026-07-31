@@ -18,6 +18,7 @@ class Session(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(10), nullable=False, default="ACTIVE")
     threshold_percent = db.Column(db.Float, nullable=True)
+    ended_reason = db.Column(db.String(20), nullable=True)  # 'manual' | 'auto_expired'
 
     # Relationships
     class_ = db.relationship("Class", back_populates="sessions")
@@ -39,5 +40,6 @@ class Session(db.Model):
             "end_time": utc_iso(self.end_time),
             "status": self.status,
             "threshold_percent": self.threshold_percent,
+            "ended_reason": self.ended_reason,
             "class_name": self.class_.class_name if self.class_ else None,
         }

@@ -170,6 +170,7 @@ export default function StartClassScreen({ navigation, route }) {
   const [loading, setLoading]                   = useState(false);
   const [statusIdx, setStatusIdx]               = useState(0);
   const [overlayEvent, setOverlayEvent]         = useState(null);
+  const [selectedMode, setSelectedMode]         = useState('Strict'); // UI only - not used in backend
 
   // ── Refs that need to be readable inside interval callbacks ───────────────
   const cameraRef          = useRef(null);
@@ -634,6 +635,33 @@ export default function StartClassScreen({ navigation, route }) {
           </View>
         </View>
 
+        {/* Mode Selector (UI only - backend always uses 'Strict') */}
+        {!isRunning && (
+          <View style={styles.modeCard}>
+            <Text style={styles.modeTitle}>Attendance Mode</Text>
+            <View style={styles.modeSelector}>
+              <TouchableOpacity 
+                style={selectedMode === 'Strict' ? styles.modeOptionSelected : styles.modeOption}
+                onPress={() => setSelectedMode('Strict')}
+                activeOpacity={0.7}
+              >
+                <Text style={selectedMode === 'Strict' ? styles.modeTextSelected : styles.modeText}>
+                  Strict
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={selectedMode === 'Activity' ? styles.modeOptionSelected : styles.modeOption}
+                onPress={() => setSelectedMode('Activity')}
+                activeOpacity={0.7}
+              >
+                <Text style={selectedMode === 'Activity' ? styles.modeTextSelected : styles.modeText}>
+                  Activity
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Start / End button */}
         {!isRunning ? (
           <TouchableOpacity style={styles.startBtn} onPress={handleStart} activeOpacity={0.85} disabled={loading}>
@@ -792,6 +820,36 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 22, fontWeight: '800', marginBottom: 3 },
   statLbl: { fontSize: 9, color: 'rgba(255,255,255,0.4)', fontWeight: '600' },
   statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 4 },
+
+  // Mode selector
+  modeCard: {
+    backgroundColor: '#1a1d30', borderRadius: 16, padding: 16, marginBottom: 14,
+  },
+  modeTitle: {
+    fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '600',
+    marginBottom: 10, textAlign: 'center',
+  },
+  modeSelector: {
+    flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 10, padding: 3, gap: 6,
+  },
+  modeOption: {
+    flex: 1, paddingVertical: 10, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  modeOptionSelected: {
+    flex: 1, paddingVertical: 10, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: BLUE,
+    shadowColor: BLUE, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 3,
+  },
+  modeText: {
+    fontSize: 14, color: 'rgba(255,255,255,0.4)', fontWeight: '700',
+  },
+  modeTextSelected: {
+    fontSize: 14, color: '#ffffff', fontWeight: '800',
+  },
 
   // Buttons
   startBtn: {
